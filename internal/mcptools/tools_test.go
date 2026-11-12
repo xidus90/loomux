@@ -175,11 +175,11 @@ func TestGraphToolsAreTheSevenInCanonicalOrder(t *testing.T) {
 	}
 }
 
-func TestFileApiRequiresScopeAndFileAndCarriesNoSchemaDefault(t *testing.T) {
+func TestFileApiRequiresFileAndCarriesNoSchemaDefault(t *testing.T) {
 	schema := graphSchemaOf(t, "graph_file_api")
 	required := schema["required"].([]any)
-	if len(required) != 2 || required[0] != "scope" || required[1] != "file" {
-		t.Errorf("required = %v, want [scope file]", required)
+	if len(required) != 1 || required[0] != "file" {
+		t.Errorf("required = %v, want [file]", required)
 	}
 	props := schema["properties"].(map[string]any)
 	for _, field := range []string{"scope", "file"} {
@@ -194,11 +194,11 @@ func TestFileApiRequiresScopeAndFileAndCarriesNoSchemaDefault(t *testing.T) {
 	}
 }
 
-func TestTraceCallsRequiresScopeAndSymbolAndCarriesNoSchemaDefault(t *testing.T) {
+func TestTraceCallsRequiresSymbolAndCarriesNoSchemaDefault(t *testing.T) {
 	schema := graphSchemaOf(t, "graph_trace_calls")
 	required := schema["required"].([]any)
-	if len(required) != 2 || required[0] != "scope" || required[1] != "symbol" {
-		t.Errorf("required = %v, want [scope symbol]", required)
+	if len(required) != 1 || required[0] != "symbol" {
+		t.Errorf("required = %v, want [symbol]", required)
 	}
 	props := schema["properties"].(map[string]any)
 	for _, field := range []string{"scope", "symbol", "direction", "depth", "in"} {
@@ -218,11 +218,11 @@ func TestTraceCallsRequiresScopeAndSymbolAndCarriesNoSchemaDefault(t *testing.T)
 	}
 }
 
-func TestFindAllRequiresScopeAndPatternAndCarriesNoSchemaDefault(t *testing.T) {
+func TestFindAllRequiresPatternAndCarriesNoSchemaDefault(t *testing.T) {
 	schema := graphSchemaOf(t, "graph_find_all")
 	required := schema["required"].([]any)
-	if len(required) != 2 || required[0] != "scope" || required[1] != "pattern" {
-		t.Errorf("required = %v, want [scope pattern]", required)
+	if len(required) != 1 || required[0] != "pattern" {
+		t.Errorf("required = %v, want [pattern]", required)
 	}
 	props := schema["properties"].(map[string]any)
 	for _, field := range []string{"scope", "pattern", "in", "ignore_case", "fixed"} {
@@ -237,11 +237,10 @@ func TestFindAllRequiresScopeAndPatternAndCarriesNoSchemaDefault(t *testing.T) {
 	}
 }
 
-func TestRepoMapRequiresScopeAndCarriesNoSchemaDefault(t *testing.T) {
+func TestRepoMapRequiresNothingAndCarriesNoSchemaDefault(t *testing.T) {
 	schema := graphSchemaOf(t, "graph_repo_map")
-	required := schema["required"].([]any)
-	if len(required) != 1 || required[0] != "scope" {
-		t.Errorf("required = %v, want [scope]", required)
+	if required, has := schema["required"]; has {
+		t.Errorf("required = %v, want none: the scope has a default", required)
 	}
 	props := schema["properties"].(map[string]any)
 	for _, field := range []string{"scope", "max_dirs"} {
@@ -256,11 +255,10 @@ func TestRepoMapRequiresScopeAndCarriesNoSchemaDefault(t *testing.T) {
 	}
 }
 
-func TestBlastRequiresScopeAndCarriesNoSchemaDefault(t *testing.T) {
+func TestBlastRequiresNothingAndCarriesNoSchemaDefault(t *testing.T) {
 	schema := graphSchemaOf(t, "graph_blast")
-	required := schema["required"].([]any)
-	if len(required) != 1 || required[0] != "scope" {
-		t.Errorf("required = %v, want [scope]", required)
+	if required, has := schema["required"]; has {
+		t.Errorf("required = %v, want none: the scope has a default", required)
 	}
 	props := schema["properties"].(map[string]any)
 	if len(props) != 3 {
@@ -306,11 +304,11 @@ func TestEveryToolNameIsValidMCP(t *testing.T) {
 	}
 }
 
-func TestFindCodeRequiresScopeAndQueryAndCarriesNoSchemaDefault(t *testing.T) {
+func TestFindCodeRequiresQueryAndCarriesNoSchemaDefault(t *testing.T) {
 	schema := graphSchemaOf(t, "graph_find_code")
 	required := schema["required"].([]any)
-	if len(required) != 2 || required[0] != "scope" || required[1] != "query" {
-		t.Errorf("required = %v, want [scope query]", required)
+	if len(required) != 1 || required[0] != "query" {
+		t.Errorf("required = %v, want [query]", required)
 	}
 	props := schema["properties"].(map[string]any)
 	for _, field := range []string{"scope", "query", "limit", "full", "in"} {
@@ -326,11 +324,10 @@ func TestFindCodeRequiresScopeAndQueryAndCarriesNoSchemaDefault(t *testing.T) {
 	}
 }
 
-func TestCheckFreshnessRequiresOnlyScope(t *testing.T) {
+func TestCheckFreshnessRequiresNothing(t *testing.T) {
 	schema := graphSchemaOf(t, "graph_check_freshness")
-	required := schema["required"].([]any)
-	if len(required) != 1 || required[0] != "scope" {
-		t.Errorf("required = %v, want [scope]", required)
+	if required, has := schema["required"]; has {
+		t.Errorf("required = %v, want none: the scope has a default", required)
 	}
 	if props := schema["properties"].(map[string]any); len(props) != 1 {
 		t.Errorf("properties = %v, want scope alone", props)
@@ -390,5 +387,17 @@ func TestForWithNoModuleIsEmptyNotNil(t *testing.T) {
 	none := mcptools.For(config.Modules{Hooks: true})
 	if none == nil || len(none) != 0 {
 		t.Fatalf("got %v, want an empty non-nil list", none)
+	}
+}
+
+// TestTheGraphScopeSaysWhatItDefaultsTo: a model that reads no default leaves
+// nothing out and guesses instead.
+func TestTheGraphScopeSaysWhatItDefaultsTo(t *testing.T) {
+	for _, tool := range mcptools.Graph() {
+		desc := graphSchemaOf(t, tool.Name)["properties"].(map[string]any)["scope"].(map[string]any)["description"].(string)
+		if !strings.Contains(desc, "defaults to the project this session runs in") ||
+			!strings.Contains(desc, "the only visible area") {
+			t.Errorf("%s: scope description %q names no default", tool.Name, desc)
+		}
 	}
 }

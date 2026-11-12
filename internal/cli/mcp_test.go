@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -194,6 +195,80 @@ func TestMcpRefusesARootWithoutAValue(t *testing.T) {
 	want := mcpUsage() + "\nloomux mcp: error: argument --root: expected one argument\n"
 	if code != 2 || out != "" || errOut != want {
 		t.Fatalf("code %d, out %q, err %q, want %q", code, out, errOut, want)
+	}
+}
+
+// nestedAreas registers a hub and a project inside it in a fresh state
+// directory, the project local_only when private is set, and hands back the
+// project's root.
+func nestedAreas(t *testing.T, private bool) string {
+	t.Helper()
+	hub := t.TempDir()
+	project := filepath.Join(hub, "proj")
+	writeFile(t, filepath.Join(hub, ".loomux", "config.toml"), "[area]\nscope = \"hub\"\n")
+	manifest := "[area]\nscope = \"project/proj\"\n"
+	if private {
+		manifest += "\n[privacy]\nmode = \"local_only\"\n"
+	}
+	writeFile(t, filepath.Join(project, ".loomux", "config.toml"), manifest)
+	if err := os.MkdirAll(filepath.Join(project, "internal"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	state := t.TempDir()
+	writeFile(t, filepath.Join(state, "registry.toml"),
+		"[[area]]\nscope = \"hub\"\npath = "+strconv.Quote(filepath.ToSlash(hub))+"\n\n"+
+			"[[area]]\nscope = \"project/proj\"\npath = "+strconv.Quote(filepath.ToSlash(project))+"\n")
+	t.Setenv(config.StateDirEnv, state)
+	return project
+}
+
+// TestMcpDefaultsTheScopeToTheInnermostAreaOfTheProject: the session runs in
+// the project, which lies inside the hub, so the project is what it means.
+func TestMcpDefaultsTheScopeToTheInnermostAreaOfTheProject(t *testing.T) {
+	project := nestedAreas(t, false)
+	seen := stubBridgeRun(t, nil)
+	t.Chdir(filepath.Join(project, "internal"))
+	for _, args := range [][]string{{"mcp"}, {"mcp", "--root", ".."}} {
+		if code, _, errOut := run(args...); code != 0 {
+			t.Fatalf("%v: code %d, err %q", args, code, errOut)
+		}
+		if seen.DefaultScope != "project/proj" {
+			t.Errorf("%v: default scope %q, want project/proj", args, seen.DefaultScope)
+		}
+	}
+}
+
+// TestMcpDefaultsToNoAreaTheChannelCannotSee: on the cloud channel the
+// local_only project does not exist. Its scope must not be filled in -- the
+// service's refusal would name it -- and neither may the hub be, whose tree
+// holds the project only as a hidden one.
+func TestMcpDefaultsToNoAreaTheChannelCannotSee(t *testing.T) {
+	project := nestedAreas(t, true)
+	seen := stubBridgeRun(t, nil)
+	if code, _, errOut := run("mcp", "--channel", "cloud", "--root", project); code != 0 {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	if seen.DefaultScope != "" {
+		t.Errorf("the cloud bridge defaults to %q", seen.DefaultScope)
+	}
+	if code, _, errOut := run("mcp", "--root", project); code != 0 || seen.DefaultScope != "project/proj" {
+		t.Errorf("local: code %d, err %q, default scope %q", code, errOut, seen.DefaultScope)
+	}
+}
+
+// TestMcpDefaultsToNothingOutsideEveryArea: a project nobody registered, and a
+// state directory without a registry, leave the scope to the caller.
+func TestMcpDefaultsToNothingOutsideEveryArea(t *testing.T) {
+	nestedAreas(t, false)
+	elsewhere := t.TempDir()
+	writeFile(t, filepath.Join(elsewhere, ".loomux", "config.toml"), "")
+	seen := stubBridgeRun(t, nil)
+	if code, _, errOut := run("mcp", "--root", elsewhere); code != 0 || seen.DefaultScope != "" {
+		t.Errorf("unregistered: code %d, err %q, default scope %q", code, errOut, seen.DefaultScope)
+	}
+	t.Setenv(config.StateDirEnv, t.TempDir())
+	if code, _, errOut := run("mcp", "--root", elsewhere); code != 0 || seen.DefaultScope != "" {
+		t.Errorf("no registry: code %d, err %q, default scope %q", code, errOut, seen.DefaultScope)
 	}
 }
 

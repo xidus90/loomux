@@ -1316,13 +1316,13 @@ weiter, Name zu Name und Argumente zu Argumenten.
 | `brain_read` | `scope` und `relative` (beide Pflicht), `section` |
 | `brain_neighbors` | `scope` und `relative` (beide Pflicht) |
 | `brain_status` | keine |
-| `graph_find_code` | `scope` und `query` (beide Pflicht), `limit` → 5, `full`, `in` |
-| `graph_check_freshness` | `scope` (Pflicht) |
-| `graph_file_api` | `scope` und `file` (beide Pflicht) |
-| `graph_trace_calls` | `scope` und `symbol` (beide Pflicht), `direction` ∈ {`in`, `out`} → `in`, `depth` → 1, `in` |
-| `graph_find_all` | `scope` und `pattern` (beide Pflicht), `in`, `ignore_case`, `fixed` |
-| `graph_repo_map` | `scope` (Pflicht), `max_dirs` → 16 |
-| `graph_blast` | `scope` (Pflicht), `base`, `depth` → 1 |
+| `graph_find_code` | `query` (Pflicht), `scope`, `limit` → 5, `full`, `in` |
+| `graph_check_freshness` | `scope` |
+| `graph_file_api` | `file` (Pflicht), `scope` |
+| `graph_trace_calls` | `symbol` (Pflicht), `scope`, `direction` ∈ {`in`, `out`} → `in`, `depth` → 1, `in` |
+| `graph_find_all` | `pattern` (Pflicht), `scope`, `in`, `ignore_case`, `fixed` |
+| `graph_repo_map` | `scope`, `max_dirs` → 16 |
+| `graph_blast` | `scope`, `base`, `depth` → 1 |
 
 `n` ist hier 10 und auf der Kommandozeile 5; das ist Parität mit der
 Python-Referenz, die es genauso hält, und keine Unstimmigkeit. `limit` ist hier
@@ -1334,6 +1334,17 @@ genau eines sichtbaren Scopes ist, nennt dieses Gebiet: `loomux` fragt
 `project/loomux`. Enden mehrere sichtbare Scopes darauf, bleibt der Aufruf
 `unknown scope` und nennt nur diese. Ein genauer Treffer gewinnt immer. Dasselbe
 gilt für `loomux brain` auf der Kommandozeile.
+
+Die `graph_*`-Werkzeuge brauchen kein `scope`. Nennt ein Aufruf keinen oder
+einen leeren, setzt `loomux mcp` das Gebiet seines Projekts ein: das innerste
+registrierte Gebiet, das `--root` enthält, sonst das Projekt über dem
+Arbeitsverzeichnis. Die Registry liest es einmal beim Start, und ein Scope, den
+der Aufrufer nennt, bleibt, wie er ist. Infrage kommt nur ein Gebiet, das der
+Kanal der Bridge sieht: Auf dem Cloud-Kanal bekommt ein Projekt in einem
+`local_only`-Baum keine Vorgabe. Ohne sie nimmt der Dienst das einzige Gebiet,
+das der Kanal sieht; bei mehreren lehnt er mit
+`<tool> requires a scope; known scopes are: …` ab und nennt nur die sichtbaren
+Scopes.
 
 Die sieben `graph_*`-Werkzeuge operieren über das Repository eines registrierten Bereichs:
 

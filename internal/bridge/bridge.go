@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,6 +36,10 @@ type Options struct {
 	// than an empty list as the default, so a caller that forgets the field
 	// gets the old behaviour instead of a server with no tools.
 	Tools []*mcp.Tool
+	// DefaultScope is the area a graph_* call asks when it names none: the
+	// project this bridge serves, as the command line found it among the
+	// areas its channel sees. Empty fills in nothing.
+	DefaultScope string
 }
 
 // transport is the host's connection, stdio unless a caller named one.
@@ -157,7 +162,8 @@ func (b *bridge) forward(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Ca
 	if err != nil {
 		return nil, outage(err)
 	}
-	res, err := session.CallTool(ctx, downwards(req))
+	params := downwards(req, b.opts.DefaultScope)
+	res, err := session.CallTool(ctx, params)
 	if err == nil {
 		return res, nil
 	}
@@ -177,7 +183,7 @@ func (b *bridge) forward(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Ca
 	if err != nil {
 		return nil, outage(err)
 	}
-	res, err = session.CallTool(ctx, downwards(req))
+	res, err = session.CallTool(ctx, params)
 	if err != nil {
 		return nil, outage(err)
 	}
@@ -221,15 +227,40 @@ func (b *bridge) untilTheHostIsGone(ctx context.Context) (context.Context, func(
 // downwards is the host's call as it goes on. Meta travels with it, and the
 // progress token sits in Meta: without it the warming hint dies here.
 //
-// The arguments are passed on as the bytes that arrived. The bridge does not
-// know what they mean, and anything it did to them would be the second core
-// this layer must not be.
-func downwards(req *mcp.CallToolRequest) *mcp.CallToolParams {
+// The arguments are passed on as the bytes that arrived, with one exception:
+// a graph_* call that names no scope gets defaultScope. Which area that is and
+// whether the caller may see it was settled once, at start; what the scope
+// means stays the service's business.
+func downwards(req *mcp.CallToolRequest, defaultScope string) *mcp.CallToolParams {
 	return &mcp.CallToolParams{
 		Meta:      req.Params.Meta,
 		Name:      req.Params.Name,
-		Arguments: json.RawMessage(req.Params.Arguments),
+		Arguments: withScope(req.Params.Name, req.Params.Arguments, defaultScope),
 	}
+}
+
+// withScope is args with scope set, for a graph tool whose scope is absent,
+// null or empty. Anything else -- another tool, a scope the caller gave,
+// arguments that are no object -- goes on as it came.
+func withScope(tool string, args json.RawMessage, scope string) json.RawMessage {
+	if scope == "" || !strings.HasPrefix(tool, "graph_") {
+		return args
+	}
+	var fields map[string]json.RawMessage
+	if len(args) > 0 && json.Unmarshal(args, &fields) != nil {
+		return args
+	}
+	var given string
+	if json.Unmarshal(fields["scope"], &given) == nil && given != "" {
+		return args
+	}
+	if fields == nil {
+		fields = map[string]json.RawMessage{}
+	}
+	// Neither can fail: a string, and values that just parsed.
+	fields["scope"], _ = json.Marshal(scope)
+	filled, _ := json.Marshal(fields)
+	return filled
 }
 
 // outage says what a human can do about it. It is never an empty result: that

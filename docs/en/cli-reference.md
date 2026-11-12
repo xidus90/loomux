@@ -1370,13 +1370,13 @@ address, name to name and arguments to arguments.
 | `brain_read` | `scope` and `relative` (both required), `section` |
 | `brain_neighbors` | `scope` and `relative` (both required) |
 | `brain_status` | none |
-| `graph_find_code` | `scope` and `query` (both required), `limit` → 5, `full`, `in` |
-| `graph_check_freshness` | `scope` (required) |
-| `graph_file_api` | `scope` and `file` (both required) |
-| `graph_trace_calls` | `scope` and `symbol` (both required), `direction` ∈ {`in`, `out`} → `in`, `depth` → 1, `in` |
-| `graph_find_all` | `scope` and `pattern` (both required), `in`, `ignore_case`, `fixed` |
-| `graph_repo_map` | `scope` (required), `max_dirs` → 16 |
-| `graph_blast` | `scope` (required), `base`, `depth` → 1 |
+| `graph_find_code` | `query` (required), `scope`, `limit` → 5, `full`, `in` |
+| `graph_check_freshness` | `scope` |
+| `graph_file_api` | `file` (required), `scope` |
+| `graph_trace_calls` | `symbol` (required), `scope`, `direction` ∈ {`in`, `out`} → `in`, `depth` → 1, `in` |
+| `graph_find_all` | `pattern` (required), `scope`, `in`, `ignore_case`, `fixed` |
+| `graph_repo_map` | `scope`, `max_dirs` → 16 |
+| `graph_blast` | `scope`, `base`, `depth` → 1 |
 
 `n` is 10 here and 5 on the command line; that is parity with the Python
 reference, which does the same, not an inconsistency. `limit` is 5 here and 8
@@ -1387,6 +1387,15 @@ that names none exactly but is the last segment of exactly one visible scope
 names that area: `loomux` asks `project/loomux`. If several visible scopes end
 in it, the call stays `unknown scope` and lists only those. An exact match
 always wins. The same holds for `loomux brain` on the command line.
+
+The `graph_*` tools need no `scope`. When a call names none, or an empty one,
+`loomux mcp` fills in the area of its project: the innermost registered area
+that holds `--root`, or the project found above the working directory. It
+reads the registry once at start, and a scope the caller gives stays as it is.
+Only an area the bridge's channel sees qualifies: on the cloud channel a
+project inside a `local_only` tree gets no default. Without one, the service
+takes the only area the channel sees; with several it refuses with
+`<tool> requires a scope; known scopes are: …`, naming the visible scopes only.
 
 The seven `graph_*` tools operate over the repository of one registered area:
 
