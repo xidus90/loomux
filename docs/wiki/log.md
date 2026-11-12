@@ -7,6 +7,12 @@
 ## 2026-11-12
 
 - 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
+  unverändert: `docs/de/cli-reference.md` hält fest, dass `scope` der
+  MCP-Werkzeuge und von `loomux brain` auch das letzte Segment genau eines
+  sichtbaren Scopes annimmt (`loomux` für `project/loomux`); keine
+  zitierende Seite sagt etwas über die Auflösung eines Scopes. Quelle:
+  `internal/brain/privacy/areas.go`.
+- 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
   unverändert: `docs/de/cli-reference.md` hält fest, welchen Treffer
   `graph callers` und `graph_trace_calls` bei mehreren nehmen (exakte
   Schreibweise vor Groß-/Kleinschreibung, Nicht-Test vor Test); keine

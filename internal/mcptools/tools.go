@@ -81,12 +81,12 @@ func For(m config.Modules) []*mcp.Tool {
 func build() {
 	scope := map[string]any{
 		"type":        "string",
-		"description": "area to ask, or 'all'",
+		"description": "area to ask, or 'all'; a unique last segment names its area ('loomux' for 'project/loomux')",
 	}
 	relative := map[string]any{"type": "string"}
 	// One area, never "all": a graph belongs to one repository, and answering
 	// across several is federation, which this stage does not have.
-	areaScope := map[string]any{"type": "string", "description": "the registered area whose code to ask"}
+	areaScope := map[string]any{"type": "string", "description": "the registered area whose code to ask; a unique last segment names it ('loomux' for 'project/loomux')"}
 	tools = []*mcp.Tool{
 		{
 			Name:        "brain_search",

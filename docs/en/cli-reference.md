@@ -1381,6 +1381,12 @@ address, name to name and arguments to arguments.
 reference, which does the same, not an inconsistency. `limit` is 5 here and 8
 for `loomux graph ask`.
 
+`scope` names a registered area by its full scope (`project/loomux`). A value
+that names none exactly but is the last segment of exactly one visible scope
+names that area: `loomux` asks `project/loomux`. If several visible scopes end
+in it, the call stays `unknown scope` and lists only those. An exact match
+always wins. The same holds for `loomux brain` on the command line.
+
 The seven `graph_*` tools operate over the repository of one registered area:
 
 - **`graph_find_code`** always inlines the source at each hit; `full` takes

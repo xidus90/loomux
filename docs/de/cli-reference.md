@@ -1327,6 +1327,13 @@ weiter, Name zu Name und Argumente zu Argumenten.
 Python-Referenz, die es genauso hält, und keine Unstimmigkeit. `limit` ist hier
 5 und bei `loomux graph ask` 8.
 
+`scope` nennt ein registriertes Gebiet bei seinem vollen Scope
+(`project/loomux`). Ein Wert, der keinen genau trifft, aber das letzte Segment
+genau eines sichtbaren Scopes ist, nennt dieses Gebiet: `loomux` fragt
+`project/loomux`. Enden mehrere sichtbare Scopes darauf, bleibt der Aufruf
+`unknown scope` und nennt nur diese. Ein genauer Treffer gewinnt immer. Dasselbe
+gilt für `loomux brain` auf der Kommandozeile.
+
 Die sieben `graph_*`-Werkzeuge operieren über das Repository eines registrierten Bereichs:
 
 - **`graph_find_code`** fügt den Quelltext an jedem Treffer immer ein; `full`
