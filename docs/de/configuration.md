@@ -238,16 +238,25 @@ Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
 
 - **Wo ein Stack läuft.** Die Erkennung liest das Wurzelverzeichnis und eine
   Ebene darunter (`go.mod`, `pyproject.toml`, `CMakeLists.txt`,
-  `tsconfig.json` neben `package.json`, `project.godot`, `Cargo.toml`,
-  `*.sh`, …). Jedes Verzeichnis, in dem ein Stack gefunden wurde, ist ein
-  **Bereich**: `.` für die Wurzel, sonst das Verzeichnis der obersten Ebene.
+  `tsconfig.json` neben `package.json`, `package.json` über einer
+  JavaScript- oder TypeScript-Datei, die weder Werkzeugkonfiguration daneben
+  ist noch in einem verschachtelten Paket liegt, `project.godot`, `Cargo.toml`,
+  `*.sh`, …), dazu jedes Mitglied, das ein JavaScript-Workspace deklariert,
+  in jeder Tiefe: die Muster von `workspaces` in der `package.json` der
+  Wurzel (auch Yarns `{"packages": […]}`) und von `packages` in
+  `pnpm-workspace.yaml`, ein führendes `!` schließt aus, je ein Verzeichnis
+  mit `package.json` (`**` gilt als `*`, eine Ebene). Eine solche
+  Deklaration beantwortet die Frage zur `package.json` der Wurzel. Jedes
+  Verzeichnis, in dem ein Stack gefunden wurde, ist ein **Bereich**: `.` für
+  die Wurzel, sonst das Verzeichnis der obersten Ebene oder das Mitglied.
   Zwei Bereiche ergeben zwei Lanes (`lint/typescript@admin`,
   `lint/typescript@web`), jede läuft in ihrem Bereich. Einen Override je
   Bereich gibt es nicht.
 - **Ein konfigurierter Stack gilt als erkannt.** Ein `[verify.<stack>]`, das
   mindestens einer Art einen Befehl gibt, läuft im Wurzelverzeichnis, auch wo
   die Erkennung nichts fand.
-- `.js` und `.jsx` gehören zu `typescript`; `javascript` gibt es nicht.
+- `.js`, `.mjs`, `.cjs` und `.jsx` gehören zu `typescript`, ebenso `.ts`,
+  `.mts`, `.cts` und `.tsx`; `javascript` gibt es nicht.
   Godot-Code heißt `gdscript`.
 - `wiki` kennt nur `lint = false`; das schaltet beide Wiki-Lanes ab, die im
   eigenen Prozess von loomux laufen: den Lint der bearbeiteten Seite im
@@ -291,7 +300,7 @@ Die Schlüssel der Tabellenform:
 | `measure` | String | Nur `test`/`coverage`. Der eine Befehl, den `coverage` zuerst fährt, wenn sein Vorgänger nicht im Lauf steht. |
 | `after` | Art | Nur `test`/`coverage`. Die Art desselben Stacks, auf die diese Lane wartet. Zyklen sind Ladefehler, die Meldung nennt den Ring. |
 | `needs` | Liste | Dateien, relativ zum Verzeichnis der Lane und darin, ohne die ihre `commands` nichts bedeuten. Fehlt eine, ist die Lane `unready`: im Edit übersprungen und genannt, im Check rot. `on_file` bewachen sie nicht: ein Edit, der die Form einer Lane für eine Datei ausführt, führt sie in jedem Fall aus. |
-| `when_found` | Liste | Muster in der Form von `tests_when`; jedes muss unter dem Verzeichnis der Lane gefunden werden, sonst ist die Lane `unavailable` (`none found: <Muster>`). Ein Muster mit einem Schrägstrich darin, ohne `:`, nennt einen Pfad unter dem Verzeichnis der Lane, auch in einem Verzeichnis, das die Testsuche überspringt (`vendor/bin/phpunit`). Ein fehlender Pfad streicht nur die Befehle, die ihn nennen, solange andere bleiben; nennen ihn alle oder keiner, ist die Lane `unavailable`. Wird vor `needs` und `{godot}` geprüft. |
+| `when_found` | Liste | Muster in der Form von `tests_when`; jedes muss unter dem Verzeichnis der Lane gefunden werden, sonst ist die Lane `unavailable` (`none found: <Muster>`). Ein Muster mit einem Schrägstrich darin, ohne `:`, nennt einen Pfad unter dem Verzeichnis der Lane, auch in einem Verzeichnis, das die Testsuche überspringt (`vendor/bin/phpunit`). Ein Pfad in `node_modules/` und ein Muster `package.json:<Text>` werden zusätzlich in jedem Verzeichnis über dem der Lane bis zur Wurzel gesucht, so wie Node sie auflöst: Ein Workspace hebt die Werkzeuge seiner Mitglieder ins `node_modules` der Wurzel; für `package.json:<Text>` zählt dort nur die `package.json` des Verzeichnisses selbst. Ein fehlender Pfad streicht nur die Befehle, die ihn nennen, solange andere bleiben; nennen ihn alle oder keiner, ist die Lane `unavailable`. Wird vor `needs` und `{godot}` geprüft. |
 | `skip_when_only` | Liste | Globs, relativ zur Repository-Wurzel und in der Syntax von `[policy.paths]`, von Pfaden, um die sich die Lane nicht kümmert. Bei einem Commit (im pre-commit-Hook, wo git `GIT_INDEX_FILE` mitgibt) und an einem Turn-Ende (gegen den zuletzt grünen Baum, ohne einen solchen gegen den Baum der Basis; hat ein Commit im Turn HEAD bewegt und läuft am Turn-Ende die Graph-Lane, zählen auch die Pfade, die dieser Commit seit dem Commit der Basis mitnahm) ist eine Lane, deren geänderte Pfade alle auf einen davon passen, `not-applicable` mit der Notiz `only skip_when_only paths changed (…)`. Eine Lane, die ihre Dateien liest (wie das `coverage` von Go die Coverage-Datei, die `test` schreibt), erbt das; so hält `[verify.go.test] skip_when_only` `coverage` davon ab, die Suite selbst zu messen; eine Lane, die nur danach geordnet ist (`after` allein), läuft. Ein Lauf, der nur `coverage` anfragt, braucht den Schlüssel an `coverage`. Ohne geänderten Pfad, von Hand (`loomux check` ohne den Hook) und in einem Edit läuft jede Lane. Der Abgleich unterscheidet Groß- und Kleinschreibung; ein Pfad, der sich nur darin unterscheidet, lässt die Lane laufen. |
 | `lock` | Boolean | Nimmt Stack und Area der Lane in diesem Checkout für sich, solange ihre Prozesse laufen, `measure` eingeschlossen: ein zweiter Lauf einer Lane, die ebenfalls `lock = true` für denselben Stack und dieselbe Area setzt, wartet, belegt dabei keinen `max_parallel`-Platz und gibt `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)` aus; eine Lane ohne `lock` sieht die Sperre nicht an. Lanes desselben Stacks und derselben Area im selben Lauf kommen ebenso nacheinander dran und sagen `held by another lane of this run`. An einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget und endet als `budget`; in `loomux check` und im pre-commit-Tor endet sie nach `[verify].timeout` als `timed-out`. Die Sperre ist die des Betriebssystems, unter `.loomux/state/locks/`, und ein toter Halter gibt sie frei. Bei `csharp` ist es eine Sperre für alle Areas des Repos: Ein Testprojekt baut das Projekt, auf das es verweist, in dessen `obj/` und `bin/`. Für Werkzeuge, die Quellen umschreiben, während sie messen. |
 
@@ -370,12 +379,15 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 **Variante**, deren Signal die Erkennung fand, dann `[verify.<stack>]`. Jeder
 Bereich wählt seine Variante aus den Signalen, die in ihm oder in der Wurzel
 gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
+Eine später gefundene Variante gilt dort, wo sie keine Art formt, die eine
+frühere gewonnen hat (`biome` für `lint` neben `jest` für `test` und
+`coverage`); eine Variante, die keine Art formt, wie `maven`, gewinnt alle.
 
 | Stack | `lint` | `types` | `test` | `coverage` |
 |---|---|---|---|---|
 | go | `go vet ./...`, `{loomux} check gofmt .` (parallel) | — | `go test ./... -count=1` | `{loomux} check gocover --profile {coverprofile}` |
 | python | `uvx ruff check . --output-format=concise` | `uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore .`; mit `pyright`: `uv run pyright`; mit `mypy`: `uv run mypy --no-error-summary --no-pretty` | `uv run --with pytest pytest -q --tb=short --no-header` | `uv run --with coverage coverage report --skip-covered --skip-empty -m` |
-| typescript | `npx eslint .`; mit `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run` | `npx vitest run --coverage` |
+| typescript | `npx eslint .`; mit `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run`; mit `jest`: `npx jest --ci` | `{loomux} check linecov --report coverage/lcov.info`, gemessen von `npx vitest run --coverage --coverage.reporter=lcov`; mit `jest`: von `npx jest --ci --coverage --coverageReporters=lcov` |
 | vue | — | `npx vue-tsc --noEmit` | — | — |
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
@@ -528,7 +540,34 @@ gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
   liest; den Umfang gibt `<source>` in `phpunit.xml` vor. Ein `composer.json`
   in der Wurzel macht die Wurzel zum einzigen `php`-Bereich: Sein `vendor/`
   dient den Paketen darunter.
-- **Messen.** `test` misst nur, wenn `coverage` im selben Lauf steht (go:
+- Die typescript-Lanes, auch die für JavaScript, warten auf die Werkzeuge
+  des Projekts in einem `node_modules` des Bereichs oder eines Verzeichnisses
+  darüber bis zur Wurzel, wo auch `npx` sie findet (ein Workspace hebt die
+  Werkzeuge seiner Mitglieder in die Wurzel, die dann in deren Version
+  laufen): Jede nennt ihr Werkzeug unter
+  `node_modules/.bin/` in `when_found` (die Variante `biome` nennt `biome`),
+  denn ohne Terminal beantwortet `npx` seine Installationsfrage selbst und
+  lädt die neueste Version ungepinnt nach. Vor `npm install` sind sie
+  `unavailable`, nicht rot, und Graph und Regeln laufen trotzdem. Yarn
+  Plug'n'Play hat kein `node_modules`, dort bleiben sie dauerhaft
+  `unavailable`. `types` braucht
+  zusätzlich eine `tsconfig.json` im Bereich selbst (`./tsconfig.json`: tsc
+  sucht sie von dort aufwärts) und `coverage`
+  `@vitest/coverage-v8`; ohne das Paket läuft `test` ungemessen. Coverage ist der
+  lcov-Bericht von vitest über `check linecov`; vitest hält seine
+  Einstellungen im Code, also werden Dateien, die im Bericht fehlen, nicht
+  geprüft.
+- Die Variante `jest` (`"jest"` in einer `package.json` oder eine
+  `jest.config.*`, im Bereich oder in der Wurzel) ersetzt vitest in `test` und
+  `coverage`, so wie `gradle` Maven ersetzt: `npx jest --ci` (ein fehlender
+  Snapshot schlägt fehl, statt geschrieben zu werden), gemessen mit
+  `--coverage --coverageReporters=lcov`, und beide warten auf
+  `node_modules/.bin/jest`. `check linecov` liest `coverage/lcov.info`; der
+  Standard-Provider von Jest beachtet `istanbul ignore`, das das Profil
+  `nyc` liest. Stehen vitest und Jest nebeneinander, gewinnt Jest. Mocha und
+  `node --test` bekommen keine Test-Lane.
+- **Messen.** `test` misst nur, wenn `coverage` im selben Lauf steht und
+  gefunden wird, was das `when_found` von `coverage` nennt (go:
   `-covermode=set -coverprofile={coverprofile}`, python:
   `uv run --with coverage --with pytest coverage run -m pytest …`); allein bleibt es der schnelle Weg.
   `coverage` läuft `after = "test"`, wartet aber nur dann auf `test`, wenn die
@@ -558,7 +597,7 @@ gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset haben Go, Python, GDScript, C#, C++, Java und PHP, mit denselben Befehlen:
+erreicht. Ein Preset haben Go, Python, GDScript, C#, C++, Java, PHP und TypeScript, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
@@ -593,7 +632,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   Graph-Befehl führt ihn nur der ranghöchste aus: in einem
   Repository mit Go und Python läuft `graph/go`, und `graph/python` ist
   `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Der
-  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp`, `java` und `php`; ein Stack außerhalb dieser
+  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp`, `java`, `php` und `typescript`; ein Stack außerhalb dieser
   Liste folgt ihnen in Byte-Reihenfolge. In einem Repository mit einem
   Godot-Projekt neben Go oder Python trägt deren Lane, und `graph/gdscript`
   ist `not-applicable` („graph covered by graph/go“ oder „graph/python“); `graph/gdscript` trägt
@@ -645,7 +684,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   geprüft.
 - **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
   zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, `gdscript`, `csharp`,
-  `cpp`, `java` und `php`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
+  `cpp`, `java`, `php` und `typescript`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
   Godot-Projekt, `[verify.python.graph]` in einem Python-Repository ohne Go
   und `[verify.gdscript.graph]` nur in einem Godot-Projekt mit keinem von
   beiden (und so weiter die Rangfolge hinunter). Eine Überschreibung unter einem Stack, der zurücktritt, wird nie
@@ -687,7 +726,7 @@ Profil `edit` läuft also nie durch den Baum.
 | cpp | `enable_testing(` in `CMakeLists.txt` |
 | java | eine Datei `*Test.java`, `*Tests.java`, `Test*.java` oder `*TestCase.java` |
 | php | eine Datei `*Test.php` |
-| typescript | `vitest` in `package.json` |
+| typescript | eine Datei `*.test.*` oder `*.spec.*` oder ein Verzeichnis `__tests__/` (was vitest und Jest von sich aus finden; ein Runner ohne Test schlägt fehl). Welcher Runner läuft, entscheidet der Wächter der Lane: vitest braucht `vitest` in einer `package.json` des Bereichs oder eines Verzeichnisses darüber bis zur Wurzel (die Wurzel eines Workspaces deklariert die Abhängigkeiten ihrer Mitglieder), Jest seine Variante |
 
 - Keine Tests: `test` und `coverage` sind `unavailable`.
 - Ein `[verify.<stack>].test`, das den Befehl hinschreibt, übergeht die Suche:

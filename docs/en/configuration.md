@@ -240,14 +240,22 @@ nothing changes: the lane is not planned and `--show` prints no row for it.
 
 - **Where a stack runs.** Detection reads the root and one level below it
   (`go.mod`, `pyproject.toml`, `CMakeLists.txt`, `tsconfig.json` beside
-  `package.json`, `project.godot`, `Cargo.toml`, `*.sh`, …). Each directory in
-  which a stack was found is an **area**: `.` for the root, else the
-  top-level directory. Two areas give two lanes (`lint/typescript@admin`,
+  `package.json`, `package.json` above a JavaScript or TypeScript file that
+  is neither tooling configuration at its side nor in a nested package,
+  `project.godot`, `Cargo.toml`, `*.sh`, …), and also every member a
+  JavaScript workspace declares, at any depth: the patterns of `workspaces`
+  in the root's `package.json` (also Yarn's `{"packages": […]}`) and of
+  `packages` in `pnpm-workspace.yaml`, a leading `!` excluding, each
+  directory with a `package.json` (`**` reads as `*`, one level). Such a
+  declaration answers the question about the root's `package.json`. Each
+  directory in which a stack was found is an **area**: `.` for the root,
+  else the top-level directory or the member. Two areas give two lanes (`lint/typescript@admin`,
   `lint/typescript@web`), each run in its area. There is no override per area.
 - **A configured stack counts as detected.** A `[verify.<stack>]` that gives
   at least one kind a command runs in the root, even where detection found
   nothing.
-- `.js` and `.jsx` belong to `typescript`; there is no `javascript`. Godot
+- `.js`, `.mjs`, `.cjs` and `.jsx` belong to `typescript`, as do `.ts`,
+  `.mts`, `.cts` and `.tsx`; there is no `javascript`. Godot
   code is `gdscript`.
 - `wiki` knows only `lint = false`, which switches off both wiki lanes that
   run in loomux's own process: the lint of the edited page in the post-edit
@@ -291,7 +299,7 @@ The keys of the table form:
 | `measure` | string | `test`/`coverage` only. The one command `coverage` runs first when its predecessor is not in the run. |
 | `after` | kind | `test`/`coverage` only. The kind of the same stack this lane waits for. Cycles are load errors that name the ring. |
 | `needs` | list | Files, relative to the lane's directory and inside it, the lane's `commands` cannot mean anything without. A missing one makes the lane `unready`: skipped and named in an edit, red in a check. They do not guard `on_file`: an edit that runs a lane's form for one file runs it either way. |
-| `when_found` | list | Patterns in the form of `tests_when`; each must be found under the lane's directory, or the lane is `unavailable` (`none found: <pattern>`). A pattern with a slash inside, without `:`, names one path below the lane's directory, also in a directory the test search skips (`vendor/bin/phpunit`). A missing path drops only the commands that name it where others remain; where it is named by all of them or by none, the lane is `unavailable`. Checked before `needs` and `{godot}`. |
+| `when_found` | list | Patterns in the form of `tests_when`; each must be found under the lane's directory, or the lane is `unavailable` (`none found: <pattern>`). A pattern with a slash inside, without `:`, names one path below the lane's directory, also in a directory the test search skips (`vendor/bin/phpunit`). A path in `node_modules/` and a pattern `package.json:<text>` are also looked for in each directory above the lane's up to the root, as Node resolves them: a workspace hoists its members' tools into the root's `node_modules`; for `package.json:<text>` only the `package.json` of each of those directories counts. A missing path drops only the commands that name it where others remain; where it is named by all of them or by none, the lane is `unavailable`. Checked before `needs` and `{godot}`. |
 | `skip_when_only` | list | Globs, relative to the repository root and in the syntax of `[policy.paths]`, of paths the lane does not care about. At a commit (inside the pre-commit hook, where git hands in `GIT_INDEX_FILE`) and at a turn end (against the last green tree, or against the base's tree when there is none; where a commit inside the turn moved HEAD and the turn end runs the graph lane, the paths that commit took since the base's commit count too), a lane whose every changed path matches one of them is `not-applicable` with the note `only skip_when_only paths changed (…)`. A lane that reads its files (as Go's `coverage` reads the coverage file `test` writes) inherits that, so `[verify.go.test] skip_when_only` keeps `coverage` from measuring the suite itself; one that only orders after it (`after` alone) runs; a run that asks for `coverage` alone needs the key on `coverage`. With no changed path, by hand (`loomux check` without the hook) and in an edit every lane runs. Matching is case-sensitive; a path that differs only in case runs the lane. |
 | `lock` | boolean | Take the lane's stack and area for itself in this checkout while its processes run, `measure` included: one locked lane binds every lane of its stack in that area, so a lint waits for a suite that rewrites the sources it reads; `lock = false` on one lane does not exempt it while another lane of the stack sets `lock = true`, and the root lanes (`graph`, `rules`) stay outside. A second run of such a lane for the same stack and area waits, holding no `max_parallel` slot, and prints `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)`. Lanes of one stack and area in the same run take turns the same way, and say `held by another lane of this run`. At a turn end and in an edit the wait counts against the budget and ends as `budget`; in `loomux check` and the pre-commit gate it ends after `[verify].timeout` as `timed-out`. The lock is the operating system's, under `.loomux/state/locks/`, and a dead holder lets it go. For `csharp` it is one lock for every area of the repository: a test project builds the project it references into that project's `obj/` and `bin/`. For tools that rewrite sources while they measure. |
 
@@ -363,13 +371,16 @@ The presets are embedded in the binary (`internal/verify/presets.toml`) and
 use the schema above, so a preset can say nothing a project could not. The
 layers are: preset, then the first **variant** whose signal detection found,
 then `[verify.<stack>]`. Each area chooses its variant from the signals found
-in it or in the root; a signal in another area has no say there.
+in it or in the root; a signal in another area has no say there. A later
+variant found too applies where it shapes no kind an earlier one won
+(`biome` for `lint` beside `jest` for `test` and `coverage`); a variant that
+shapes no kind, such as `maven`, wins them all.
 
 | Stack | `lint` | `types` | `test` | `coverage` |
 |---|---|---|---|---|
 | go | `go vet ./...`, `{loomux} check gofmt .` (threaded) | — | `go test ./... -count=1` | `{loomux} check gocover --profile {coverprofile}` |
 | python | `uvx ruff check . --output-format=concise` | `uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore .`; with `pyright`: `uv run pyright`; with `mypy`: `uv run mypy --no-error-summary --no-pretty` | `uv run --with pytest pytest -q --tb=short --no-header` | `uv run --with coverage coverage report --skip-covered --skip-empty -m` |
-| typescript | `npx eslint .`; with `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run` | `npx vitest run --coverage` |
+| typescript | `npx eslint .`; with `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run`; with `jest`: `npx jest --ci` | `{loomux} check linecov --report coverage/lcov.info`, measured by `npx vitest run --coverage --coverage.reporter=lcov`; with `jest`: by `npx jest --ci --coverage --coverageReporters=lcov` |
 | vue | — | `npx vue-tsc --noEmit` | — | — |
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
@@ -404,7 +415,7 @@ in it or in the root; a signal in another area has no say there.
   `excluded_directories` in `.gdlintrc` (gdtoolkit 3.2.8 and later) and in
   `.gdformatrc` (4.3.0 and later). Both files are YAML; a directory is matched
   by name at any depth, and only `.git` is excluded by default.
-- Go, Python, GDScript, C#, C++, Java and PHP carry a `rules` lane, the same in each:
+- Go, Python, GDScript, C#, C++, Java, PHP and TypeScript carry a `rules` lane, the same in each:
   `{loomux} check rules --cached` (the commit and the turn end read the index)
   and, for an edit, `{loomux} check rules` (the working tree). See
   [`[rules]`](#rules-the-layer-map).
@@ -523,7 +534,29 @@ in it or in the root; a signal in another area has no say there.
   PHPUnit writes Cobertura, which `check linecov` reads; the scope comes from
   the `<source>` of `phpunit.xml`. A root `composer.json` makes the root the
   only `php` area: its `vendor/` serves the packages below it.
-- **Measuring.** `test` measures only when `coverage` is in the same run
+- The typescript lanes, JavaScript's too, wait for the project's tools in a
+  `node_modules` of the area or of a directory above it up to the root,
+  where `npx` finds them too (a workspace hoists its members' tools to the
+  root, which then run in the root's version): each names its tool under
+  `node_modules/.bin/` in `when_found` (the `biome` variant names `biome`),
+  since without a terminal `npx` answers its own install prompt and fetches
+  the newest version, unpinned. Before `npm install` they are
+  `unavailable`, not red, and the graph and the rules still run. Yarn Plug'n'Play has no `node_modules`, so
+  there they stay `unavailable` for good. `types` also needs a `tsconfig.json` in the area itself
+  (`./tsconfig.json`: tsc looks for it upwards from there), and
+  `coverage` `@vitest/coverage-v8`; without it, `test` runs unmeasured.
+  Coverage is vitest's lcov report through `check linecov`; vitest keeps its
+  settings in code, so files absent from the report are not checked.
+- The `jest` variant (`"jest"` in a `package.json` or a `jest.config.*`,
+  in the area or in the root) replaces vitest in `test` and
+  `coverage`, as `gradle` replaces Maven: `npx jest --ci` (a missing snapshot
+  fails instead of being written), measured with `--coverage
+  --coverageReporters=lcov`, and both wait for `node_modules/.bin/jest`.
+  `check linecov` reads `coverage/lcov.info`; Jest's default provider honours
+  `istanbul ignore`, which the `nyc` profile reads. With vitest and Jest side
+  by side, Jest wins. Mocha and `node --test` get no test lane.
+- **Measuring.** `test` measures only when `coverage` is in the same run and
+  what the `when_found` of `coverage` names is found
   (go: `-covermode=set -coverprofile={coverprofile}`, python:
   `uv run --with coverage --with pytest coverage run -m pytest …`); on its own it stays the fast path.
   `coverage` runs `after = "test"`, but waits for `test` only when the test
@@ -552,7 +585,7 @@ in it or in the root; a signal in another area has no say there.
 #### The `graph` kind
 
 The fifth kind checks what a commit's change reaches in the code graph. Go,
-Python, GDScript, C#, C++, Java and PHP have a preset for it, with the same commands:
+Python, GDScript, C#, C++, Java, PHP and TypeScript have a preset for it, with the same commands:
 
 ```toml
 [stack.go.graph]
@@ -586,7 +619,7 @@ The commands run one after the other, and `blast-audit` runs even after a red
   one rebuild per area, and of several stacks with a graph command only the
   highest-ranked runs it: in a repository with Go and Python, `graph/go`
   runs and `graph/python` is `not-applicable` ("graph covered by graph/go"),
-  which leaves the verdict green. The rank is `go`, then `python`, `gdscript`, `csharp`, `cpp`, `java` and `php`; a stack outside that list follows them in byte order. In a
+  which leaves the verdict green. The rank is `go`, then `python`, `gdscript`, `csharp`, `cpp`, `java`, `php` and `typescript`; a stack outside that list follows them in byte order. In a
   repository with a Godot project beside Go or Python, their lane carries
   and `graph/gdscript` is `not-applicable` ("graph covered by graph/go" or "graph/python");
   `graph/gdscript` carries in a project with neither. The lanes stay listed
@@ -636,7 +669,7 @@ The commands run one after the other, and `blast-audit` runs even after a red
   of `HEAD` by the turn end and is never audited.
 - **Changing the threshold** means replacing `commands` in the table of the
   stack that carries the lane, the highest-ranked (`go`, then `python`, `gdscript`, `csharp`,
-  `cpp`, `java` and `php`): `[verify.go.graph]` in a Go repository, even one with a Godot
+  `cpp`, `java`, `php` and `typescript`): `[verify.go.graph]` in a Go repository, even one with a Godot
   project, `[verify.python.graph]` in a Python one without Go, and
   `[verify.gdscript.graph]` only in a Godot project with neither (and so on down the rank). An
   override under a stack that stands aside is never read. Replace
@@ -677,7 +710,7 @@ profile never walks the tree.
 | cpp | `enable_testing(` in `CMakeLists.txt` |
 | java | a file `*Test.java`, `*Tests.java`, `Test*.java` or `*TestCase.java` |
 | php | a file `*Test.php` |
-| typescript | `vitest` in `package.json` |
+| typescript | a file `*.test.*` or `*.spec.*`, or a directory `__tests__/` (what vitest and Jest find by default; a runner with no test to run fails). Which runner runs is the lane guard's matter: vitest needs `vitest` in a `package.json` of the area or of a directory above it up to the root (the root of a workspace declares its members' dependencies), Jest its variant |
 
 - No tests: `test` and `coverage` are `unavailable`.
 - A `[verify.<stack>].test` that writes the command skips the search: the
@@ -893,8 +926,9 @@ and a human reviews it with `loomux config proposals` and applies it with
 
 `rules` is the sixth kind (see [Kinds](#kinds-profiles-and-reserved-names)).
 Like `graph` it belongs to the repository root: at most one job per run,
-carried by the highest-ranked active stack with a `rules` command (`go`,
-`python`, `gdscript`). The presets of those three stacks are the same:
+carried by the highest-ranked active stack with a `rules` command, in the
+rank of `graph` (`go`, then `python`, `gdscript`, `csharp`, `cpp`, `java`,
+`php` and `typescript`). The presets of those stacks are the same:
 
 ```toml
 [stack.go.rules]
