@@ -153,6 +153,46 @@ func TestEvidenceFallsBackToTheWordWhenTheEdgeHasNoLine(t *testing.T) {
 	}
 }
 
+func TestCallersNamesTheOtherSymbolsOfTheSameName(t *testing.T) {
+	root := repo(t, map[string]string{
+		"go.mod":                  "module example.com/repo\n",
+		"corpus/probe.go":         "package corpus\n\nfunc Probe() {}\n",
+		"freshness/probe.go":      "package freshness\n\nfunc Probe() {}\n\nfunc use() { Probe() }\n",
+		"freshness/probe_test.go": "package freshness\n\nfunc probe() {}\n",
+	})
+	if _, _, err := Build(root, ignore); err != nil {
+		t.Fatal(err)
+	}
+	ans, _, err := Callers(root, "Probe", CallersOptions{Direction: blast.In, Depth: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ans.Start.Path != "corpus/probe.go" || len(ans.Also) != 1 || ans.Also[0].Path != "freshness/probe.go" {
+		t.Fatalf("start %s, also %+v; want corpus first and only the other exact Probe", ans.Start.Path, ans.Also)
+	}
+	report := CallersReport(ans)
+	if !strings.Contains(report, "also matching: freshness.Probe (function) in freshness/probe.go; name the package to pick one") {
+		t.Errorf("report must name the other matches:\n%s", report)
+	}
+	// A qualified name picks one, and nothing else matches.
+	ans, _, err = Callers(root, "freshness.Probe", CallersOptions{Direction: blast.In, Depth: 1})
+	if err != nil || ans.Start.Path != "freshness/probe.go" || len(ans.Also) != 0 || strings.Contains(CallersReport(ans), "also matching") {
+		t.Errorf("qualified: start %v, also %+v, err %v", ans.Start, ans.Also, err)
+	}
+}
+
+func TestAlsoListCountsPastFiveAndKeepsARootNameBare(t *testing.T) {
+	var nodes []*model.Node
+	for _, p := range []string{"main.go", "a/x.go", "b/x.go", "c/x.go", "d/x.go", "e/x.go", "f/x.go"} {
+		nodes = append(nodes, &model.Node{Name: "Run", Kind: "function", Path: p})
+	}
+	want := "Run (function) in main.go, a.Run (function) in a/x.go, b.Run (function) in b/x.go, " +
+		"c.Run (function) in c/x.go, d.Run (function) in d/x.go, and 2 more"
+	if got := alsoList(nodes); got != want {
+		t.Errorf("alsoList =\n%s\nwant\n%s", got, want)
+	}
+}
+
 func TestCallersQuotesOnlyDirectNeighbours(t *testing.T) {
 	root := repo(t, map[string]string{
 		"go.mod": "module example.com/repo\n",

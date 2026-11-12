@@ -3,6 +3,7 @@ package query
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -33,6 +34,10 @@ type CallersAnswer struct {
 	Start  *model.Node `json:"start"`
 	Hits   []CallerHit `json:"hits"`
 	Hidden int         `json:"hidden,omitempty"`
+	// Also are the other symbols of the same name, in the resolver's order:
+	// the answer walks from Start alone, and a caller who meant another one
+	// learns it here instead of from an empty or wrong list.
+	Also []*model.Node `json:"also,omitempty"`
 }
 
 // CallersOptions configures the callers/callees walk.
@@ -80,6 +85,11 @@ func Callers(root, symbol string, opts CallersOptions) (CallersAnswer, []string,
 
 	sites := edgeSites(g, start.ID, opts.Direction)
 	ans := CallersAnswer{Start: start}
+	for _, n := range nodes {
+		if n != start && n.Name == start.Name && (opts.Keep == nil || opts.Keep(n.Path)) {
+			ans.Also = append(ans.Also, n)
+		}
+	}
 	read := func(p string) ([]byte, error) {
 		return os.ReadFile(filepath.Join(root, filepath.FromSlash(p)))
 	}
@@ -174,6 +184,27 @@ func quoteAt(read func(string) ([]byte, error), path string, n int) (string, boo
 	return strings.TrimSpace(lines[n-1]), true
 }
 
+// maxAlso is how many other matches the report names before it counts.
+const maxAlso = 5
+
+// alsoList names the other matches as their package would qualify them:
+// `freshness.Probe (function) in internal/code/freshness/probe.go`.
+func alsoList(nodes []*model.Node) string {
+	var parts []string
+	for i, n := range nodes {
+		if i == maxAlso {
+			parts = append(parts, fmt.Sprintf("and %d more", len(nodes)-maxAlso))
+			break
+		}
+		name := n.Name
+		if dir := path.Dir(n.Path); dir != "." {
+			name = path.Base(dir) + "." + n.Name
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s) in %s", name, n.Kind, n.Path))
+	}
+	return strings.Join(parts, ", ")
+}
+
 // mark closes the parenthesis of a hit whose path runs through a guessed edge;
 // a sure hit stays as it always read.
 func mark(inferred bool) string {
@@ -190,6 +221,9 @@ func CallersReport(a CallersAnswer) string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s (%s) in %s:%s\n", a.Start.Name, a.Start.Kind, a.Start.Path, a.Start.Span)
+	if len(a.Also) > 0 {
+		b.WriteString("  also matching: " + alsoList(a.Also) + "; name the package to pick one\n")
+	}
 	if len(a.Hits) == 0 {
 		b.WriteString("  no callers found\n")
 	} else {
