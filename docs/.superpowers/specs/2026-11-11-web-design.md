@@ -125,12 +125,34 @@ Standard (html-validate) und CSS/SCSS mit stylelint.
 - **`resolve/web.go`:**
   - Imports von HTML und CSS auf Dateien: relativ, mit `/` als
     Wurzel-relativ zur Repo-Wurzel, SCSS-Partials
+  - **Vertrag für `<script src>` und jede URL einer Seite**, wörtlich
+    derselbe wie der von `scriptPages` und den JS-Importen: Der Web-Resolver
+    ruft dieselbe Funktion `localPath` in `internal/code/resolve/ecmascript.go`,
+    keine zweite Lesart.
+    - Die Referenz wird als URL gelesen; Query und Fragment fallen weg
+      (`app.js?v=3` ist `app.js`).
+    - Escapes werden dekodiert (`a%20b.js` ist `a b.js`); ein ungültiges
+      Escape (`%zz`) gibt keine Seite und keine Kante.
+    - Ein Schema (`https:`, `data:`) oder ein Host (`//cdn/x.js`) nennt keine
+      Datei des Repositorys und gibt nichts.
+    - `/x.js` ist `x.js` an der Repo-Wurzel, jeder andere Pfad relativ zum
+      Ordner der Seite.
+    - `src` gilt wie geschrieben: Leerraum wird nicht abgeschnitten, `\` nicht
+      als `/` gelesen. Trimmt der HTML-Extraktor, dann für beide Seiten.
+    - Liest der Web-Resolver anders, findet `scriptPages` für `app.js?v=3`
+      die Seite, die `imports`-Kante der Seite aber fehlt.
   - SCSS: `calls` auf Mixins und Funktionen über die per `@use`/`@import`
     erreichbaren Dateien (zyklenfest), `extends` auf Platzhalter und
     Klassen
 - **Familien:** `css` und `scss` bilden eine Familie, `html` eine eigene.
 - **Brücken:** HTML zu CSS und JS zu HTML laufen ausschließlich über die
   Brücken.
+  - **Hinweis vorab (Web-Plan, Task 5):** Auch JS zu CSS. Die Übergaben
+    `css.class` und `css.id` aus JS sind Rohkanten `references` mit dem
+    Namespace in `Member`, und den Scope bildet der Resolver: die
+    Stylesheets, die das Modul importiert (relativ oder über die `paths`
+    der tsconfig), dann je einbindender Seite deren verlinkte Stylesheets
+    und die Seite selbst.
 
 ## Prüfkette
 
