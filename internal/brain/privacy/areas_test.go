@@ -159,6 +159,37 @@ func TestSingle(t *testing.T) {
 	}
 }
 
+// A model that calls `loomux` for `project/loomux` reaches its area; a short
+// name two areas share stays refused, naming only those two, and an exact
+// match wins over a short one.
+func TestSingleResolvesAShortName(t *testing.T) {
+	areas := []privacy.VisibleArea{
+		{Area: config.Area{Scope: "project/loomux", Path: "L"}},
+		{Area: config.Area{Scope: "engineering/python", Path: "EP"}},
+		{Area: config.Area{Scope: "project/python", Path: "PP"}},
+		{Area: config.Area{Scope: "notes", Path: "N"}},
+		{Area: config.Area{Scope: "project/notes", Path: "PN"}},
+	}
+	for _, tc := range []struct{ scope, path, err string }{
+		{"loomux", "L", ""},
+		{"notes", "N", ""},
+		{"python", "", "unknown scope 'python'; known scopes are: engineering/python, project/python"},
+		{"project", "", "unknown scope 'project'; known scopes are: engineering/python, notes, project/loomux, project/notes, project/python"},
+	} {
+		got, err := privacy.Single(areas, tc.scope)
+		if got.Area.Path != tc.path || (err == nil) != (tc.err == "") || (err != nil && err.Error() != tc.err) {
+			t.Errorf("%s: got %+v, %v; want %q, %q", tc.scope, got, err, tc.path, tc.err)
+		}
+	}
+}
+
+func TestVisibleAreasResolvesAShortName(t *testing.T) {
+	got, err := privacy.VisibleAreas(twoAreas(t), "alpha", privacy.ChannelLocal)
+	if err != nil || scopesOf(got) != "project/alpha" {
+		t.Fatalf("got %s, %v", scopesOf(got), err)
+	}
+}
+
 // Measured against `_unknown_scope` on 2026-09-15 under Python 3.14.7.
 func TestUnknownScopeQuotesLikePython(t *testing.T) {
 	for _, tc := range []struct {

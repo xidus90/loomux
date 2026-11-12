@@ -37,8 +37,7 @@ type VisibleArea struct {
 // workspace entry without a declaration, which is left out silently.
 //
 // scope "all" answers every visible area in registry order. Any other scope
-// answers the visible areas of that name, or the UnknownScope error when there
-// are none.
+// answers the one visible area Single resolves it to, or Single's error.
 func VisibleAreas(registryDir, scope string, ch Channel) ([]VisibleArea, error) {
 	areas, err := config.ReadRegistry(registryDir)
 	if err != nil {
@@ -76,28 +75,38 @@ func VisibleAreas(registryDir, scope string, ch Channel) ([]VisibleArea, error) 
 	if scope == "all" {
 		return visible, nil
 	}
-	var named []VisibleArea
-	for _, entry := range visible {
-		if entry.Area.Scope == scope {
-			named = append(named, entry)
-		}
+	named, err := Single(visible, scope)
+	if err != nil {
+		return nil, err
 	}
-	if len(named) == 0 {
-		return nil, UnknownScope(scope, visible)
-	}
-	return named, nil
+	return []VisibleArea{named}, nil
 }
 
 // Single is `_single` (src/brain/core.py:535-539): the first visible area of
 // that scope, or the UnknownScope error. The registry refuses two entries of
 // one scope, so there is at most one.
+//
+// Unlike the reference, a scope that names no area exactly but is the last
+// segment of exactly one visible scope ("loomux" for "project/loomux") resolves
+// to that area: models call the short name. A short name several areas share
+// stays refused, naming only those.
 func Single(areas []VisibleArea, scope string) (VisibleArea, error) {
+	var short []VisibleArea
 	for _, entry := range areas {
 		if entry.Area.Scope == scope {
 			return entry, nil
 		}
+		if s := entry.Area.Scope; s[strings.LastIndex(s, "/")+1:] == scope {
+			short = append(short, entry)
+		}
 	}
-	return VisibleArea{}, UnknownScope(scope, areas)
+	switch len(short) {
+	case 0:
+		return VisibleArea{}, UnknownScope(scope, areas)
+	case 1:
+		return short[0], nil
+	}
+	return VisibleArea{}, UnknownScope(scope, short)
 }
 
 // UnknownScope is `_unknown_scope` (src/brain/core.py:266-275), "the one
