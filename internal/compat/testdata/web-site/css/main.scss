@@ -1,0 +1,5 @@
+@use "mixins";
+
+.card {
+  @include mixins.rounded;
+}

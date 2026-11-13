@@ -14,11 +14,16 @@ import (
 	"github.com/xidus90/loomux/internal/verify"
 )
 
-// planEnv is a plan without tools: every probe answers yes.
+// planEnv is a plan without tools: every probe answers yes, but one into
+// node_modules/ only where a run installs it, from the fixture's lock.
 func planEnv(root string) verify.PlanEnv {
+	_, err := os.Stat(filepath.Join(root, "package-lock.json"))
+	installed := err == nil
 	return verify.PlanEnv{
 		Root: root, Loomux: "{loomux}", RunID: "R",
-		HasTests:    func(string, []string) bool { return true },
+		HasTests: func(_ string, patterns []string) bool {
+			return installed || !slices.ContainsFunc(patterns, func(p string) bool { return strings.HasPrefix(p, "node_modules/") })
+		},
 		ImportReady: func(string) bool { return true },
 		GraphReady:  func(string) (bool, string) { return true, "" },
 		Godot:       func(string) (string, verify.State, string) { return "godot", "", "" },
@@ -75,12 +80,19 @@ func TestEveryEntryPassesLayerOne(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, kind := range e.Kinds {
-				prefix, ok := want.Lanes[kind]
+				prefix, ok := want.Lanes[kind+"/"+e.Stack]
+				if !ok {
+					prefix, ok = want.Lanes[kind]
+				}
 				if !ok {
 					t.Errorf("expect.toml has no lane for %s", kind)
 					continue
 				}
-				i := slices.IndexFunc(jobs, func(j verify.Job) bool { return j.Kind == kind && j.Pre == "" })
+				// Graph and rules run once at the root, for whichever stack.
+				atRoot := kind == "graph" || kind == "rules"
+				i := slices.IndexFunc(jobs, func(j verify.Job) bool {
+					return j.Kind == kind && j.Pre == "" && (atRoot || j.Stack == e.Stack)
+				})
 				if i < 0 {
 					t.Errorf("no %s lane is planned: %+v", kind, jobs)
 					continue
@@ -108,11 +120,19 @@ func TestEveryEntryPassesLayerOne(t *testing.T) {
 				if kind == "graph" {
 					continue
 				}
-				if !slices.ContainsFunc(want.Breaks, func(b Break) bool { return b.Kind == kind }) {
+				if !slices.ContainsFunc(want.Breaks, func(b Break) bool { return b.Kind == kind && b.ranBy(e) }) {
 					t.Errorf("expect.toml has no break for %s", kind)
 				}
 			}
 			for _, b := range want.Breaks {
+				if b.Stack != "" && !slices.Contains(want.Stacks, b.Stack) {
+					t.Errorf("break of %s: stack %q is none of %v", b.Kind, b.Stack, want.Stacks)
+				}
+				// The break changes one file, so its stack's kind must be one
+				// lane, not one per area.
+				if n := len(slices.DeleteFunc(slices.Clone(jobs), func(j verify.Job) bool { return j.Kind != b.Kind || j.Stack != b.Stack })); b.Stack != "" && n != 1 {
+					t.Errorf("break of %s/%s: %d lanes are planned, want 1", b.Kind, b.Stack, n)
+				}
 				for _, k := range append([]string{b.Kind}, b.Also...) {
 					if !slices.Contains(e.Kinds, k) {
 						t.Errorf("break of kind %q: the entry has kinds %v", k, e.Kinds)
