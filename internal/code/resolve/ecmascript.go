@@ -3,10 +3,8 @@ package resolve
 import (
 	"cmp"
 	"maps"
-	"net/url"
 	"path"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/xidus90/loomux/internal/code/extract"
@@ -18,14 +16,15 @@ import (
 // (docs/.superpowers/specs/2026-11-11-ecmascript-design.md): an import to
 // the file it loads (importFile), a base and a call through the file's
 // declarations and import bindings (target), this and super through the
-// bases of the calling class. pages maps a script to the HTML pages that
-// load it (scriptPages): they scope its element ids, and they make a
-// classic script offer its functions.
+// bases of the calling class. The pages that load a script (w.pages) scope
+// its element ids, and they make a classic script offer its functions.
+// paths is every file of the build.
 //
 // Only a base gives an Unresolved entry, and only one whose name an import
 // binds to a file of the repository: a global or a package says nothing
 // about the project.
-func resolveECMAScript(files []extract.Result, mods []Module, pages map[string][]string) langOut {
+func resolveECMAScript(files []extract.Result, mods []Module, w webLinks, paths map[string]bool) langOut {
+	pages := w.pages
 	x := esIndexOf(files, mods)
 	var out []model.Edge
 	var un []Unresolved
@@ -430,14 +429,15 @@ func (x *esIndex) isFile(id model.NodeID) bool {
 }
 
 // esOffers are the top-level functions of every classic script a page
-// loads or embeds, under js.function: a script with no import, require or
-// export, whose names share the page's global scope.
+// loads, under js.function: a script with no import, require or export,
+// whose names share the page's global scope. A part a page embeds offers
+// through its page's extractor.
 func esOffers(files []extract.Result, pages map[string][]string) []offer {
 	var out []offer
 	for _, f := range files {
 		_, page := pages[f.Path]
 		_, own := esExts[path.Ext(f.Path)]
-		if own && !page || len(f.Imports) > 0 || slices.ContainsFunc(f.Nodes, func(n model.Node) bool {
+		if !own || !page || len(f.Imports) > 0 || slices.ContainsFunc(f.Nodes, func(n model.Node) bool {
 			return n.Exported && n.Kind != model.KindFile
 		}) {
 			continue
@@ -452,44 +452,4 @@ func esOffers(files []extract.Result, pages map[string][]string) []offer {
 		}
 	}
 	return out
-}
-
-// localPath is the file part of a reference as a browser or a bundler reads
-// it, a <script src> or an import specifier: the query (vite's ?worker) and
-// the fragment dropped, escapes decoded. False for a scheme or a host, which
-// name no file of the repository, and for an invalid escape.
-func localPath(ref string) (string, bool) {
-	u, err := url.Parse(ref)
-	if err != nil || u.Scheme != "" || u.Host != "" {
-		return "", false
-	}
-	return u.Path, true
-}
-
-// scriptPages maps each script to the HTML pages that load it with
-// <script src>, sorted and each once, the src read by localPath; /x.js is
-// x.js at the root, any other src is relative to the page's directory.
-func scriptPages(files []extract.Result) map[string][]string {
-	pages := map[string][]string{}
-	for _, f := range files {
-		if f.Language != "html" {
-			continue
-		}
-		for _, imp := range f.Imports {
-			src, ok := localPath(imp.Path)
-			if imp.Kind != "script" || !ok {
-				continue
-			}
-			p := path.Join(path.Dir(f.Path), src)
-			if rest, ok := strings.CutPrefix(src, "/"); ok {
-				p = path.Clean(rest)
-			}
-			pages[p] = append(pages[p], f.Path)
-		}
-	}
-	for s, ps := range pages {
-		sort.Strings(ps)
-		pages[s] = slices.Compact(ps)
-	}
-	return pages
 }

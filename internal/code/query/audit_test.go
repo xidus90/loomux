@@ -2,8 +2,10 @@ package query
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -136,5 +138,71 @@ func TestBlastWithReturnsTheGraphItRead(t *testing.T) {
 	_, g, _, err := blastWith(stagedAdd(t), BlastOptions{Cached: true, NoRefresh: true})
 	if err != nil || g == nil || len(g.Nodes) == 0 {
 		t.Fatalf("graph = %v, err %v", g, err)
+	}
+}
+
+// webRepo is a repository of tree, path to source, with one commit and a
+// graph, and then each edit -- path to the old text and the new -- staged.
+func webRepo(t *testing.T, tree map[string]string, edits map[string][2]string) string {
+	t.Helper()
+	root := t.TempDir()
+	for p, src := range tree {
+		if err := os.WriteFile(filepath.Join(root, p), []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
+		{"config", "core.autocrlf", "false"}, {"config", "commit.gpgsign", "false"},
+		{"add", "."}, {"commit", "-qm", "init"},
+	} {
+		git(t, root, args...)
+	}
+	if _, _, err := Build(root, ignore); err != nil {
+		t.Fatal(err)
+	}
+	for p, e := range edits {
+		next := strings.Replace(tree[p], e[0], e[1], 1)
+		if err := os.WriteFile(filepath.Join(root, p), []byte(next), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git(t, root, "add", ".")
+	return root
+}
+
+// A style rule is no behaviour: six pages that use it make it no finding.
+func TestAuditPassesAChangedRuleOfManyPages(t *testing.T) {
+	tree := map[string]string{"site.css": ".btn {\n  color: red;\n}\n"}
+	for i := range 6 {
+		tree[fmt.Sprintf("p%d.html", i)] = "<link rel=\"stylesheet\" href=\"site.css\">\n<div class=\"btn\"></div>\n"
+	}
+	root := webRepo(t, tree, map[string][2]string{"site.css": {"red", "blue"}})
+	b, _, err := Blast(root, BlastOptions{Cached: true, NoRefresh: true})
+	if err != nil || len(b.Areas) != 1 {
+		t.Fatalf("blast = %+v, err %v", b, err)
+	}
+	if ar := b.Areas[0]; ar.Path != "site.css" || ar.Signal != blast.SignalNA || len(ar.Seeds) != 1 || ar.Seeds[0].InDegree != 6 {
+		t.Fatalf("area = %+v", ar)
+	}
+	a, _, err := Audit(root, AuditOptions{Cached: true, Threshold: 5})
+	if err != nil || len(a.Findings) != 0 {
+		t.Fatalf("answer = %+v, err %v", a, err)
+	}
+}
+
+// An SCSS function is behaviour like any other.
+func TestAuditFindsAnUntestedSCSSFunction(t *testing.T) {
+	tree := map[string]string{"_lib.scss": "@function double($a) {\n  @return $a * 2;\n}\n"}
+	for i := range 5 {
+		tree[fmt.Sprintf("s%d.scss", i)] = "@use \"lib\";\n.x { width: lib.double(1px); }\n"
+	}
+	root := webRepo(t, tree, map[string][2]string{"_lib.scss": {"* 2", "* 3"}})
+	a, _, err := Audit(root, AuditOptions{Cached: true, Threshold: 5})
+	if err != nil || len(a.Findings) != 1 {
+		t.Fatalf("answer = %+v, err %v", a, err)
+	}
+	if f := a.Findings[0]; f.Path != "_lib.scss" || f.Signal != blast.SignalNone || f.Seeds[0].Node.Name != "double" || f.Seeds[0].InDegree != 5 {
+		t.Fatalf("finding = %+v", f)
 	}
 }

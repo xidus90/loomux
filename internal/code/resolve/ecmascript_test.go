@@ -328,6 +328,9 @@ func TestECMAScriptWeb(t *testing.T) {
 		t.Fatal(err)
 	}
 	inline.Nodes = inline.Nodes[1:] // the page's file node stands for the part
+	// A classic inline function is a global of the page, which the HTML
+	// extractor offers.
+	inline.Exports = []extract.Export{{Namespace: extract.NamespaceJSFunction, Name: "inline", Target: "web/index.html#inline"}}
 	html := extract.Result{
 		Path: page, Language: "html",
 		Imports: []extract.Import{{Kind: "script", Path: "app.js"}, {Kind: "script", Path: "/web/cjs.js"}},

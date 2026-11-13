@@ -66,18 +66,16 @@ func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.
 	for _, f := range files {
 		g.Nodes = append(g.Nodes, f.Nodes...)
 	}
-	// Every file of the build, of any language: a Godot path may name a file
-	// another extractor reads. Only Godot's resolver reads it.
-	var paths map[string]bool
-	if len(groups["gdscript"]) > 0 {
-		paths = map[string]bool{}
-		for _, f := range files {
-			paths[f.Path] = true
-		}
+	// Every file of the build, of any language: a Godot path, a page's
+	// <script src> or <link href> and a stylesheet's import may name a file
+	// another extractor reads.
+	paths := map[string]bool{}
+	for _, f := range files {
+		paths[f.Path] = true
 	}
-	// The HTML pages that load each script, of any language: only
-	// ECMAScript's resolver reads them.
-	pages := scriptPages(files)
+	// What each HTML page loads and links: they scope the web handovers of
+	// the pages and the scripts.
+	web := webOf(files)
 	// A family resolves at its first language in the sorted list: the edge
 	// sort below is not stable, so the order of the families is part of the
 	// bytes of the graph, and a family of one language keeps its old place.
@@ -87,7 +85,7 @@ func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.
 		family := familyOf(lang)
 		if !done[family] {
 			done[family] = true
-			outs = append(outs, edgesOf(family, groups[family], mods, paths, pages))
+			outs = append(outs, edgesOf(family, groups[family], mods, paths, web))
 		}
 	}
 	edges, unresolved, offers, handovers := mergeLangs(outs)
@@ -129,6 +127,8 @@ func familyOf(lang string) string {
 	switch lang {
 	case "javascript", "typescript":
 		return "ecmascript"
+	case "css", "scss":
+		return "stylesheet"
 	}
 	return lang
 }
@@ -166,18 +166,24 @@ func languagesOf(files []extract.Result) []string {
 // those files alone: Go's here, Python's in resolvePython, Godot's in
 // resolveGDScript, C#'s in resolveCSharp, C++'s in resolveCPP, Java's in
 // resolveJava, PHP's in resolvePHP, JavaScript's and TypeScript's in
-// resolveECMAScript. Every index but Godot's holds its own family's files
-// alone; the paths a Godot file names see every file of the build, and
-// pages, the HTML pages that load a script, scope a script's web handovers.
+// resolveECMAScript, HTML's in resolveHTML, CSS's and SCSS's in
+// resolveStylesheet. Every index holds its own family's files alone; paths
+// is every file of the build, which a Godot path, a page's link and a
+// stylesheet's import may name, and w, what the HTML pages load and link,
+// scopes the web handovers of pages and scripts.
 //
 // A family without resolution rules keeps its containment, which its
 // extractor already resolved, and loses every other edge: a call or an import
 // resolved by another language's rules would be a guess dressed up as an
 // edge.
-func edgesOf(family string, files []extract.Result, mods []Module, paths map[string]bool, pages map[string][]string) langOut {
+func edgesOf(family string, files []extract.Result, mods []Module, paths map[string]bool, w webLinks) langOut {
 	switch family {
 	case "ecmascript":
-		return resolveECMAScript(files, mods, pages)
+		return resolveECMAScript(files, mods, w, paths)
+	case "html":
+		return resolveHTML(files, paths, w)
+	case "stylesheet":
+		return resolveStylesheet(files, paths)
 	case "python":
 		edges, un := resolvePython(files)
 		return langOut{edges: edges, unresolved: un}
