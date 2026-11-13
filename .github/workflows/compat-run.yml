@@ -1,0 +1,121 @@
+name: compat-run
+# The entries of one stack of a compatibility run; compat.yml calls it once
+# per stack, so the run shows each stack as a group of its own.
+on:
+  workflow_call:
+    inputs:
+      stack:
+        description: The stack, for the artifact names
+        type: string
+        required: true
+      matrix:
+        description: This stack's Actions matrix, {"include":[…]}, from `dev compat matrix`
+        type: string
+        required: true
+      linux:
+        description: The Linux runner, as pick-runner names it
+        type: string
+        required: true
+      windows:
+        description: The Windows runner, as pick-runner names it
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  run:
+    name: run ${{ matrix.entry }} (${{ matrix.os }})
+    runs-on: ${{ fromJSON(matrix.os == 'windows' && inputs.windows || inputs.linux) }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.matrix) }}
+    defaults:
+      run:
+        # Git Bash by its path on the self-hosted runner; see ci.yml.
+        shell: >-
+          ${{ matrix.os == 'windows' && contains(inputs.windows, 'self-hosted')
+          && 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+          || 'bash' }}
+    steps:
+      # First of all, so that a run that fails anywhere still tells a
+      # downloaded report which platform and probe it belongs to.
+      - run: |
+          mkdir -p "$ROOT"
+          printf '{"os":"%s","probe":%s}\n' "$PLATFORM" "${PROBE:-null}" >"$ROOT/meta.json"
+        env:
+          PLATFORM: ${{ matrix.os }}
+          PROBE: ${{ matrix.probe }}
+          ROOT: ${{ runner.temp }}/c
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go build -o bin/loomux.exe ./cmd/loomux
+      - uses: astral-sh/setup-uv@v10.3.3
+      # A short root: long paths under the runner's work directory break
+      # tools on Windows.
+      - id: setup
+        run: sh ci/compat-setup.sh bin/loomux.exe "$ENTRY" "$ROOT"
+        env:
+          ENTRY: ${{ matrix.entry }}
+          PROBE: ${{ matrix.probe }}
+          ROOT: ${{ runner.temp }}/c
+      # Go entries run with their own Go. loomux is built already with the
+      # toolchain of go.mod; a Go above it builds loomux again, as a probe
+      # of it would otherwise pass without having built with it.
+      - if: steps.setup.outputs.runtime == 'go'
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ steps.setup.outputs.install }}
+          cache: false
+      # setup-dotnet installs a channel ("11.0"); a pre-release of it comes
+      # with the preview quality, which a probe carrying one asks for.
+      - if: steps.setup.outputs.runtime == 'dotnet'
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: ${{ steps.setup.outputs.version }}
+          dotnet-quality: ${{ steps.setup.outputs.install != steps.setup.outputs.version && 'preview' || '' }}
+      # Temurin takes a feature release ("21") and an early access of the
+      # next one ("28-ea") alike; Maven comes from compat-setup.sh.
+      - if: steps.setup.outputs.runtime == 'java'
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: ${{ steps.setup.outputs.install }}
+      # setup-php installs a branch ("8.5") and offers no release candidate:
+      # a probe of one gets the branch's nightly build, and the Xdebug
+      # setup-php has for it: the Xdebug for 8.6 (3.6.0alpha1) is not on
+      # PECL, where setup-php takes a pinned version from.
+      - if: steps.setup.outputs.runtime == 'php'
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ steps.setup.outputs.version }}
+          coverage: xdebug
+          extensions: ${{ steps.setup.outputs.install == steps.setup.outputs.version && 'xdebug-3.5.3' || '' }}
+          tools: composer:2.11.2
+      # setup-node takes a line ("26") as its newest release and an exact
+      # version from nodejs.org/dist, the alpha a probe carries
+      # ("27.0.0-alpha.0.0.0") too.
+      - if: steps.setup.outputs.runtime == 'node'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.setup.outputs.install }}
+      - if: steps.setup.outputs.rebuild == 'true'
+        run: go build -o bin/loomux.exe ./cmd/loomux
+        env:
+          GOTOOLCHAIN: local
+      - id: check
+        run: sh ci/compat-run.sh bin/loomux.exe "$ENTRY" "$ROOT"
+        env:
+          ENTRY: ${{ matrix.entry }}
+          PROBE: ${{ matrix.probe }}
+          ROOT: ${{ runner.temp }}/c
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: report-${{ inputs.stack }}-${{ strategy.job-index }}
+          path: |
+            ${{ runner.temp }}/c/report.json
+            ${{ runner.temp }}/c/meta.json
+          if-no-files-found: ignore

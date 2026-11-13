@@ -74,6 +74,21 @@ func Matrix(entries []Entry, sel Selection) []Job {
 	return jobs
 }
 
+// ByStack groups jobs by the stack their entry key starts with, so CI runs
+// each stack as a job of its own. Every stack is present; one without jobs
+// has an empty list, never nil, so it encodes as [].
+func ByStack(jobs []Job) map[string][]Job {
+	by := map[string][]Job{}
+	for stack := range runtimeOf {
+		by[stack] = []Job{}
+	}
+	for _, j := range jobs {
+		stack, _, _ := strings.Cut(j.Entry, "/")
+		by[stack] = append(by[stack], j)
+	}
+	return by
+}
+
 const (
 	listPath    = "internal/compat/compat.toml"
 	fixturesDir = "internal/compat/testdata/"

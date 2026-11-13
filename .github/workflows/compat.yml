@@ -53,114 +53,109 @@ jobs:
           matrix=$(sh ci/compat-plan.sh bin/loomux.exe)
           echo "$matrix"
           echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
-  run:
-    name: run ${{ matrix.entry }} (${{ matrix.os }})
+  # One job per stack, so the run groups its entries by language. A stack
+  # the plan left empty is skipped; internal/compat/bystack_test.go holds this
+  # list to the stacks of compat.toml.
+  go:
     needs: [pick, plan]
-    # An empty include would fail the matrix.
-    if: needs.plan.outputs.matrix != '{"include":[]}'
-    runs-on: ${{ fromJSON(matrix.os == 'windows' && needs.pick.outputs.windows || needs.pick.outputs.linux) }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
-    defaults:
-      run:
-        # Git Bash by its path on the self-hosted runner; see ci.yml.
-        shell: >-
-          ${{ matrix.os == 'windows' && contains(needs.pick.outputs.windows, 'self-hosted')
-          && 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
-          || 'bash' }}
-    steps:
-      # First of all, so that a run that fails anywhere still tells a
-      # downloaded report which platform and probe it belongs to.
-      - run: |
-          mkdir -p "$ROOT"
-          printf '{"os":"%s","probe":%s}\n' "$PLATFORM" "${PROBE:-null}" >"$ROOT/meta.json"
-        env:
-          PLATFORM: ${{ matrix.os }}
-          PROBE: ${{ matrix.probe }}
-          ROOT: ${{ runner.temp }}/c
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: false
-      - run: go build -o bin/loomux.exe ./cmd/loomux
-      - uses: astral-sh/setup-uv@v10.3.3
-      # A short root: long paths under the runner's work directory break
-      # tools on Windows.
-      - id: setup
-        run: sh ci/compat-setup.sh bin/loomux.exe "$ENTRY" "$ROOT"
-        env:
-          ENTRY: ${{ matrix.entry }}
-          PROBE: ${{ matrix.probe }}
-          ROOT: ${{ runner.temp }}/c
-      # Go entries run with their own Go. loomux is built already with the
-      # toolchain of go.mod; a Go above it builds loomux again, as a probe
-      # of it would otherwise pass without having built with it.
-      - if: steps.setup.outputs.runtime == 'go'
-        uses: actions/setup-go@v7
-        with:
-          go-version: ${{ steps.setup.outputs.install }}
-          cache: false
-      # setup-dotnet installs a channel ("11.0"); a pre-release of it comes
-      # with the preview quality, which a probe carrying one asks for.
-      - if: steps.setup.outputs.runtime == 'dotnet'
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with:
-          dotnet-version: ${{ steps.setup.outputs.version }}
-          dotnet-quality: ${{ steps.setup.outputs.install != steps.setup.outputs.version && 'preview' || '' }}
-      # Temurin takes a feature release ("21") and an early access of the
-      # next one ("28-ea") alike; Maven comes from compat-setup.sh.
-      - if: steps.setup.outputs.runtime == 'java'
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
-        with:
-          distribution: temurin
-          java-version: ${{ steps.setup.outputs.install }}
-      # setup-php installs a branch ("8.5") and offers no release candidate:
-      # a probe of one gets the branch's nightly build, and the Xdebug
-      # setup-php has for it: the Xdebug for 8.6 (3.6.0alpha1) is not on
-      # PECL, where setup-php takes a pinned version from.
-      - if: steps.setup.outputs.runtime == 'php'
-        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
-        with:
-          php-version: ${{ steps.setup.outputs.version }}
-          coverage: xdebug
-          extensions: ${{ steps.setup.outputs.install == steps.setup.outputs.version && 'xdebug-3.5.3' || '' }}
-          tools: composer:2.11.2
-      # setup-node takes a line ("26") as its newest release and an exact
-      # version from nodejs.org/dist, the alpha a probe carries
-      # ("27.0.0-alpha.0.0.0") too.
-      - if: steps.setup.outputs.runtime == 'node'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ steps.setup.outputs.install }}
-      - if: steps.setup.outputs.rebuild == 'true'
-        run: go build -o bin/loomux.exe ./cmd/loomux
-        env:
-          GOTOOLCHAIN: local
-      - id: check
-        run: sh ci/compat-run.sh bin/loomux.exe "$ENTRY" "$ROOT"
-        env:
-          ENTRY: ${{ matrix.entry }}
-          PROBE: ${{ matrix.probe }}
-          ROOT: ${{ runner.temp }}/c
-      - if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: report-${{ strategy.job-index }}
-          path: |
-            ${{ runner.temp }}/c/report.json
-            ${{ runner.temp }}/c/meta.json
-          if-no-files-found: ignore
-  # The required check: green when nothing needed to run or all of it passed.
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).go.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: go
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).go) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  python:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).python.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: python
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).python) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  gdscript:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).gdscript.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: gdscript
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).gdscript) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  csharp:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).csharp.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: csharp
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).csharp) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  cpp:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).cpp.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: cpp
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).cpp) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  java:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).java.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: java
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).java) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  php:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).php.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: php
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).php) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  typescript:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).typescript.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: typescript
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).typescript) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  html:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).html.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: html
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).html) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  css:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).css.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: css
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).css) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
+  # The required check: green when the plan passed and no stack failed or
+  # was cancelled; a skipped stack had nothing to run.
   compat:
-    needs: [plan, run]
+    needs: [plan, go, python, gdscript, csharp, cpp, java, php, typescript, html, css]
     if: always()
     runs-on: ubuntu-24.04
     steps:
       - env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
           PLAN: ${{ needs.plan.result }}
-          RUN: ${{ needs.run.result }}
         run: |
-          echo "plan: $PLAN, run: $RUN"
-          [ "$PLAN" = success ] && { [ "$RUN" = success ] || [ "$RUN" = skipped ]; }
+          echo "plan: $PLAN, results: $RESULTS"
+          [ "$PLAN" = success ] && ! printf '%s' "$RESULTS" | grep -q -E '"(failure|cancelled)"'

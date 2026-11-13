@@ -152,10 +152,7 @@ func devCompatMatrix(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "loomux dev compat matrix: %v\n", err)
 			return 1
 		}
-		out, _ := json.Marshal(struct {
-			Include []compat.Job `json:"include"`
-		}{compat.ProbeMatrix(es)}) // plain strings always encode
-		fmt.Fprintf(stdout, "%s\n", out)
+		printMatrix(stdout, compat.ProbeMatrix(es))
 		return 0
 	}
 	sel.Keys = keys
@@ -173,11 +170,23 @@ func devCompatMatrix(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	entries, _ := compat.Load()
-	out, _ := json.Marshal(struct {
-		Include []compat.Job `json:"include"`
-	}{compat.Matrix(entries, sel)}) // plain strings always encode
-	fmt.Fprintf(stdout, "%s\n", out)
+	printMatrix(stdout, compat.Matrix(entries, sel))
 	return 0
+}
+
+// printMatrix writes one Actions matrix per stack, {"go":{"include":[…]},…}:
+// .github/workflows/compat.yml runs each stack as a job of its own.
+func printMatrix(stdout io.Writer, jobs []compat.Job) {
+	by := map[string]struct {
+		Include []compat.Job `json:"include"`
+	}{}
+	for stack, js := range compat.ByStack(jobs) {
+		by[stack] = struct {
+			Include []compat.Job `json:"include"`
+		}{js}
+	}
+	out, _ := json.Marshal(by) // plain strings always encode
+	fmt.Fprintf(stdout, "%s\n", out)
 }
 
 // compatUpstream is the real release sources; a test stands in for them.

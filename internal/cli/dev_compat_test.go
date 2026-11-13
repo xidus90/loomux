@@ -2,19 +2,30 @@ package cli
 
 import (
 	"encoding/json"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/compat"
 )
 
+// matrixJobs reads a per-stack matrix, which names every stack, and returns
+// its jobs in stack order.
 func matrixJobs(t *testing.T, out string) []compat.Job {
 	t.Helper()
-	var doc struct{ Include []compat.Job }
+	var doc map[string]struct{ Include []compat.Job }
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("%q: %v", out, err)
 	}
-	return doc.Include
+	if len(doc) != len(compat.ByStack(nil)) {
+		t.Fatalf("%q: %d stacks, want every one", out, len(doc))
+	}
+	var jobs []compat.Job
+	for _, stack := range slices.Sorted(maps.Keys(doc)) {
+		jobs = append(jobs, doc[stack].Include...)
+	}
+	return jobs
 }
 
 func TestDevCompatNeedsMatrix(t *testing.T) {
@@ -28,7 +39,7 @@ func TestDevCompatNeedsMatrix(t *testing.T) {
 func TestDevCompatMatrix(t *testing.T) {
 	list, _ := compat.Load()
 	code, out, _ := run("dev", "compat", "matrix")
-	if code != 0 || out != "{\"include\":[]}\n" {
+	if jobs := matrixJobs(t, out); code != 0 || len(jobs) != 0 || !strings.Contains(out, `"go":{"include":[]}`) {
 		t.Fatalf("no selection: code %d, out %q", code, out)
 	}
 	code, out, _ = run("dev", "compat", "matrix", "--full")
@@ -37,8 +48,8 @@ func TestDevCompatMatrix(t *testing.T) {
 	}
 	k := list[1].Key()
 	code, out, _ = run("dev", "compat", "matrix", "--entry", k)
-	want := `{"include":[{"entry":"` + k + `","os":"linux"},{"entry":"` + k + `","os":"windows"}]}` + "\n"
-	if code != 0 || out != want {
+	want := `"` + list[1].Stack + `":{"include":[{"entry":"` + k + `","os":"linux"},{"entry":"` + k + `","os":"windows"}]}`
+	if code != 0 || len(matrixJobs(t, out)) != 2 || !strings.Contains(out, want) {
 		t.Fatalf("entry: code %d, out %q", code, out)
 	}
 }
