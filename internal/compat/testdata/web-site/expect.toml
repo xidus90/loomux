@@ -1,0 +1,51 @@
+stacks = ["css", "html"]
+# The page links its stylesheet and loads a classic script: its class finds
+# the linked rule, its handler the script's function, and the script finds
+# the page's element by its id. The SCSS reaches its mixin through @use; it
+# sits beside the CSS, since each top directory with stylesheets would be an
+# area of its own, with a lint lane the CSS break leaves green.
+edges = [
+  ["index.html", "imports", "css/site.css"],
+  ["index.html", "imports", "js/app.js"],
+  ["index.html", "references", "css/site.css#.btn"],
+  ["js/app.js#show", "references", "index.html##app"],
+  ["index.html", "calls", "js/app.js#show"],
+  ["css/main.scss", "imports", "css/_mixins.scss"],
+  ["css/main.scss#.card", "calls", "css/_mixins.scss#rounded"],
+]
+
+# There is no package.json, so the lanes run the pinned tools through npx.
+[lanes]
+"lint/html" = "npx --yes html-validate@11.21.1"
+"lint/css" = "npx --yes -p stylelint@18.0.0"
+graph = "{loomux} check graph-fresh"
+
+# Each entry runs both lint lanes; the break of its own stack turns only that
+# stack's lane red.
+[[break]]
+kind = "lint"
+stack = "html"
+file = "index.html"
+content = '''
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Site</title>
+  </head>
+  <body>
+    <p id="twice">One</p>
+    <p id="twice">Two</p>
+  </body>
+</html>
+'''
+
+[[break]]
+kind = "lint"
+stack = "css"
+file = "css/site.css"
+content = '''
+.a {
+  colr: red;
+}
+'''

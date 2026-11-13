@@ -111,6 +111,9 @@ func runEntry(e Entry, o RunOptions) (Report, error) {
 		r.Lines = append(r.Lines, graphLines(dir, expect.Edges)...)
 	}
 	for i, b := range expect.Breaks {
+		if !b.ranBy(e) {
+			continue
+		}
 		lines, err := runCopy(e, o, filepath.Join(work, fmt.Sprintf("break-%d-%s", i+1, b.Kind)), kinds, &b)
 		if err != nil {
 			return Report{}, err
@@ -369,9 +372,9 @@ func applyBreak(dir string, b *Break) error {
 }
 
 // judge holds each lane to ok, and each kind to a lane that ran. In a run of
-// a break, its kind and those it also breaks must end failed and a lane
-// behind them may be blocked; only a red lane blocks, and any other red is a
-// line of its own.
+// a break, its kind and those it also breaks must end failed, in its stack's
+// lanes alone when it names one, and a lane behind them may be blocked; only
+// a red lane blocks, and any other red is a line of its own.
 func judge(results []LaneResult, kinds []string, b *Break) []string {
 	var broken []string
 	if b != nil {
@@ -385,7 +388,7 @@ func judge(results []LaneResult, kinds []string, b *Break) []string {
 	}
 	for _, r := range results {
 		want := "ok"
-		if slices.Contains(broken, kindOf(r)) {
+		if slices.Contains(broken, kindOf(r)) && (b.Stack == "" || stackOf(r) == b.Stack) {
 			want = "failed"
 		}
 		if r.State == want || (b != nil && want == "ok" && r.State == "blocked") {
@@ -403,6 +406,14 @@ func judge(results []LaneResult, kinds []string, b *Break) []string {
 func kindOf(r LaneResult) string {
 	kind, _, _ := strings.Cut(r.Lane, "/")
 	return kind
+}
+
+// stackOf is the stack of a lane, without the area a stack of several
+// areas names after "@".
+func stackOf(r LaneResult) string {
+	_, rest, _ := strings.Cut(r.Lane, "/")
+	stack, _, _ := strings.Cut(rest, "@")
+	return stack
 }
 
 func tail(output string) string {

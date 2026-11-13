@@ -2,6 +2,7 @@ package compat
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -598,5 +599,128 @@ func TestASyntaxEntryRunsOnlyItsGraph(t *testing.T) {
 	rep, _ = runEntryKey(t, syntaxKey, fakeCheck(honest))
 	if rep.Green || len(rep.Lines) == 0 || !strings.HasPrefix(rep.Lines[0], "graph: no edge syntax.go#") {
 		t.Fatalf("report %+v", rep)
+	}
+}
+
+// A break of one stack turns only that stack's lane of its kind red; the
+// lanes of the same kind of the other stacks stay ok.
+func TestABreakOfOneStackHoldsOnlyItsLane(t *testing.T) {
+	b := &Break{Kind: "lint", Stack: "css"}
+	kinds := []string{"lint"}
+	results := []LaneResult{{Lane: "lint/html", State: "ok"}, {Lane: "lint/css", State: "failed"}, {Lane: "lint/css@sub", State: "failed"}}
+	if got := judge(results, kinds, b); len(got) != 0 {
+		t.Fatalf("judge = %q", got)
+	}
+	results[0].State, results[1].State = "failed", "ok"
+	if got := judge(results, kinds, b); !slices.Equal(got, []string{"lint/html: failed, want ok", "lint/css: ok, want failed"}) {
+		t.Fatalf("judge = %q", got)
+	}
+}
+
+// webCheck answers as html-validate and stylelint would on web-site: each
+// lint lane fails on its own stack's break.
+func webCheck(root string, _ []string) ([]LaneResult, error) {
+	page, _ := os.ReadFile(filepath.Join(root, "index.html"))
+	sheet, _ := os.ReadFile(filepath.Join(root, "css", "site.css"))
+	state := func(broken bool) string {
+		if broken {
+			return "failed"
+		}
+		return "ok"
+	}
+	return []LaneResult{
+		{Lane: "lint/html", State: state(strings.Contains(string(page), `id="twice"`))},
+		{Lane: "lint/css", State: state(strings.Contains(string(sheet), "colr"))},
+	}, nil
+}
+
+// Each entry of web-site runs only the break of its own stack.
+func TestAnEntryRunsOnlyTheBreaksOfItsStack(t *testing.T) {
+	for stack, run := range map[string]string{"html": "break-1-lint", "css": "break-2-lint"} {
+		var asked []string
+		rep, _ := runEntryKey(t, stack+"/node-26/web-site", func(root string, kinds []string) ([]LaneResult, error) {
+			asked = append(asked, filepath.Base(root))
+			return webCheck(root, kinds)
+		})
+		if !rep.Green || !slices.Equal(asked, []string{"entry", run}) {
+			t.Fatalf("%s: report %+v, asked %v", stack, rep, asked)
+		}
+	}
+}
+
+// judgeWithoutStack is judge as it was before a break could name a stack.
+func judgeWithoutStack(results []LaneResult, kinds []string, b *Break) []string {
+	var broken []string
+	if b != nil {
+		broken = append([]string{b.Kind}, b.Also...)
+	}
+	var lines []string
+	for _, k := range kinds {
+		if !slices.ContainsFunc(results, func(r LaneResult) bool { return kindOf(r) == k }) {
+			lines = append(lines, k+": no lane ran")
+		}
+	}
+	for _, r := range results {
+		want := "ok"
+		if slices.Contains(broken, kindOf(r)) {
+			want = "failed"
+		}
+		if r.State == want || (b != nil && want == "ok" && r.State == "blocked") {
+			continue
+		}
+		line := fmt.Sprintf("%s: %s, want %s", r.Lane, r.State, want)
+		if tail := tail(r.Output); tail != "" {
+			line += "\n" + tail
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+// Every fixture but web-site names no stack in its breaks: each entry runs
+// all of them, and judge decides on them as it did before.
+func TestBreakStackLeavesEveryVerdict(t *testing.T) {
+	list, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range list {
+		if e.Fixture == "web-site" {
+			continue
+		}
+		want, err := LoadExpect(e.Fixture)
+		if err != nil {
+			t.Fatal(err)
+		}
+		kinds := slices.DeleteFunc(slices.Clone(e.Kinds), func(k string) bool { return k == "graph" })
+		for _, b := range want.Breaks {
+			if b.Stack != "" || !b.ranBy(e) {
+				t.Errorf("%s: break of %s names stack %q", e.Key(), b.Kind, b.Stack)
+			}
+			b := Break{Kind: b.Kind, Also: b.Also}
+			broken := func(k string) bool { return k == b.Kind || slices.Contains(b.Also, k) }
+			pick := func(yes, no string) func(string) string {
+				return func(k string) string {
+					if broken(k) {
+						return yes
+					}
+					return no
+				}
+			}
+			for name, state := range map[string]func(string) string{
+				"all ok":         pick("ok", "ok"),
+				"break kind red": pick("failed", "ok"),
+				"other kind red": pick("ok", "failed"),
+				"blocked behind": pick("failed", "blocked"),
+			} {
+				var results []LaneResult
+				for _, k := range kinds {
+					results = append(results, LaneResult{Lane: k + "/" + e.Stack, State: state(k), Output: "out"})
+				}
+				if got, old := judge(results, kinds, &b), judgeWithoutStack(results, kinds, &b); !slices.Equal(got, old) {
+					t.Errorf("%s, break %s, %s: judge %q, before %q", e.Key(), b.Kind, name, got, old)
+				}
+			}
+		}
 	}
 }

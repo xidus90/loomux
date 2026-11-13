@@ -864,6 +864,59 @@ func TestScoutProbesTheNextNodeLine(t *testing.T) {
 	}
 }
 
+// A fixture two stacks share is a line per stack: each moves on by itself,
+// under a title of its own, and is done only when its own stack holds the
+// version.
+func TestScoutKeepsTheStacksOfASharedFixtureApart(t *testing.T) {
+	web := func(stack, version string) Entry {
+		return Entry{Stack: stack, Runtime: "node", Version: version, Fixture: "web-site", Kinds: []string{"lint"}}
+	}
+	up := calm()
+	up[nodeSource] = []string{"27.0.0", "26.13.1"}
+	up["eol:node"] = []string{"26", "27"}
+	got := scout(t, up, web("html", "26"), web("css", "26"))
+	if len(got) != 2 || got[0].Probe.Key() != "html/node-27/web-site" || got[1].Probe.Key() != "css/node-27/web-site" ||
+		got[0].Title != "compat: web-site@html/node 27 is out" || got[1].Title != "compat: web-site@css/node 27 is out" {
+		t.Fatalf("findings %+v", got)
+	}
+	// css moved on; html still waits.
+	got = scout(t, up, web("html", "26"), web("css", "26"), web("css", "27"))
+	if len(got) != 1 || got[0].Probe.Key() != "html/node-27/web-site" {
+		t.Fatalf("findings %+v", got)
+	}
+	list := []Entry{web("html", "26"), web("css", "27")}
+	if Resolved(list, got[0].Title) || !Resolved(list, "compat: web-site@css/node 27 is out") {
+		t.Error("a stack's line resolves by another stack's entry")
+	}
+}
+
+// The two web-site entries of Node 26 give one probe each of the next
+// alpha, so each runs the break of its own stack.
+func TestScoutProbesWebSiteOncePerStack(t *testing.T) {
+	list, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []Entry
+	for _, e := range list {
+		if e.Runtime == "node" {
+			entries = append(entries, e)
+		}
+	}
+	up := calm()
+	up[nodeSource] = []string{"27.0.0-alpha.0.1.0", "26.13.1", "24.22.3", "22.23.5"}
+	up["eol:node"] = []string{"22", "24", "26"}
+	var web []Finding
+	for _, f := range scout(t, up, entries...) {
+		if f.Kind == "pre" && f.Probe.Fixture == "web-site" {
+			web = append(web, f)
+		}
+	}
+	if len(web) != 2 || web[0].Probe.Key() != "html/node-27.0.0-alpha.0.1.0/web-site" || web[1].Probe.Key() != "css/node-27.0.0-alpha.0.1.0/web-site" {
+		t.Fatalf("findings %+v", web)
+	}
+}
+
 func cppEntry(version, fixture string, kinds ...string) Entry {
 	return Entry{Stack: "cpp", Runtime: "cpp", Version: version, Fixture: fixture, Kinds: kinds}
 }

@@ -12,11 +12,15 @@ import (
 
 // Break is a change that makes one kind of check fail: the file is overwritten
 // or created with Content. Also are the kinds it fails as well, when their
-// tool does the broken kind's work first.
+// tool does the broken kind's work first. Stack, when set, narrows it to that
+// stack's lanes, and only the fixture's entry of that stack runs it.
 type Break struct {
-	Kind, File, Content string
-	Also                []string
+	Kind, File, Content, Stack string
+	Also                       []string
 }
+
+// ranBy says whether entry e runs the break.
+func (b Break) ranBy(e Entry) bool { return b.Stack == "" || b.Stack == e.Stack }
 
 // Expect is what a fixture promises, read from its expect.toml: the stacks and
 // variants detect finds, the start of the command each kind plans, the graph

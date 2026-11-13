@@ -30,7 +30,8 @@ type Upstream interface {
 
 // Finding is what the scout reports for a line, of one Kind:
 //   - "new": a version newer than everything the line holds. Line is
-//     <fixture>/<name>, Version the new major.minor (the major for a pin of a
+//     <fixture>/<name>, or <fixture>@<stack>/<name> for a fixture several
+//     stacks share, Version the new major.minor (the major for a pin of a
 //     major), Probe the entry that would try it and TOML that entry as an
 //     [[entry]] block, ready to paste into compat.toml.
 //   - "pre": a pre-release of the runtime's next version. Version is the
@@ -216,9 +217,11 @@ func subjectsOf(e Entry) []subject {
 	return out
 }
 
-// group is a line at one major: the entries of a fixture pinning one subject.
+// group is a line at one major: the entries of a fixture and stack pinning
+// one subject. line names it in a finding: <fixture>/<name>, with "@<stack>"
+// after the fixture where several stacks share it.
 type group struct {
-	fixture string
+	fixture, stack, line string
 	subject
 	major  int
 	parts  int   // version parts that count: 1 for a pinned major, else 2
@@ -234,6 +237,13 @@ type group struct {
 func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 	var groups []*group
 	top := map[string]int{} // kind/name -> highest major in the list
+	stacks := map[string]map[string]bool{}
+	for _, e := range entries {
+		if stacks[e.Fixture] == nil {
+			stacks[e.Fixture] = map[string]bool{}
+		}
+		stacks[e.Fixture][e.Stack] = true
+	}
 	for _, e := range entries {
 		if e.syntax() {
 			continue // its version's other entry carries the line
@@ -249,10 +259,14 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 			}
 			top[s.kind+"/"+s.name] = max(top[s.kind+"/"+s.name], v[0])
 			i := slices.IndexFunc(groups, func(g *group) bool {
-				return g.fixture == e.Fixture && g.subject.kind == s.kind && g.name == s.name && g.major == v[0]
+				return g.fixture == e.Fixture && g.stack == e.Stack && g.subject.kind == s.kind && g.name == s.name && g.major == v[0]
 			})
 			if i < 0 {
-				groups = append(groups, &group{fixture: e.Fixture, subject: s, major: v[0], parts: min(len(v), 2), max: v, newest: e})
+				line := e.Fixture + "/" + s.name
+				if len(stacks[e.Fixture]) > 1 {
+					line = e.Fixture + "@" + e.Stack + "/" + s.name
+				}
+				groups = append(groups, &group{fixture: e.Fixture, stack: e.Stack, line: line, subject: s, major: v[0], parts: min(len(v), 2), max: v, newest: e})
 				continue
 			}
 			g := groups[i]
@@ -281,7 +295,7 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 			}
 			cache[src] = rels
 		}
-		if f, ok := scoutGroup(g, rels, top[g.kind+"/"+g.name]); ok {
+		if f, ok := scoutGroup(g, rels, topOf(g, groups, top[g.kind+"/"+g.name])); ok {
 			out = append(out, f)
 		}
 	}
@@ -330,6 +344,23 @@ func scoutEOL(entries []Entry, up Upstream) ([]Finding, error) {
 	return out, nil
 }
 
+// topOf is the major a group counts as the highest of its subject: top,
+// except for the highest line of a stack whose fixture another stack has
+// already moved to top. That line stays behind on no purpose of its own, so
+// it is taken for the top and may follow.
+func topOf(g *group, groups []*group, top int) int {
+	same := func(o *group) bool {
+		return o.fixture == g.fixture && o.subject.kind == g.subject.kind && o.name == g.name
+	}
+	if slices.ContainsFunc(groups, func(o *group) bool { return same(o) && o.stack == g.stack && o.major > g.major }) {
+		return top
+	}
+	if slices.ContainsFunc(groups, func(o *group) bool { return same(o) && o.major == top }) {
+		return g.major
+	}
+	return top
+}
+
 // scoutGroup finds the newest release that is a new minor of the line's
 // major or, for the line holding the highest major, a newer major.
 func scoutGroup(g *group, rels []Release, topMajor int) (Finding, bool) {
@@ -373,7 +404,7 @@ func scoutGroup(g *group, rels []Release, topMajor int) (Finding, bool) {
 	default:
 		probe.Tools[g.name] = version + ".*"
 	}
-	f := Finding{Kind: "new", Line: g.fixture + "/" + g.name, Version: version, Probe: &probe, TOML: entryTOML(probe)}
+	f := Finding{Kind: "new", Line: g.line, Version: version, Probe: &probe, TOML: entryTOML(probe)}
 	f.Title = IssueTitle(f)
 	return f, true
 }
@@ -408,7 +439,7 @@ func scoutPre(g *group, rels []Release, topMajor int) (Finding, bool) {
 	pre, _ := parsePre(raw) // best came from it
 	probe.Version = versionString(pre)
 	probe.Pre = raw
-	f := Finding{Kind: "pre", Line: g.fixture + "/" + g.name, Version: raw, Probe: &probe}
+	f := Finding{Kind: "pre", Line: g.line, Version: raw, Probe: &probe}
 	f.Title = IssueTitle(f)
 	return f, true
 }
@@ -465,8 +496,9 @@ func Resolved(entries []Entry, title string) bool {
 	if !ok {
 		return false
 	}
+	fixture, stack, _ := strings.Cut(m[1], "@")
 	for _, e := range entries {
-		if e.Fixture != m[1] {
+		if e.Fixture != fixture || (stack != "" && e.Stack != stack) {
 			continue
 		}
 		for _, s := range subjectsOf(e) {
