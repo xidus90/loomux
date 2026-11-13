@@ -251,6 +251,21 @@ func TestResolveTakesAPHPNameForAFile(t *testing.T) {
 	}
 }
 
+// A name ending in .css or .scss is a file query, so "css" never matches a
+// mixin of that name.
+func TestResolveTakesAStylesheetNameForAFile(t *testing.T) {
+	for _, ext := range []string{"css", "scss"} {
+		g := &model.Graph{Nodes: []model.Node{
+			{ID: model.NodeID("src/a." + ext), Path: "src/a." + ext, Name: "a." + ext, Kind: model.KindFile},
+			{ID: model.NodeID("src/a." + ext + "#" + ext), Path: "src/a." + ext, Name: ext, Kind: "mixin"},
+		}}
+		hits, err := blast.Resolve(g, "a."+ext, "")
+		if err != nil || len(hits) != 1 || hits[0].ID != model.NodeID("src/a."+ext) {
+			t.Errorf("Resolve(a.%s) = %v, %v; want the file", ext, hits, err)
+		}
+	}
+}
+
 // A name ending in a C++ extension is a file query, so "hh" and "ipp" never
 // match a symbol of that name.
 func TestResolveTakesACppNameForAFile(t *testing.T) {

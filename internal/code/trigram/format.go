@@ -23,9 +23,10 @@ const (
 	// formatVersion 2 added the selection counters to the header.
 	formatVersion = 2
 	// maxExtractor bounds the extractor identity the header carries: the
-	// combined all.Version() string names every extractor and is longer than
-	// the first format's 64 bytes allowed.
-	maxExtractor = 256
+	// combined all.Version() string names every extractor and grows by about
+	// 25 bytes with each language. The header stores its length as a u16, so
+	// raising the cap changes no byte of an index that fits.
+	maxExtractor = 1024
 	// indexName is the sidecar under the graph's cache directory.
 	indexName = "trigram.idx"
 	// entrySize is one trigram table entry: u32 gram, u64 offset, u32 count.

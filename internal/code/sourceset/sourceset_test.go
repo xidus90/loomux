@@ -61,7 +61,7 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 }
 
 func TestExtensionsIsACopy(t *testing.T) {
-	want := []string{".c++", ".cc", ".cjs", ".cpp", ".cs", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid"}
+	want := []string{".c++", ".cc", ".cjs", ".cpp", ".cs", ".css", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".scss", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid"}
 	first := sourceset.Extensions()
 	if !reflect.DeepEqual(first, want) {
 		t.Fatalf("Extensions() = %v, want %v", first, want)
@@ -159,6 +159,23 @@ func TestListTakesJavaScriptAndTypeScriptFiles(t *testing.T) {
 	}
 	want := []string{"src/D.jsx", "src/H.tsx", "src/a.js", "src/b.mjs", "src/c.cjs", "src/e.ts", "src/f.mts", "src/g.cts", "src/i.d.ts", "src/min.js"}
 	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// CSS and SCSS stylesheets are listed; a minified one and the reports of
+// coverage.py and istanbul are generated and are not.
+func TestListTakesStylesheets(t *testing.T) {
+	root := tree(t, map[string]string{
+		"a.css": "x\n", "web/_b.scss": "x\n", "a.min.css": "x\n", "a.sass": "x\n", "a.less": "x\n",
+		"htmlcov/x.css": "x\n", "coverage/lcov-report/base.css": "x\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"a.css", "web/_b.scss"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }

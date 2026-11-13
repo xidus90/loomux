@@ -49,6 +49,9 @@ import (
 // *.AssemblyInfo.cs). bin is not listed: the list serves every language, and
 // bin/ holds hand-written scripts in many repositories.
 //
+// coverage and htmlcov hold the HTML and CSS of coverage reports, istanbul's
+// coverage/lcov-report and coverage.py's htmlcov.
+//
 // The list is shared with the graph: sourceset.SkipDir delegates here, so the
 // hook path, the graph build and the search index prune the same names.
 var pruneDirs = map[string]bool{
@@ -60,6 +63,7 @@ var pruneDirs = map[string]bool{
 	"target":        true,
 	"vendor":        true,
 	"coverage":      true,
+	"htmlcov":       true,
 	"__pycache__":   true,
 	"venv":          true,
 	"site-packages": true,
