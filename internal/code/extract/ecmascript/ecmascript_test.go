@@ -744,3 +744,42 @@ func TestJSXComponentUseIsACall(t *testing.T) {
 		same(t, rel+" calls", edgesOf(r, model.RelationCalls), []extract.RawEdge{c("Layout", ""), c("Btn", ""), c("Card", "ui")})
 	}
 }
+
+func TestPartHasNoFileNode(t *testing.T) {
+	// The page with everything but its script blanked: the mask keeps the
+	// offsets, so spans are lines of the page.
+	masked := "      \n        \nfunction f() { g(); }\n;        \n"
+	r, err := ecmascript.Part("p.html", masked, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Path != "p.html" || r.Language != "javascript" {
+		t.Errorf("Part = %s %s, want p.html javascript", r.Path, r.Language)
+	}
+	var got []string
+	for _, n := range r.Nodes {
+		got = append(got, view(n))
+	}
+	same(t, "nodes", got, []string{"p.html#f function owner= L3-L3 exported=false sig=function f()"})
+	same(t, "contains", edgesOf(r, model.RelationContains), []extract.RawEdge{
+		{Source: "p.html", Relation: model.RelationContains, TargetID: "p.html#f", File: "p.html"},
+	})
+	same(t, "calls", edgesOf(r, model.RelationCalls), []extract.RawEdge{
+		{Source: "p.html#f", Relation: model.RelationCalls, Name: "g", File: "p.html"},
+	})
+}
+
+func TestPartReadsTypeScriptWithItsGrammar(t *testing.T) {
+	masked := "      \nfunction f(a: number): void { }\nenum E { A }\n"
+	r, err := ecmascript.Part("p.html", masked, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Language != "typescript" || r.ParseErrors != 0 || len(r.Nodes) != 2 || r.Nodes[0].ID != "p.html#f" || r.Nodes[1].ID != "p.html#E" {
+		t.Errorf("Part(ts) = %s, %d errors, %v; want typescript, no error, f and E", r.Language, r.ParseErrors, r.Nodes)
+	}
+	// The JavaScript grammar breaks on the annotation.
+	if js, _ := ecmascript.Part("p.html", masked, false); js.ParseErrors == 0 {
+		t.Error("Part(js) read TypeScript without an error; the test proves nothing")
+	}
+}

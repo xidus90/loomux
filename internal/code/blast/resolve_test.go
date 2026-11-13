@@ -251,10 +251,10 @@ func TestResolveTakesAPHPNameForAFile(t *testing.T) {
 	}
 }
 
-// A name ending in .css or .scss is a file query, so "css" never matches a
-// mixin of that name.
+// A name ending in .css, .scss, .html or .htm is a file query, so "css"
+// never matches a mixin of that name.
 func TestResolveTakesAStylesheetNameForAFile(t *testing.T) {
-	for _, ext := range []string{"css", "scss"} {
+	for _, ext := range []string{"css", "scss", "html", "htm"} {
 		g := &model.Graph{Nodes: []model.Node{
 			{ID: model.NodeID("src/a." + ext), Path: "src/a." + ext, Name: "a." + ext, Kind: model.KindFile},
 			{ID: model.NodeID("src/a." + ext + "#" + ext), Path: "src/a." + ext, Name: ext, Kind: "mixin"},

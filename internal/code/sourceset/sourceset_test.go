@@ -61,7 +61,7 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 }
 
 func TestExtensionsIsACopy(t *testing.T) {
-	want := []string{".c++", ".cc", ".cjs", ".cpp", ".cs", ".css", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".scss", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid"}
+	want := []string{".c++", ".cc", ".cjs", ".cpp", ".cs", ".css", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".htm", ".html", ".hxx", ".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".scss", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid"}
 	first := sourceset.Extensions()
 	if !reflect.DeepEqual(first, want) {
 		t.Fatalf("Extensions() = %v, want %v", first, want)
@@ -176,6 +176,23 @@ func TestListTakesStylesheets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []string{"a.css", "web/_b.scss"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// HTML pages are listed in both spellings; the pages of a coverage report
+// are generated and are not.
+func TestListTakesPages(t *testing.T) {
+	root := tree(t, map[string]string{
+		"index.html": "x\n", "web/old.htm": "x\n", "a.xhtml": "x\n",
+		"htmlcov/index.html": "x\n", "coverage/lcov-report/index.html": "x\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"index.html", "web/old.htm"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }

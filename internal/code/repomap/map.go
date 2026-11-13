@@ -76,6 +76,8 @@ func langFromPath(p string) string {
 		return "csharp"
 	case ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp":
 		return "cpp"
+	case ".html", ".htm":
+		return "html"
 	default:
 		clean := strings.TrimPrefix(ext, ".")
 		if clean == "" {
