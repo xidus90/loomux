@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.26.1] - 2026-11-13
+
+<https://github.com/xidus90/loomux/pull/161>
+
+### Changed
+- `loomux dev compat matrix` prints one job matrix per stack, `{"go":{"include":[…]},…}`, instead of a single one.
+
 ## [1.26.0] - 2026-11-12
 
 <https://github.com/xidus90/loomux/pull/158>
