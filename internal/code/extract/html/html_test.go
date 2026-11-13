@@ -306,8 +306,8 @@ func TestPartsMintAfterTheElements(t *testing.T) {
 			t.Errorf("call %s from %s, want from p.html#f~2", e.Name, e.Source)
 		}
 	}
-	if len(ts.Bridges) != 1 || ts.Bridges[0].Source != "p.html#f~2" {
-		t.Errorf("bridges = %+v, want one from p.html#f~2", ts.Bridges)
+	if refs := edgesOf(ts, model.RelationReferences); len(refs) != 1 || refs[0].Source != "p.html#f~2" {
+		t.Errorf("references = %+v, want one from p.html#f~2", refs)
 	}
 }
 

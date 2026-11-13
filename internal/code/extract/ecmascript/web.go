@@ -1,8 +1,6 @@
 package ecmascript
 
 import (
-	"path"
-	"slices"
 	"strings"
 	"unicode"
 
@@ -13,10 +11,10 @@ import (
 )
 
 // The web side of a script (docs/.superpowers/specs/2026-11-11-ecmascript-design.md):
-// an element id or a selector's id is handed over as a references edge the
-// resolver scopes by the pages that load the script; a class goes out as a
-// bridge scoped by the stylesheets the module imports; a JSX id is offered
-// as an element of the component around it.
+// an element id, a selector's id and a class are handed over as references
+// edges the resolver scopes, by the pages that load the script and by the
+// stylesheets it imports or they link; a JSX id is offered as an element of
+// the component around it.
 
 // web records what a member call obj.prop(…) at n hands over to a page or
 // a stylesheet, for source.
@@ -83,13 +81,10 @@ func (x *extractor) ref(source model.NodeID, ns extract.Namespace, name string, 
 }
 
 // classes records every class of a space-separated list as a css.class
-// bridge; finish sets their scope.
+// references edge.
 func (x *extractor) classes(names string, source model.NodeID, n *gts.Node) {
 	for _, c := range strings.Fields(names) {
-		x.bridges = append(x.bridges, extract.Bridge{
-			Source: source, Relation: model.RelationReferences, Namespace: extract.NamespaceCSSClass,
-			Name: c, File: x.doc.Rel, Line: line(n),
-		})
+		x.ref(source, extract.NamespaceCSSClass, c, n)
 	}
 }
 
@@ -107,20 +102,4 @@ func (x *extractor) attribute(n *gts.Node, source model.NodeID) {
 	case "id":
 		x.exports = append(x.exports, extract.Export{Namespace: extract.NamespaceHTMLID, Name: value, Target: source})
 	}
-}
-
-// styles are the stylesheets the file imports by a relative path, joined
-// with its directory: the scope of its class handovers. Nil without one.
-func (x *extractor) styles() []string {
-	var out []string
-	for _, imp := range x.imports {
-		ext := path.Ext(imp.Path)
-		if (ext != ".css" && ext != ".scss") || !(strings.HasPrefix(imp.Path, "./") || strings.HasPrefix(imp.Path, "../")) {
-			continue
-		}
-		if p := path.Join(path.Dir(x.doc.Rel), imp.Path); !slices.Contains(out, p) {
-			out = append(out, p)
-		}
-	}
-	return out
 }

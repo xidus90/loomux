@@ -217,7 +217,11 @@ type RawEdge struct {
 	// Specifier, or on a node that runs none, its type named by Receiver.
 	// In JavaScript, "html.id" marks getElementById("x") and
 	// querySelector("#x"), and "css.id" the latter once more: Name is the
-	// id, and the resolver hands it over with the pages as its scope.
+	// id. "css.class" marks each class of className, classList.*,
+	// getElementsByClassName and querySelector(".a"). The resolver hands
+	// them over: html.id scoped by the pages that load the script, css.id
+	// and css.class by the stylesheets it imports, those its pages link,
+	// and the pages themselves.
 	// An HTML page hands over from its file node: "css.class" on a
 	// references edge for each class of a class attribute, "js.function"
 	// on a calls edge for the function an on* attribute calls. On an SCSS

@@ -233,7 +233,6 @@ func file(lang *gts.Language, name, rel, source string, part bool) (extract.Resu
 		Edges:       slices.Concat(x.contains, x.importEdges, x.bases, x.calls, x.refs),
 		ParseErrors: errs,
 		Exports:     x.exports,
-		Bridges:     x.bridges,
 	}, nil
 }
 
@@ -346,7 +345,6 @@ type extractor struct {
 	importEdges []extract.RawEdge
 
 	exports []extract.Export
-	bridges []extract.Bridge
 
 	declared []string // the top-level names an export keyword exports by their own name
 }
@@ -359,8 +357,8 @@ type member struct {
 }
 
 // finish sets what only the whole file tells: Exported for every name an
-// export list names and for the methods of exported classes, and the scope
-// of every class handover. It also drops every Alias equal to its Name.
+// export list names and for the methods of exported classes. It also drops
+// every Alias equal to its Name.
 //
 // A declaration export names directly that a list also exports under
 // another name gets an export of Kind "export" under its own name: the
@@ -389,10 +387,6 @@ func (x *extractor) finish() {
 	}
 	for _, m := range x.members {
 		x.nodes[m.node].Exported = x.nodes[m.class].Exported && !m.private
-	}
-	scope := x.styles()
-	for i := range x.bridges {
-		x.bridges[i].Scope = scope
 	}
 }
 
