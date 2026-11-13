@@ -6,6 +6,37 @@
 
 ## 2026-11-12
 
+- 2026-11-12 — `topics/code-graph.md`: weitere Lücken von HTML, CSS und
+  SCSS (lokale Fehler der SCSS-Grammatik und was sie kosten, Namen
+  verschachtelter Kombinator-Regeln, exportierte private Platzhalter,
+  Grenzen der Inline-Skripte und Klassen, Prüfkette). Quelle: Code von
+  loomux (`internal/code/extract/stylesheet`, `internal/code/extract/html`,
+  `internal/verify/plan.go`). Danach neu gepinnt (`loomux wiki repin`):
+  `syntheses/graph-hinweis-im-waechter.md` gegen die Änderung gelesen,
+  keine ihrer Aussagen berührt.
+- 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`):
+  `docs/de/cli-reference.md` (`graph build` liest HTML, CSS und SCSS mit den
+  Web-Brücken, `blast` nennt Regeln, Elemente und Mixins als Saaten ohne
+  Testsignal), `docs/de/architecture.md` (die Pakete `extract/html` und
+  `extract/stylesheet`), `docs/de/configuration.md` (eine globale
+  stylelint-Konfiguration wird nicht gefunden, `{html-files}` steht allein
+  und einmal je Befehl) und, in der Folge, `topics/code-graph.md`,
+  `topics/architektur-grundsaetze.md` und `topics/suche-und-profile.md`.
+  Die zitierenden Seiten gegen die Änderung gelesen: Nur
+  `topics/code-graph.md` trägt Aussagen dazu, und sie ist im selben Zug
+  nachgezogen; die übrigen berührt keine.
+- 2026-11-12 — `topics/code-graph.md`: HTML, CSS und SCSS als Sprachen mit
+  den Familien `html` und `stylesheet`, eingebettete Teile mit Maske und
+  `;` hinter jedem Skript-Rumpf, Regelnamen (`~` bleibt, `Eltern › Kind`),
+  `pageRef` als einzige Lesart der Seitenverweise, die vier Web-Brücken mit
+  ihren Geltungsbereichen (den der Klassen setzt jetzt der Resolver, `webOf`
+  ersetzt `scriptPages`) und ihr Stand gegen `blast-audit`; die beiden
+  Lücken von JavaScript zu Alias-Stylesheets und klassischen Skripten
+  entfallen, die Lücken von HTML, CSS und SCSS kommen dazu. Quelle: Code
+  von loomux (`internal/code/extract/html`, `internal/code/extract/stylesheet`,
+  `internal/code/resolve/web.go`, `internal/code/resolve/ecmascript.go`,
+  `internal/code/resolve/bridge.go`) und
+  `docs/.superpowers/specs/2026-11-11-web-design.md`.
 - 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`):
   `docs/de/configuration.md` (die Testsuche des Stacks `typescript` verlangt
   Testdateien, `*.test.*`, `*.spec.*` oder `__tests__/`) berührt keine
