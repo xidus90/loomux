@@ -20,6 +20,7 @@ import (
 	"github.com/xidus90/loomux/internal/code/extract/ecmascript"
 	"github.com/xidus90/loomux/internal/code/extract/gdscript"
 	"github.com/xidus90/loomux/internal/code/extract/golang"
+	"github.com/xidus90/loomux/internal/code/extract/html"
 	"github.com/xidus90/loomux/internal/code/extract/java"
 	"github.com/xidus90/loomux/internal/code/extract/php"
 	"github.com/xidus90/loomux/internal/code/extract/python"
@@ -30,7 +31,7 @@ import (
 func Languages() []extract.Language {
 	return []extract.Language{
 		golang.Language{}, python.Language{}, gdscript.Language{}, csharp.Language{}, cpp.Language{}, java.Language{}, php.Language{},
-		ecmascript.JavaScript{}, ecmascript.TypeScript{}, stylesheet.CSS{}, stylesheet.SCSS{},
+		ecmascript.JavaScript{}, ecmascript.TypeScript{}, stylesheet.CSS{}, stylesheet.SCSS{}, html.Language{},
 	}
 }
 

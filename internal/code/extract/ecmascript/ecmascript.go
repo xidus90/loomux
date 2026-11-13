@@ -160,7 +160,19 @@ func File(rel, source string) (extract.Result, error) {
 	if lang == tsName && ext != ".tsx" && strings.HasSuffix(stem, ".d") {
 		return extract.Result{Path: rel, Language: lang, Nodes: []model.Node{extract.FileNode(rel, source, nil)}}, nil
 	}
-	return file(grammar(ext), lang, rel, source)
+	return file(grammar(ext), lang, rel, source, false)
+}
+
+// Part extracts the script embedded in another file, the inline scripts of
+// an HTML page: source is the whole file with everything outside the
+// script blanked, so spans are lines of that file. ts reads it as
+// TypeScript. It has no file node; rel is the file that holds it, whose
+// node contains the definitions.
+func Part(rel, source string, ts bool) (extract.Result, error) {
+	if ts {
+		return file(tsgrammar.Language(), tsName, rel, source, true)
+	}
+	return file(jsgrammar.Language(), jsName, rel, source, true)
 }
 
 // grammar is the grammar an extension reads with.
@@ -179,9 +191,9 @@ func grammar(ext string) *gts.Language {
 // chunks.
 const maxChunks = 256
 
-// file is File with the grammar handed in: the grammars build a tree from
-// any input, and only a missing grammar makes the parse fail.
-func file(lang *gts.Language, name, rel, source string) (extract.Result, error) {
+// file is File and Part with the grammar handed in: the grammars build a
+// tree from any input, and only a missing grammar makes the parse fail.
+func file(lang *gts.Language, name, rel, source string, part bool) (extract.Result, error) {
 	src := []byte(source)
 	doc, err := treesitter.Parse(lang, rel, src)
 	if err != nil {
@@ -207,13 +219,17 @@ func file(lang *gts.Language, name, rel, source string) (extract.Result, error) 
 		errs += doc.ParseErrors()
 	}
 	x.finish()
-	return extract.Result{
-		Path:     rel,
-		Language: name,
-		Imports:  x.imports,
+	nodes := x.nodes
+	if !part {
 		// statements has run every Symbol by now, as FileNode requires: its
 		// body text is what no symbol covers.
-		Nodes:       append([]model.Node{doc.FileNode()}, x.nodes...),
+		nodes = append([]model.Node{doc.FileNode()}, nodes...)
+	}
+	return extract.Result{
+		Path:        rel,
+		Language:    name,
+		Imports:     x.imports,
+		Nodes:       nodes,
 		Edges:       slices.Concat(x.contains, x.importEdges, x.bases, x.calls, x.refs),
 		ParseErrors: errs,
 		Exports:     x.exports,

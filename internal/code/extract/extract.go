@@ -170,6 +170,9 @@ type Import struct {
 	// a` and `module.exports = { a }` -- whose Name is the local name and
 	// Alias the exported one. A declaration `export` names directly that a
 	// list renames too gets one more, without Alias, for its own name.
+	// In HTML, "script" is a <script src> and "stylesheet" a <link
+	// rel="stylesheet" href>, the path as written. CSS leaves it "";
+	// SCSS has "use", "forward" and "import" for its three at-rules.
 	Kind string `json:"kind,omitempty"`
 }
 
@@ -215,6 +218,11 @@ type RawEdge struct {
 	// In JavaScript, "html.id" marks getElementById("x") and
 	// querySelector("#x"), and "css.id" the latter once more: Name is the
 	// id, and the resolver hands it over with the pages as its scope.
+	// An HTML page hands over from its file node: "css.class" on a
+	// references edge for each class of a class attribute, "js.function"
+	// on a calls edge for the function an on* attribute calls. On an SCSS
+	// calls edge, "mixin" marks an @include and "function" a call in a
+	// value.
 	// Empty everywhere else.
 	Member model.Kind `json:"member,omitempty"`
 	// Via is the call whose first result receives this call: `New(g).Reach()`
