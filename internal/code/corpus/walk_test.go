@@ -258,7 +258,7 @@ func TestWalkEntryMetadata(t *testing.T) {
 // TestSkipSegment pins the shared prune predicate: dot directories and the
 // dependency/build output names, nothing else.
 func TestSkipSegment(t *testing.T) {
-	for _, name := range []string{".git", ".loomux", "node_modules", "testdata", "dist", "vendor", "obj"} {
+	for _, name := range []string{".git", ".loomux", "node_modules", "testdata", "dist", "vendor", "obj", "htmlcov"} {
 		if !SkipSegment(name) {
 			t.Errorf("SkipSegment(%q) = false, want true", name)
 		}

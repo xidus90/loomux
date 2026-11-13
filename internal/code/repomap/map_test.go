@@ -264,6 +264,18 @@ func TestBuildNamesPHPByItsLanguage(t *testing.T) {
 	}
 }
 
+// .css and .scss files count as css and scss, the names their extractor
+// reports.
+func TestBuildNamesStylesheetsByTheirLanguage(t *testing.T) {
+	for p, want := range map[string]string{"web/site.css": "css", "web/_base.scss": "scss"} {
+		g := &model.Graph{Nodes: []model.Node{{ID: model.NodeID(p), Path: p, Name: p, Kind: model.KindFile}}}
+		m := repomap.Build(g, nil, repomap.Options{})
+		if !slices.Equal(m.Totals.Languages, []string{want}) {
+			t.Errorf("%s: languages = %v, want %s alone", p, m.Totals.Languages, want)
+		}
+	}
+}
+
 func TestFormatAndEdgeCases(t *testing.T) {
 	g := sampleMapGraph()
 	x := blast.New(g)

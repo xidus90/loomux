@@ -35,13 +35,14 @@ const maxFileBytes = 1_000_000
 // the graph either. .cs is C#. .c++, .cc, .cpp, .cxx, .h, .h++, .hh, .hpp,
 // .hxx, .inl, .ipp and .tpp are C++; .c is not, the graph leaves C alone. .java
 // is Java, .php PHP. .js, .mjs, .cjs and .jsx are JavaScript, .ts, .mts, .cts
-// and .tsx TypeScript. .godot, .tres and .tscn are the project file, resources
+// and .tsx TypeScript. .css is CSS and .scss SCSS; the indented .sass and
+// .less are not read. .godot, .tres and .tscn are the project file, resources
 // and scenes of a Godot project, read with its scripts, and .uid the uid Godot
 // 4.4 keeps beside a script. A literal and nothing parsed: see the package
 // comment for why it is not taken from extract/all.
 var extensions = []string{
-	".c++", ".cc", ".cjs", ".cpp", ".cs", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx",
-	".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid",
+	".c++", ".cc", ".cjs", ".cpp", ".cs", ".css", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx",
+	".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".scss", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid",
 }
 
 // Extensions is a copy of the extensions the walk takes, so no caller can
@@ -115,11 +116,11 @@ func FromListing(l corpus.Listing) []SourceFile {
 	return out
 }
 
-// minified names a minified bundle, app.min.js: generated, yet often under
-// the size limit, and seconds of parsing into parse errors (a 280 KB
-// d3.min.js took 2 s and gave 16).
+// minified names a minified bundle, app.min.js or site.min.css: generated,
+// yet often under the size limit, and seconds of parsing into parse errors
+// (a 280 KB d3.min.js took 2 s and gave 16).
 func minified(rel string) bool {
-	return slices.ContainsFunc([]string{".min.js", ".min.mjs", ".min.cjs"}, func(s string) bool { return strings.HasSuffix(rel, s) })
+	return slices.ContainsFunc([]string{".min.js", ".min.mjs", ".min.cjs", ".min.css"}, func(s string) bool { return strings.HasSuffix(rel, s) })
 }
 
 // hasPrunedSegment reports whether a repo-relative path has a directory
