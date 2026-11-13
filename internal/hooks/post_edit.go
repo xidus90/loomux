@@ -158,7 +158,7 @@ func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, 
 	} else if jobs, err = editJobs(eff, root, raw, runID, env, run.godot); err != nil {
 		return fail(err)
 	}
-	if err := verify.PrepareCover(root); err != nil {
+	if err := verify.PrepareRun(root, jobs); err != nil {
 		return fail(err)
 	}
 	outs := verify.Run(jobs, verify.RunOptions{

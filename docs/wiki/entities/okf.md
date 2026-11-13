@@ -7,8 +7,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:e8ee812819c064307b9447856b1a308aebc826cb87c831c8ceb4117c856c8b62"
-    revision: 47
+    content_hash: "sha256:2508a842244d6e301310c4df3b65887633f84d2a76a9c6b987b04243ec1b2d35"
+    revision: 48
 ---
 
 Fremdes Format in Version 0.2, übernommen als Muster für die

@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:e8ee812819c064307b9447856b1a308aebc826cb87c831c8ceb4117c856c8b62"
-    revision: 47
+    content_hash: "sha256:2508a842244d6e301310c4df3b65887633f84d2a76a9c6b987b04243ec1b2d35"
+    revision: 48
 ---
 
 ## Wofür
@@ -495,10 +495,10 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   wenn der Neubau scheitert; `check blast-audit` ist rot, wenn ein geänderter
   Bereich mit genug Aufrufern keinen geänderten Test hat. Die Lane-Namen der
   Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go, Python,
-  GDScript, C#, C++, Java, PHP und TypeScript (der auch reine JavaScript-Projekte
-  prüft); die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
+  GDScript, C#, C++, Java, PHP, TypeScript (der auch reine JavaScript-Projekte
+  prüft), CSS und HTML; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
   ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp, cpp, java, php,
-  typescript; ein Stack ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
+  typescript, css, html; ein Stack ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
   für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
   `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter
   `tests/` oder `test/`, für GDScript `*_test.gd` und alles unter `test/`

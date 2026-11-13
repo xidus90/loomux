@@ -157,10 +157,10 @@ func TestCleanCoverReportsAnUnreadableDirectory(t *testing.T) {
 
 // Every run makes the cover directory the same way, whoever started it, and
 // a second run finds it there.
-func TestPrepareCoverMakesTheDirectory(t *testing.T) {
+func TestPrepareRunMakesTheDirectory(t *testing.T) {
 	root := t.TempDir()
 	for range 2 {
-		if err := PrepareCover(root); err != nil {
+		if err := PrepareRun(root, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -168,14 +168,14 @@ func TestPrepareCoverMakesTheDirectory(t *testing.T) {
 		t.Fatalf("%v %v", info, err)
 	}
 	os.WriteFile(filepath.Join(root, "file"), nil, 0o644)
-	if err := PrepareCover(filepath.Join(root, "file")); err == nil {
+	if err := PrepareRun(filepath.Join(root, "file"), nil); err == nil {
 		t.Fatal("a root that is a file holds no directory")
 	}
 }
 
 func TestCleanCoverRemovesAStaleDirectory(t *testing.T) {
 	root := t.TempDir()
-	if err := PrepareCover(root); err != nil {
+	if err := PrepareRun(root, nil); err != nil {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(coverDir(root), "old-gdscript-root.data")
@@ -199,7 +199,7 @@ func TestCleanCoverRemovesAStaleDirectory(t *testing.T) {
 
 func TestCleanCoverRemovesTheOwnDirectoryOfAGreenRun(t *testing.T) {
 	root := t.TempDir()
-	if err := PrepareCover(root); err != nil {
+	if err := PrepareRun(root, nil); err != nil {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(coverDir(root), "R-gdscript-root.data")

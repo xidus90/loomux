@@ -1694,10 +1694,10 @@ func factsOf(stacks ...string) detect.Facts {
 	return f
 }
 
-// The carrier follows the rank go, python, gdscript, csharp, cpp, java, php, typescript, then byte order, not the
+// The carrier follows the rank go, python, gdscript, csharp, cpp, java, php, typescript, css, html, then byte order, not the
 // walk: the jobs stay in byte order, and the carrier may stand later in it.
 func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
-	unranked := "[verify.css.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
+	unranked := "[verify.sql.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
 	covered := func(c string) string { return "graph covered by graph/" + c }
 	for _, c := range []struct {
 		name   string
@@ -1730,8 +1730,14 @@ func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 		{"typescript alone", "", []string{"typescript"}, [][3]string{{"graph/typescript", "", ""}}},
 		{"typescript beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"rust", "typescript"},
 			[][3]string{{"graph/rust", "not-applicable", covered("typescript")}, {"graph/typescript", "", ""}}},
-		{"unranked stacks follow in byte order", unranked, []string{"rust", "css"},
-			[][3]string{{"graph/css", "", ""}, {"graph/rust", "not-applicable", covered("css")}}},
+		{"typescript beats css", "", []string{"css", "typescript"},
+			[][3]string{{"graph/css", "not-applicable", covered("typescript")}, {"graph/typescript", "", ""}}},
+		{"css beats html", "", []string{"css", "html"},
+			[][3]string{{"graph/css", "", ""}, {"graph/html", "not-applicable", covered("css")}}},
+		{"html beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"html", "rust"},
+			[][3]string{{"graph/html", "", ""}, {"graph/rust", "not-applicable", covered("html")}}},
+		{"unranked stacks follow in byte order", unranked, []string{"sql", "rust"},
+			[][3]string{{"graph/rust", "", ""}, {"graph/sql", "not-applicable", covered("rust")}}},
 	} {
 		calls := 0
 		jobs, err := Plan(effFor(t, c.src, factsOf(c.stacks...)), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))

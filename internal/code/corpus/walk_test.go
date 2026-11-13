@@ -4,12 +4,29 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/testlock"
 )
+
+func TestPruneDirsIsASortedCopy(t *testing.T) {
+	got := PruneDirs()
+	if len(got) != len(pruneDirs) || !sort.StringsAreSorted(got) {
+		t.Fatalf("%v", got)
+	}
+	for _, d := range got {
+		if !pruneDirs[d] {
+			t.Errorf("%s is not pruned", d)
+		}
+	}
+	got[0] = "x"
+	if PruneDirs()[0] == "x" {
+		t.Error("PruneDirs hands out its own slice")
+	}
+}
 
 // fakeMatcher is a Matcher the tests configure, recording the paths it was
 // asked about.

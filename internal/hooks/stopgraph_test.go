@@ -456,21 +456,21 @@ func TestStopHoldsOnAPythonBlast(t *testing.T) {
 	}
 }
 
-const cssWorld = `
+const shellWorld = `
 [[commit]]
 message = "base"
 [commit.files]
-"a.css" = "a { color: red }\n"
+"a.sh" = "echo red\n"
 
 [worktree]
-"a.css" = "a { color: blue }\n"
+"a.sh" = "echo blue\n"
 `
 
 // A stack without a graph table has a graph lane with no command:
 // not-applicable beside lanes that ran, so the turn ends and the base moves.
 func TestStopWithoutAGraphLanePasses(t *testing.T) {
 	jobs := planned(t)
-	root := gitWorld(t, cssWorld, `{"base":"{{COMMIT:1}}","blocks":0}`, "go.mod", "a.go", "a_test.go")
+	root := gitWorld(t, shellWorld, `{"base":"{{COMMIT:1}}","blocks":0}`, "go.mod", "a.go", "a_test.go")
 	fakeWiring(t, root)
 	code, se := runStop(t, root, s1, blastTools(1, "", nil))
 	if code != ExitOK {

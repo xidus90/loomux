@@ -230,7 +230,7 @@ func TestTreeSitterGraphLanesAreTheGoOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	goLane := p.Stacks["go"].Lanes["graph"]
-	for _, stack := range []string{"python", "gdscript", "csharp", "cpp", "java", "php", "typescript"} {
+	for _, stack := range []string{"python", "gdscript", "csharp", "cpp", "java", "php", "typescript", "css", "html"} {
 		lane := p.Stacks[stack].Lanes["graph"]
 		if len(lane.Commands) == 0 || !slices.Equal(lane.Commands, goLane.Commands) || lane.OnFile != nil || lane.Threaded {
 			t.Errorf("%s %+v, go %+v", stack, lane, goLane)
@@ -250,6 +250,41 @@ func TestTheCppGraphAndRulesLanesAreThePythonOnes(t *testing.T) {
 		if len(cpp.Commands) == 0 || !reflect.DeepEqual(cpp, py) {
 			t.Errorf("%s: cpp %+v, python %+v", kind, cpp, py)
 		}
+	}
+}
+
+// The web stacks lint through their tool placeholders and run the root lanes
+// as Python does; .sass and .less stay on css for the edit's lint.
+func TestTheWebPresetsLintThroughTheirPlaceholders(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	html, css := p.Stacks["html"], p.Stacks["css"]
+	if l := html.Lanes["lint"]; !slices.Equal(l.Commands, []string{"{html-validate} --preset standard {html-files}"}) ||
+		!slices.Equal(l.OnFile, []string{"{html-validate} --preset standard {file}"}) {
+		t.Errorf("html lint %+v", l)
+	}
+	if v := html.Variants; len(v) != 1 || v[0].When != "htmlhint" ||
+		!slices.Equal(v[0].Lanes["lint"].Commands, []string{"{htmlhint} {html-files}"}) || !slices.Equal(v[0].Lanes["lint"].OnFile, []string{"{htmlhint} {file}"}) {
+		t.Errorf("html variants %+v", v)
+	}
+	if l := css.Lanes["lint"]; !slices.Equal(l.Commands, []string{"{stylelint} {stylelint-config} {css-files}"}) ||
+		!slices.Equal(l.OnFile, []string{"{stylelint} {stylelint-config} {file}"}) {
+		t.Errorf("css lint %+v", l)
+	}
+	for _, stack := range []string{"html", "css"} {
+		if r, py := p.Stacks[stack].Lanes["rules"], p.Stacks["python"].Lanes["rules"]; !reflect.DeepEqual(r, py) {
+			t.Errorf("%s rules %+v", stack, r)
+		}
+	}
+	for _, ext := range []string{".css", ".scss", ".sass", ".less"} {
+		if p.Extensions[ext] != "css" {
+			t.Errorf("%s is on %q", ext, p.Extensions[ext])
+		}
+	}
+	if p.Extensions[".html"] != "html" || p.Extensions[".htm"] != "html" {
+		t.Errorf("%v", p.Extensions)
 	}
 }
 

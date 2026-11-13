@@ -2,6 +2,8 @@ package verify
 
 import (
 	"os"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -261,10 +263,25 @@ func (r *runner) run(job Job, argv []string) step {
 		return step{StateTimedOut, out}
 	case res.OutputAbandoned:
 		return step{StateFailed, withLine(out, abandoned)}
+	case res.Code != 0 && fetchFailed(argv, out):
+		return step{StateUnavailable, out}
 	case res.Code != 0:
 		return step{StateFailed, out}
 	}
 	return step{StateOK, out}
+}
+
+// fetchFailed says whether a pinned tool never ran because npx could not
+// reach the registry: the project was not judged, so the lane is unavailable.
+// An installed tool runs without --yes and fails as it fails.
+func fetchFailed(argv []string, out string) bool {
+	return argv[0] == "npx" && slices.Contains(argv, "--yes") && npmNetError().MatchString(out)
+}
+
+// npmNetError is the line npm writes for a registry it cannot reach; built on
+// use, not at start.
+func npmNetError() *regexp.Regexp {
+	return regexp.MustCompile(`(?m)^npm (?:error|ERR!) code (ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH)\s*$`)
 }
 
 // withLine puts line under out, on a line of its own.
@@ -276,15 +293,17 @@ func withLine(out, line string) string {
 }
 
 // mergeSteps makes one verdict and one report of a lane's commands. A finding
-// outranks the budget: a lane that failed somewhere is red even if another
-// command ran out of time. One command reports as it came; several each get
-// a heading, in the configured order, marked when it is red.
+// outranks the budget and a command that could not judge: a lane that failed
+// somewhere is red even if another command ran out of time or never got its
+// tool. One command reports as it came; several each get a heading, in the
+// configured order, marked when it is red.
 func mergeSteps(argvs [][]string, steps []step, scope Scope) (State, string) {
 	state := StateOK
 	for _, s := range steps {
 		if s.state == StateBudget && state == StateOK {
 			state = StateBudget
-		} else if s.state != StateOK && s.state != StateBudget && (state == StateOK || state == StateBudget) {
+		} else if s.state != StateOK && s.state != StateBudget && (state == StateOK || state == StateBudget ||
+			state == StateUnavailable && s.state != StateUnavailable) {
 			state = s.state
 		}
 	}

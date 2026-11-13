@@ -217,8 +217,8 @@ relative to its area):
 | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx eslint --cache {file}`; instead `npx biome check {file}` where `biome.json` exists | `npx tsc --noEmit` |
 | Vue | `.vue` | — | `npx vue-tsc --noEmit` |
 | Svelte | `.svelte` | — | `npx svelte-check` |
-| CSS | `.css`, `.scss`, `.sass`, `.less` | `npx stylelint {file}` | — |
-| HTML | `.html`, `.htm` | `npx htmlhint {file}` | — |
+| CSS | `.css`, `.scss`, `.sass`, `.less` | stylelint on `{file}`, the project's own or 18.0.0 through `npx --yes`; without the project's configuration with loomux's default, stylelint-config-standard-scss, and for `.sass` and `.less` none ([Configuration](configuration.md#placeholders)) | — |
+| HTML | `.html`, `.htm` | html-validate on `{file}` with `--preset standard`, the project's own or 11.21.1 through `npx --yes`; instead htmlhint (the project's own or 1.9.2) where `.htmlhintrc` exists | — |
 | Shell | `.sh`, `.bash`, `.zsh` | `shellcheck {file}` | — |
 | SQL | `.sql` | `sqlfluff lint {file}` | — |
 | Rust | `.rs` | `cargo clippy -- -D warnings`, `cargo fmt --check` | — |

@@ -3,6 +3,7 @@ package verify
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -11,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/pathkey"
 	"github.com/xidus90/loomux/internal/shellwords"
 )
@@ -265,7 +267,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 // highest first: the first of them with a graph command carries it. A stack
 // outside the list ranks after all of them, and among those the byte order
 // decides.
-var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php", "typescript"}
+var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php", "typescript", "css", "html"}
 
 // isRootKind says the kind belongs to the repository root: it runs once, not
 // once per stack and area.
@@ -304,7 +306,7 @@ func EditsRules(file string) bool {
 // IsSource says whether the rules read a file as a source: the extractors'
 // extensions, matched exactly as they match them, so A.GD is none.
 func IsSource(rel string) bool {
-	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java", ".php", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx"}, filepath.Ext(rel))
+	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java", ".php", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx", ".html", ".htm", ".css", ".scss"}, filepath.Ext(rel))
 }
 
 // rootCarrier is the stack whose job of a root kind a check plans: the
@@ -537,6 +539,15 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		}
 		pairs = append(pairs, php...)
 	}
+	var pages []string
+	if stack == "html" || stack == "css" {
+		web, files, note := webDefaults(env, cmds, dir, req.File)
+		if note != "" {
+			job.Pre, job.Note = StateUnavailable, note
+			return job, link{}, true, nil
+		}
+		pairs, pages = append(pairs, web...), files
+	}
 	if req.Scope == ScopeEdit {
 		file := req.File
 		if area != "." {
@@ -550,6 +561,10 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		argv, err := expand(c, repl, l.tools)
 		if err != nil {
 			return Job{}, link{}, false, err
+		}
+		if at := slices.Index(argv, pagesMark); at >= 0 {
+			job.Argvs = append(job.Argvs, batchArgv(slices.Delete(argv, at, at+1), at, pages, maxCommandLine)...)
+			continue
 		}
 		job.Argvs = append(job.Argvs, argv)
 	}
@@ -713,6 +728,153 @@ func autoloadPaths(dir string) []string {
 	}
 	slices.Sort(out)
 	return slices.Compact(out)
+}
+
+// The pinned tools of the web stacks, run where the project has none of its
+// own. stylelint moves with its shared configuration, whose major names the
+// stylelint it accepts as a peer.
+const (
+	pinHTMLValidate = "npx --yes html-validate@11.21.1"
+	pinHTMLHint     = "npx --yes htmlhint@1.9.2"
+	pinStylelint    = "npx --yes -p stylelint@18.0.0 -p stylelint-config-standard-scss@18.0.0 stylelint"
+)
+
+// pagesMark holds the place of {html-files} in an argv until batchArgv
+// spreads the pages over as many commands as their length needs.
+const pagesMark = "\x01pages"
+
+// maxCommandLine bounds one command joined with spaces: on Windows npx is
+// npx.cmd, which runs through cmd.exe and its 8191 characters, so the bound
+// leaves room for the quotes and the wrapper. It holds on every platform.
+const maxCommandLine = 8000
+
+// stylelintConfigs are the files stylelint's configuration search finds,
+// cosmiconfig's defaults for the name stylelint; a package.json counts only
+// with a "stylelint" key.
+var stylelintConfigs = []string{
+	".stylelintrc", ".stylelintrc.json", ".stylelintrc.yaml", ".stylelintrc.yml",
+	".stylelintrc.js", ".stylelintrc.ts", ".stylelintrc.cjs", ".stylelintrc.mjs",
+	".config/stylelintrc", ".config/stylelintrc.json", ".config/stylelintrc.yaml", ".config/stylelintrc.yml",
+	".config/stylelintrc.js", ".config/stylelintrc.ts", ".config/stylelintrc.cjs", ".config/stylelintrc.mjs",
+	"stylelint.config.js", "stylelint.config.ts", "stylelint.config.cjs", "stylelint.config.mjs",
+}
+
+// webDefaults fills the placeholders of the html and css stacks that cmds
+// name. A tool is the project's, installed in node_modules/.bin of dir or a
+// directory above it up to the root, else the pinned one; stylelint is the
+// project's only beside the project's configuration, since loomux's default
+// extends the shared configuration npx installs beside the pinned one. The
+// configuration is looked for from the edited file's directory, else from
+// dir. pages are the area's pages {html-files} stands for. A note says why
+// the lane cannot run.
+func webDefaults(env PlanEnv, cmds []string, dir, file string) (pairs, pages []string, note string) {
+	names := func(p string) bool {
+		return slices.ContainsFunc(cmds, func(c string) bool { return strings.Contains(c, p) })
+	}
+	start := dir
+	if file != "" {
+		start = filepath.Join(env.Root, filepath.FromSlash(path.Dir(file)))
+	}
+	configured := names("{stylelint") && stylelintConfigured(start)
+	pairs = []string{
+		"{html-validate}", nodeTool(env, dir, "html-validate", pinHTMLValidate),
+		"{htmlhint}", nodeTool(env, dir, "htmlhint", pinHTMLHint),
+		"{stylelint}", strings.Join(strings.Fields(pinStylelint), argSep),
+		"{stylelint-config}", "",
+		"{css-files}", cssFiles(),
+		"{html-files}", pagesMark,
+	}
+	if configured {
+		pairs[5] = nodeTool(env, dir, "stylelint", pinStylelint)
+	} else {
+		pairs[7] = "--config" + argSep + StylelintConfig()
+	}
+	// The default configuration is SCSS, which reads neither Less nor the
+	// indented syntax.
+	if ext := path.Ext(file); names("{stylelint-config}") && !configured && (ext == ".less" || ext == ".sass") {
+		return nil, nil, "no stylelint configuration for " + ext
+	}
+	if names("{html-files}") {
+		if pages = areaFiles(dir, ".html", ".htm"); len(pages) == 0 {
+			return nil, nil, "none found: *.html, *.htm"
+		}
+	}
+	return pairs, pages, ""
+}
+
+// nodeTool is the command of tool: npx on the project's installed one, else
+// the pinned command.
+func nodeTool(env PlanEnv, dir, tool, pinned string) string {
+	if env.found(dir, []string{"node_modules/.bin/" + tool}) {
+		return "npx" + argSep + tool
+	}
+	return strings.Join(strings.Fields(pinned), argSep)
+}
+
+// cssFiles is what stylelint is named in place of a list, as PHP_CodeSniffer
+// is: its glob, without the directories a walk prunes and without minified
+// stylesheets. Its glob passes dot directories by itself.
+func cssFiles() string {
+	args := []string{"--allow-empty-input"}
+	for _, d := range corpus.PruneDirs() {
+		args = append(args, "--ignore-pattern", "**/"+d+"/**")
+	}
+	return strings.Join(append(args, "--ignore-pattern", "**/*.min.css", "**/*.{css,scss}"), argSep)
+}
+
+// stylelintConfigured says whether stylelint finds a configuration of the
+// project from dir upwards.
+func stylelintConfigured(dir string) bool {
+	for {
+		var pkg map[string]json.RawMessage
+		data, _ := os.ReadFile(filepath.Join(dir, "package.json"))
+		if json.Unmarshal(data, &pkg) == nil && len(pkg["stylelint"]) > 0 && string(pkg["stylelint"]) != "null" ||
+			slices.ContainsFunc(stylelintConfigs, func(n string) bool { return exists(filepath.Join(dir, n)) }) {
+			return true
+		}
+		up := filepath.Dir(dir)
+		if up == dir {
+			return false
+		}
+		dir = up
+	}
+}
+
+// areaFiles are the files under dir with one of exts, relative with forward
+// slashes and sorted, outside every directory a walk prunes.
+func areaFiles(dir string, exts ...string) []string {
+	var out []string
+	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && d.IsDir() && p != dir && corpus.SkipSegment(d.Name()) {
+			return filepath.SkipDir
+		}
+		if err == nil && !d.IsDir() && slices.Contains(exts, strings.ToLower(filepath.Ext(p))) {
+			rel, _ := filepath.Rel(dir, p)
+			out = append(out, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	slices.Sort(out)
+	return out
+}
+
+// batchArgv puts files into argv at index at, as many per command as keep it
+// within limit characters joined with spaces; a file too long for any
+// command still gets one of its own.
+func batchArgv(argv []string, at int, files []string, limit int) [][]string {
+	head, tail := argv[:at], argv[at:]
+	base := len(strings.Join(argv, " "))
+	var out [][]string
+	for len(files) > 0 {
+		n, size := 1, base+1+len(files[0])
+		for n < len(files) && size+1+len(files[n]) <= limit {
+			size += 1 + len(files[n])
+			n++
+		}
+		out = append(out, slices.Concat(head, files[:n], tail))
+		files = files[n:]
+	}
+	return out
 }
 
 // configUp says whether one of names lies in dir or a directory above it.
