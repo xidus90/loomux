@@ -1,0 +1,12 @@
+import { realpathSync } from "node:fs";
+import path from "node:path";
+
+// stylelint runs from npx's cache, where the shared config is installed
+// beside it; a module name alone would be looked up from the project.
+let dir = path.dirname(realpathSync(process.argv[1]));
+while (path.basename(dir) !== "node_modules") {
+  const up = path.dirname(dir);
+  if (up === dir) throw new Error("stylelint runs outside a node_modules");
+  dir = up;
+}
+export default { extends: [path.join(dir, "stylelint-config-standard-scss", "index.js")] };

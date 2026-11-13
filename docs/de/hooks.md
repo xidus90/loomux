@@ -220,8 +220,8 @@ Datei, relativ zu ihrem Bereich):
 | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx eslint --cache {file}`; stattdessen `npx biome check {file}`, wo `biome.json` liegt | `npx tsc --noEmit` |
 | Vue | `.vue` | — | `npx vue-tsc --noEmit` |
 | Svelte | `.svelte` | — | `npx svelte-check` |
-| CSS | `.css`, `.scss`, `.sass`, `.less` | `npx stylelint {file}` | — |
-| HTML | `.html`, `.htm` | `npx htmlhint {file}` | — |
+| CSS | `.css`, `.scss`, `.sass`, `.less` | stylelint auf `{file}`, das des Projekts oder 18.0.0 über `npx --yes`; ohne Konfiguration des Projekts mit der Vorgabe von loomux, stylelint-config-standard-scss, und für `.sass` und `.less` keines ([Konfiguration](configuration.md#platzhalter)) | — |
+| HTML | `.html`, `.htm` | html-validate auf `{file}` mit `--preset standard`, das des Projekts oder 11.21.1 über `npx --yes`; stattdessen htmlhint (das des Projekts oder 1.9.2), wo `.htmlhintrc` liegt | — |
 | Shell | `.sh`, `.bash`, `.zsh` | `shellcheck {file}` | — |
 | SQL | `.sql` | `sqlfluff lint {file}` | — |
 | Rust | `.rs` | `cargo clippy -- -D warnings`, `cargo fmt --check` | — |

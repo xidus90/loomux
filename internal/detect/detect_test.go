@@ -267,6 +267,37 @@ func TestPHPSignalsAreDetected(t *testing.T) {
 	}
 }
 
+// html-validate is the HTML linter, found by a page or its own configuration;
+// .htmlhintrc keeps htmlhint as the area's variant. Every place stylelint
+// reads its configuration from names the css stack and its variant.
+func TestWebSignalsAreDetected(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		want []string
+	}{
+		{"a.htm", []string{"html"}},
+		{".htmlvalidate.json", []string{"html"}},
+		{".htmlvalidate.js", []string{"html"}},
+		{".htmlvalidate.cjs", []string{"html"}},
+		{".htmlvalidate.mjs", []string{"html"}},
+		{".htmlhintrc", []string{"html", "htmlhint"}},
+		{"stylelint.config.mjs", []string{"css", "stylelint"}},
+		{"stylelint.config.cjs", []string{"css", "stylelint"}},
+		{"stylelint.config.ts", []string{"css", "stylelint"}},
+		{".stylelintrc.yaml", []string{"css", "stylelint"}},
+		{".stylelintrc.yml", []string{"css", "stylelint"}},
+		{".stylelintrc.cjs", []string{"css", "stylelint"}},
+		{".stylelintrc.mjs", []string{"css", "stylelint"}},
+		{".stylelintrc.ts", []string{"css", "stylelint"}},
+		{".config/stylelintrc.json", []string{"css", "stylelint"}},
+	} {
+		tree := fstest.MapFS{c.name: {Data: []byte("{}\n")}}
+		if got := Detect(tree).Stacks; !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: stacks = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 // A root composer.json installs one vendor/ for its packages: checked on
 // their own, they would run on that vendor/ side by side.
 func TestARootComposerJSONOwnsItsPackages(t *testing.T) {

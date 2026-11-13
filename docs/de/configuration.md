@@ -322,7 +322,7 @@ Die Schlüssel der Tabellenform:
 
 #### Platzhalter
 
-Ersetzt werden nur diese Namen, jeweils innerhalb eines Arguments (die php-Namen dürfen für mehrere stehen); alle
+Ersetzt werden nur diese Namen, jeweils innerhalb eines Arguments (die Namen von php, html und css dürfen für mehrere stehen); alle
 anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
 
 | Platzhalter | Wert |
@@ -338,6 +338,10 @@ anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
 | `{solution}` | Ein ganzes Argument: die eine `.sln`- oder `.slnx`-Datei des Bereichs, sonst gar kein Argument; dotnet wählt dann das Projekt des Ordners selbst (`dotnet build {solution}`). Eine Projektmappe in der Wurzel macht die Wurzel außerdem zum einzigen `csharp`-Bereich: Sie baut die Projekte darunter. |
 | `{phpcs-standard}`, `{phpcs-files}` | Nur in den Lanes des Stacks `php` gefüllt, gleich welcher Befehl sie nennt; anderswo bleiben sie wörtlich. Allein stehend, wo der Bereich oder ein Verzeichnis darüber `.phpcs.xml`, `phpcs.xml`, `.phpcs.xml.dist` oder `phpcs.xml.dist` enthält, gar kein Argument, damit PHP_CodeSniffer diese Konfiguration liest; sonst `--standard=PSR12`, und `--extensions=php`, `--ignore=*/vendor/*` und `.` als drei Argumente. |
 | `{phpstan-defaults}` | Nur in den Lanes des Stacks `php` gefüllt, gleich welcher Befehl sie nennt; anderswo bleiben sie wörtlich. Allein stehend, wo der Bereich `phpstan.neon`, `phpstan.neon.dist` oder `phpstan.dist.neon` enthält, gar kein Argument; sonst `--level=max` und die Pfade, die `autoload` im `composer.json` des Bereichs nennt (`psr-4`, `psr-0`, `classmap`; nicht `autoload-dev`, nicht der Bereich selbst), soweit es sie gibt, sonst `src`, wo es das gibt, jeder als eigenes Argument. Ohne jedes davon ist die Lane `unavailable` (`none found: phpstan.neon, composer.json autoload or src`). |
+| `{html-validate}`, `{htmlhint}`, `{stylelint}` | Nur in den Lanes der Stacks `html` und `css` gefüllt, gleich welcher Befehl sie nennt; anderswo bleiben sie wörtlich. `npx` und das Werkzeug, wo `node_modules/.bin` des Bereichs oder eines Verzeichnisses darüber bis zur Wurzel es enthält (in einem Workspace das der Wurzel), damit die Version des Projekts mit seiner Konfiguration läuft; sonst die gepinnte Version über `npx --yes`: `html-validate@11.21.1`, `htmlhint@1.9.2` und `-p stylelint@18.0.0 -p stylelint-config-standard-scss@18.0.0 stylelint`. Ein installiertes stylelint zählt nur neben einer stylelint-Konfiguration des Projekts, denn die Vorgabe-Konfiguration braucht die geteilte, die npx neben der gepinnten Version installiert. Ein gepinntes Werkzeug, das npx nicht laden kann (kein Netz, eine unerreichbare Registry), lässt die Lane `unavailable`, nicht `failed`. |
+| `{stylelint-config}` | Nur `css`, wie oben. Gar kein Argument, wo das Projekt eine stylelint-Konfiguration hat: vom Bereich aufwärts, beim Bearbeiten vom Ordner der Datei aufwärts, eine von `.stylelintrc` und `.stylelintrc.{json,yaml,yml,js,ts,cjs,mjs}`, dieselben Namen in `.config/` ohne führenden Punkt, `stylelint.config.{js,ts,cjs,mjs}` oder eine `package.json` mit dem Schlüssel `stylelint`. Sonst `--config` und die Vorgabe-Konfiguration von loomux, `verify/stylelint.config.mjs` im [Zustandsverzeichnis](#maschinenweite-einstellungen-configtoml-im-zustandsverzeichnis), die stylelint-config-standard-scss erweitert; `loomux check` und die Hooks schreiben sie dorthin, bevor die Lanes starten, nie in den Arbeitsbaum. Eine Konfiguration nur in einem Unterordner des Bereichs findet die Prüfung des ganzen Bereichs nicht. Eine bearbeitete `.less`- oder `.sass`-Datei ohne Konfiguration des Projekts ist `unavailable` (`no stylelint configuration for .less`): Die Vorgabe liest SCSS. |
+| `{css-files}` | Nur `css`, wie oben: keine Dateiliste, sondern `--allow-empty-input`, je Verzeichnis, das der Walk des Code-Graphen auslässt (`node_modules`, `dist`, `build`, `coverage`, `htmlcov`, `vendor` und die übrigen), ein `--ignore-pattern **/<dir>/**`, dazu `--ignore-pattern **/*.min.css` und der Glob `**/*.{css,scss}`; Punktordner lässt der Glob von stylelint von sich aus aus. |
+| `{html-files}` | Nur `html`, wie oben: die `.html`- und `.htm`-Dateien des Bereichs, relativ und sortiert, außerhalb von Punktordnern und der Verzeichnisse, die der Walk des Code-Graphen auslässt, jede ein eigenes Argument. html-validate hat keinen Schalter, der ein Verzeichnis auslässt. Eine lange Liste wird auf mehrere Befehle der Lane verteilt, jeder unter 8000 Zeichen, auf jedem System: Unter Windows ist `npx` die `npx.cmd`, die cmd.exe ausführt, und cmd.exe nimmt höchstens 8191. Ohne Seite ist die Lane `unavailable` (`none found: *.html, *.htm`). |
 | `{godot}` | Nur `gdscript`, anderswo ein Ladefehler. Die Linie kommt aus der `project.godot` des Bereichs: `config/features` nennt Haupt- und Nebenversion, und wo es fehlt — in einem Godot-3-Projekt ab 3.1 — steht `config_version=4` für die ganze 3er-Linie, von der nur die Hauptversion verglichen wird. Ein `config_version`, das keine eigene Linie nennt, `5` ohne `config/features` eingeschlossen, lässt die Lane `unready`. Ein Binary aus `GODOT_BIN` oder `[verify.gdscript] godot` wird an diese Linie gehalten: eines einer anderen Linie wird abgelehnt, nicht übergangen, denn es zu nennen war Absicht. Nennt keines von beiden eines, werden die Engines aus `GODOT_BIN_DIR` (dessen Dateien, deren Name mit `godot` beginnt, in Namensreihenfolge) und danach `godot`/`godot4` vom `PATH` der Reihe nach gefragt, und das erste, das zur Linie passt, gewinnt. Unter Windows wird die `_console.exe` neben einer gefundenen `.exe` genommen, da die Fensterfassung nichts auf stdout schreibt. Ein Mono-Build ist nötig, wo das Projekt einen `[dotnet]`-Abschnitt hat. Passt kein Kandidat, ist die Lane `unready` und nennt gefundene Fassung und gewollte Linie; gibt es gar keinen, ist sie `missing-tool` und sagt, wo gesucht wurde. Jedes verschiedene Binary wird je Lauf einmal gefragt, höchstens 30 s lang; an einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget, und eine Lane, deren Binary nicht rechtzeitig gefragt werden konnte, endet als `budget`, nie als Abweichung. |
 
 Go-Lanes laufen mit Arbeitsverzeichnis und Build-Cache des Go-Werkzeugs im
@@ -369,7 +373,10 @@ dieses Ordners läuft. So machen es auch die Hooks eines loomux-Checkouts.
   Coverage-Dateien; ein roter lässt sie zum Nachsehen liegen. Dateien anderer
   Läufe werden gelöscht, sobald sie 24 Stunden alt sind, damit zwei Läufe
   nebeneinander einander nie die Profile löschen. Einen Pfad außerhalb von
-  `.loomux/state/cover/` berührt loomux nie.
+  `.loomux/state/cover/` berührt loomux nie. Neben dem Ordner schreiben sie
+  die Vorgabe-Konfiguration von stylelint ins Zustandsverzeichnis, wo sie
+  fehlt oder abweicht und eine Lane des Laufs sie nennt, über eine temporäre
+  Datei, die an ihren Platz umbenannt wird (siehe `{stylelint-config}`).
 
 #### Presets
 
@@ -390,8 +397,8 @@ frühere gewonnen hat (`biome` für `lint` neben `jest` für `test` und
 | typescript | `npx eslint .`; mit `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run`; mit `jest`: `npx jest --ci` | `{loomux} check linecov --report coverage/lcov.info`, gemessen von `npx vitest run --coverage --coverage.reporter=lcov`; mit `jest`: von `npx jest --ci --coverage --coverageReporters=lcov` |
 | vue | — | `npx vue-tsc --noEmit` | — | — |
 | svelte | — | `npx svelte-check` | — | — |
-| css | `npx stylelint **/*.{css,scss}` | — | — | — |
-| html | `npx htmlhint **/*.html` | — | — | — |
+| css | `{stylelint} {stylelint-config} {css-files}` | — | — | — |
+| html | `{html-validate} --preset standard {html-files}` (html-validate nimmt das Preset nur, wo es keine Konfiguration des Projekts findet); mit `htmlhint`: `{htmlhint} {html-files}` | — | — | — |
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (mit GUT) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
 | csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (wo ein `.csproj` `Microsoft.NET.Test.Sdk` oder `xunit.v3` nennt) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, gemessen von `dotnet test` mit `--collect "XPlat Code Coverage" --results-directory {coverdata}`; mit `mtp`: `{loomux} check linecov --report {coverdata}/*.cobertura.xml`, gemessen von `dotnet test` mit `--results-directory {coverdata} -- --coverage --coverage-output-format cobertura` (wo ein `.csproj` `Microsoft.Testing.Extensions.CodeCoverage` nennt) |
 | cpp | `run-clang-tidy -p build -quiet` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
@@ -458,7 +465,8 @@ frühere gewonnen hat (`biome` für `lint` neben `jest` für `test` und
   `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint {file}`,
   cpp `clang-format --dry-run --Werror {file}` (prüft, schreibt nie um),
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
-  css `npx stylelint {file}`, html `npx htmlhint {file}`, shell
+  css `{stylelint} {stylelint-config} {file}`, html
+  `{html-validate} --preset standard {file}` (htmlhint: `{htmlhint} {file}`), shell
   `shellcheck {file}`, sql `sqlfluff lint {file}`.
 - `lint`, `types`, `test` und `coverage` von cpp tragen `needs =
   ["build/CMakeCache.txt"]`: solange der Build-Baum nicht konfiguriert ist,
@@ -597,7 +605,7 @@ frühere gewonnen hat (`biome` für `lint` neben `jest` für `test` und
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset haben Go, Python, GDScript, C#, C++, Java, PHP und TypeScript, mit denselben Befehlen:
+erreicht. Ein Preset haben Go, Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS und HTML, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
@@ -632,7 +640,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   Graph-Befehl führt ihn nur der ranghöchste aus: in einem
   Repository mit Go und Python läuft `graph/go`, und `graph/python` ist
   `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Der
-  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp`, `java`, `php` und `typescript`; ein Stack außerhalb dieser
+  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp`, `java`, `php`, `typescript`, `css` und `html`; ein Stack außerhalb dieser
   Liste folgt ihnen in Byte-Reihenfolge. In einem Repository mit einem
   Godot-Projekt neben Go oder Python trägt deren Lane, und `graph/gdscript`
   ist `not-applicable` („graph covered by graph/go“ oder „graph/python“); `graph/gdscript` trägt
@@ -684,7 +692,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   geprüft.
 - **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
   zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, `gdscript`, `csharp`,
-  `cpp`, `java`, `php` und `typescript`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
+  `cpp`, `java`, `php`, `typescript`, `css` und `html`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
   Godot-Projekt, `[verify.python.graph]` in einem Python-Repository ohne Go
   und `[verify.gdscript.graph]` nur in einem Godot-Projekt mit keinem von
   beiden (und so weiter die Rangfolge hinunter). Eine Überschreibung unter einem Stack, der zurücktritt, wird nie

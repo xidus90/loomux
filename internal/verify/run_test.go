@@ -656,3 +656,50 @@ func TestRunHandsASkipOnToTheLaneAfterIt(t *testing.T) {
 		t.Fatalf("%+v %v", out[1], f.started)
 	}
 }
+
+// A pinned tool that npx cannot fetch for want of a network says nothing
+// about the project: the lane is unavailable, not red. An installed tool, or
+// a finding of the fetched one, stays red.
+func TestRunTakesAFailedFetchForUnavailable(t *testing.T) {
+	offline := func(child.Spec) child.Result {
+		return child.Result{Code: 1, Stderr: "npm error code ENOTFOUND\nnpm error syscall getaddrinfo\n"}
+	}
+	for _, c := range []struct {
+		argv   string
+		answer func(child.Spec) child.Result
+		want   State
+	}{
+		{"npx --yes html-validate@11.21.1 a.html", offline, StateUnavailable},
+		{"npx html-validate a.html", offline, StateFailed},
+		{"npx --yes html-validate@11.21.1 a.html", func(child.Spec) child.Result {
+			return child.Result{Code: 1, Stdout: "a.html\n  1:1  error  Element <x> is not permitted\n"}
+		}, StateFailed},
+		{"node --yes x", offline, StateFailed},
+	} {
+		out := Run([]Job{job("lint/html", -1, c.argv)}, opts(&fakeStart{answer: c.answer}))
+		if out[0].State != c.want || out[0].Output == "" {
+			t.Errorf("%s: %+v", c.argv, out[0])
+		}
+	}
+	for _, line := range []string{"npm ERR! code EAI_AGAIN", "npm error code ECONNREFUSED  ", "npm error code ETIMEDOUT"} {
+		if !fetchFailed([]string{"npx", "--yes", "x"}, "x\n"+line+"\n") {
+			t.Errorf("%q is no failed fetch", line)
+		}
+	}
+	if fetchFailed([]string{"npx", "--yes", "x"}, "npm error code E404\n") {
+		t.Error("a missing package is a failed fetch")
+	}
+}
+
+// A finding outranks a lane step that could not judge, in either order.
+func TestMergeStepsLetsAFindingOutrankUnavailable(t *testing.T) {
+	argvs := [][]string{{"a"}, {"b"}}
+	for _, steps := range [][]step{{{StateUnavailable, ""}, {StateFailed, ""}}, {{StateFailed, ""}, {StateUnavailable, ""}}} {
+		if got, _ := mergeSteps(argvs, steps, ScopeCheck); got != StateFailed {
+			t.Errorf("%v: %s", steps, got)
+		}
+	}
+	if got, _ := mergeSteps(argvs, []step{{StateOK, ""}, {StateUnavailable, ""}}, ScopeCheck); got != StateUnavailable {
+		t.Errorf("ok and unavailable: %s", got)
+	}
+}

@@ -471,13 +471,44 @@ commands = ["npx vue-tsc --noEmit"]
 [stack.svelte.types]
 commands = ["npx svelte-check"]
 
-[stack.css.lint]
-commands = ["npx stylelint **/*.{css,scss}"]
-on_file = ["npx stylelint {file}"]
-
+# The tool placeholders run the project's own tool where node_modules/.bin of
+# the area or a directory above it has one, else the pinned version through
+# `npx --yes`; a fetch that fails for want of a network is unavailable, not
+# red. html-validate takes --preset only where it finds no configuration of
+# the project. htmlhint stays the linter of an area with a .htmlhintrc.
+# html-validate has no switch to leave node_modules or a coverage report
+# out, so it is named the area's pages instead of a directory. stylelint
+# without the project's configuration reads loomux's own from the state
+# directory (see the configuration reference).
 [stack.html.lint]
-commands = ["npx htmlhint **/*.html"]
-on_file = ["npx htmlhint {file}"]
+commands = ["{html-validate} --preset standard {html-files}"]
+on_file  = ["{html-validate} --preset standard {file}"]
+
+[[stack.html.variant]]
+when = "htmlhint"
+[stack.html.variant.lint]
+commands = ["{htmlhint} {html-files}"]
+on_file  = ["{htmlhint} {file}"]
+
+[stack.html.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+# The rules read the repository root; the commit form reads the staged tree,
+# the edit form the working tree.
+[stack.html.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
+
+[stack.css.lint]
+commands = ["{stylelint} {stylelint-config} {css-files}"]
+on_file  = ["{stylelint} {stylelint-config} {file}"]
+
+[stack.css.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.css.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
 
 [stack.shell.lint]
 on_file = ["shellcheck {file}"]

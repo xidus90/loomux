@@ -321,7 +321,7 @@ The keys of the table form:
 
 #### Placeholders
 
-Only these names are replaced, each inside one argument (the php ones may stand for several); every other brace
+Only these names are replaced, each inside one argument (the php, html and css ones may stand for several); every other brace
 stays literal (`-run 'Test{A,B}'`).
 
 | Placeholder | Value |
@@ -337,6 +337,10 @@ stays literal (`-run 'Test{A,B}'`).
 | `{solution}` | A whole argument: the one `.sln` or `.slnx` file in the area, else no argument at all, so dotnet picks the folder's project itself (`dotnet build {solution}`). A solution in the root also makes the root the only `csharp` area: it builds the projects below it. |
 | `{phpcs-standard}`, `{phpcs-files}` | Filled in the lanes of the `php` stack only, whichever command names them; elsewhere they stay literal. Standing alone, where the area or a directory above it holds `.phpcs.xml`, `phpcs.xml`, `.phpcs.xml.dist` or `phpcs.xml.dist`, no argument at all, so PHP_CodeSniffer reads that configuration; else `--standard=PSR12`, and `--extensions=php`, `--ignore=*/vendor/*` and `.` as three arguments. |
 | `{phpstan-defaults}` | Filled in the lanes of the `php` stack only, whichever command names them; elsewhere they stay literal. Standing alone, where the area holds `phpstan.neon`, `phpstan.neon.dist` or `phpstan.dist.neon`, no argument at all; else `--level=max` and the paths the `autoload` of the area's `composer.json` names (`psr-4`, `psr-0`, `classmap`; not `autoload-dev`, not the area itself), those that exist, else `src` where it exists, each as an argument of its own. With none of them the lane is `unavailable` (`none found: phpstan.neon, composer.json autoload or src`). |
+| `{html-validate}`, `{htmlhint}`, `{stylelint}` | Filled in the lanes of the `html` and `css` stacks only, whichever command names them; elsewhere they stay literal. `npx` and the tool where `node_modules/.bin` of the area or of a directory above it up to the root holds it (in a workspace the root's), so the project's own version runs with its configuration; else the pinned version through `npx --yes`: `html-validate@11.21.1`, `htmlhint@1.9.2`, and `-p stylelint@18.0.0 -p stylelint-config-standard-scss@18.0.0 stylelint`. An installed stylelint counts only beside the project's stylelint configuration, since the default configuration needs the shared one npx installs beside the pinned version. A pinned tool that npx cannot download (no network, an unreachable registry) leaves the lane `unavailable`, not `failed`. |
+| `{stylelint-config}` | `css` only, as above. No argument at all where the project has a stylelint configuration: from the area upwards, for an edit from the file's directory upwards, one of `.stylelintrc` and `.stylelintrc.{json,yaml,yml,js,ts,cjs,mjs}`, the same names in `.config/` without the leading dot, `stylelint.config.{js,ts,cjs,mjs}`, or a `package.json` with a `stylelint` key. Else `--config` and loomux's default configuration, `verify/stylelint.config.mjs` in the [state directory](#machine-wide-settings-configtoml-in-the-state-directory), which extends stylelint-config-standard-scss; `loomux check` and the hooks write it there before the lanes start, never into the work tree. A configuration only in a subdirectory of the area is not found for the area's whole check. An edit of a `.less` or `.sass` file without the project's configuration is `unavailable` (`no stylelint configuration for .less`): the default reads SCSS. |
+| `{css-files}` | `css` only, as above: no list of files but `--allow-empty-input`, one `--ignore-pattern **/<dir>/**` for each directory the code graph's walk prunes (`node_modules`, `dist`, `build`, `coverage`, `htmlcov`, `vendor` and the others), `--ignore-pattern **/*.min.css` and the glob `**/*.{css,scss}`; stylelint's glob passes dot directories by itself. |
+| `{html-files}` | `html` only, as above: the area's `.html` and `.htm` files, relative and sorted, outside dot directories and the directories the code graph's walk prunes, each an argument of its own. html-validate has no switch to leave a directory out. A long list is split over several commands of the lane, each below 8000 characters, on every system: on Windows `npx` is `npx.cmd`, which cmd.exe runs, and cmd.exe takes at most 8191. With no page the lane is `unavailable` (`none found: *.html, *.htm`). |
 | `{godot}` | `gdscript` only, anywhere else a load error. The line comes from the area's `project.godot`: `config/features` names major and minor, and where it is absent — a Godot 3 project from 3.1 on — `config_version=4` stands for the whole 3 line, of which only the major version is compared. A `config_version` that names no line of its own, `5` without `config/features` included, leaves the lane `unready`. A binary named in `GODOT_BIN` or `[verify.gdscript] godot` is held to that line: one of another line is refused, not passed over, since naming it was deliberate. Where neither names one, the engines of `GODOT_BIN_DIR` (its files whose name begins with `godot`, in name order) and then `godot`/`godot4` on the `PATH` are asked in turn, and the first that fits the line wins. On Windows the `_console.exe` beside a found `.exe` is taken, since the window build writes nothing to stdout. A mono build is required where the project has a `[dotnet]` section. No candidate fitting is `unready`, naming the version found and the line wanted; no candidate at all is `missing-tool`, saying what was looked at. Each distinct binary is asked once per run, for at most 30 s; at a turn end and in an edit the wait counts against the budget, and a lane whose binary could not be asked in time ends as `budget`, never as a mismatch. |
 
 Go lanes run with the go tool's work directory and build cache under the
@@ -363,7 +367,10 @@ outside that folder, as a loomux checkout's hooks do.
   afterwards. A green run deletes its own coverage files at the end; a red
   one leaves them for inspection. Files of other runs are deleted once they are
   24 hours old, so two runs side by side never delete each other's profiles.
-  A path outside `.loomux/state/cover/` is never touched.
+  A path outside `.loomux/state/cover/` is never touched. Beside the
+  directory they write stylelint's default configuration into the state
+  directory when a lane of the run names it, where it is missing or differs,
+  through a temporary file renamed into place (see `{stylelint-config}`).
 
 #### Presets
 
@@ -383,8 +390,8 @@ shapes no kind, such as `maven`, wins them all.
 | typescript | `npx eslint .`; with `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run`; with `jest`: `npx jest --ci` | `{loomux} check linecov --report coverage/lcov.info`, measured by `npx vitest run --coverage --coverage.reporter=lcov`; with `jest`: by `npx jest --ci --coverage --coverageReporters=lcov` |
 | vue | — | `npx vue-tsc --noEmit` | — | — |
 | svelte | — | `npx svelte-check` | — | — |
-| css | `npx stylelint **/*.{css,scss}` | — | — | — |
-| html | `npx htmlhint **/*.html` | — | — | — |
+| css | `{stylelint} {stylelint-config} {css-files}` | — | — | — |
+| html | `{html-validate} --preset standard {html-files}` (html-validate takes the preset only where it finds no configuration of the project); with `htmlhint`: `{htmlhint} {html-files}` | — | — | — |
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .`, `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (with GUT) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
 | csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (where a `.csproj` names `Microsoft.NET.Test.Sdk` or `xunit.v3`) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, measured by `dotnet test` with `--collect "XPlat Code Coverage" --results-directory {coverdata}`; with `mtp`: `{loomux} check linecov --report {coverdata}/*.cobertura.xml`, measured by `dotnet test` with `--results-directory {coverdata} -- --coverage --coverage-output-format cobertura` (where a `.csproj` names `Microsoft.Testing.Extensions.CodeCoverage`) |
 | cpp | `run-clang-tidy -p build -quiet` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
@@ -415,7 +422,7 @@ shapes no kind, such as `maven`, wins them all.
   `excluded_directories` in `.gdlintrc` (gdtoolkit 3.2.8 and later) and in
   `.gdformatrc` (4.3.0 and later). Both files are YAML; a directory is matched
   by name at any depth, and only `.git` is excluded by default.
-- Go, Python, GDScript, C#, C++, Java, PHP and TypeScript carry a `rules` lane, the same in each:
+- Go, Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS and HTML carry a `rules` lane, the same in each:
   `{loomux} check rules --cached` (the commit and the turn end read the index)
   and, for an edit, `{loomux} check rules` (the working tree). See
   [`[rules]`](#rules-the-layer-map).
@@ -458,7 +465,8 @@ shapes no kind, such as `maven`, wins them all.
   `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint {file}`, cpp
   `clang-format --dry-run --Werror {file}` (checks, never rewrites),
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
-  css `npx stylelint {file}`, html `npx htmlhint {file}`, shell
+  css `{stylelint} {stylelint-config} {file}`, html
+  `{html-validate} --preset standard {file}` (htmlhint: `{htmlhint} {file}`), shell
   `shellcheck {file}`, sql `sqlfluff lint {file}`.
 - The cpp `lint`, `types`, `test` and `coverage` carry `needs =
   ["build/CMakeCache.txt"]`: until the build tree is configured they are
@@ -585,7 +593,7 @@ shapes no kind, such as `maven`, wins them all.
 #### The `graph` kind
 
 The fifth kind checks what a commit's change reaches in the code graph. Go,
-Python, GDScript, C#, C++, Java, PHP and TypeScript have a preset for it, with the same commands:
+Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS and HTML have a preset for it, with the same commands:
 
 ```toml
 [stack.go.graph]
@@ -619,7 +627,7 @@ The commands run one after the other, and `blast-audit` runs even after a red
   one rebuild per area, and of several stacks with a graph command only the
   highest-ranked runs it: in a repository with Go and Python, `graph/go`
   runs and `graph/python` is `not-applicable` ("graph covered by graph/go"),
-  which leaves the verdict green. The rank is `go`, then `python`, `gdscript`, `csharp`, `cpp`, `java`, `php` and `typescript`; a stack outside that list follows them in byte order. In a
+  which leaves the verdict green. The rank is `go`, then `python`, `gdscript`, `csharp`, `cpp`, `java`, `php`, `typescript`, `css` and `html`; a stack outside that list follows them in byte order. In a
   repository with a Godot project beside Go or Python, their lane carries
   and `graph/gdscript` is `not-applicable` ("graph covered by graph/go" or "graph/python");
   `graph/gdscript` carries in a project with neither. The lanes stay listed
@@ -669,7 +677,7 @@ The commands run one after the other, and `blast-audit` runs even after a red
   of `HEAD` by the turn end and is never audited.
 - **Changing the threshold** means replacing `commands` in the table of the
   stack that carries the lane, the highest-ranked (`go`, then `python`, `gdscript`, `csharp`,
-  `cpp`, `java`, `php` and `typescript`): `[verify.go.graph]` in a Go repository, even one with a Godot
+  `cpp`, `java`, `php`, `typescript`, `css` and `html`): `[verify.go.graph]` in a Go repository, even one with a Godot
   project, `[verify.python.graph]` in a Python one without Go, and
   `[verify.gdscript.graph]` only in a Godot project with neither (and so on down the rank). An
   override under a stack that stands aside is never read. Replace
@@ -928,7 +936,7 @@ and a human reviews it with `loomux config proposals` and applies it with
 Like `graph` it belongs to the repository root: at most one job per run,
 carried by the highest-ranked active stack with a `rules` command, in the
 rank of `graph` (`go`, then `python`, `gdscript`, `csharp`, `cpp`, `java`,
-`php` and `typescript`). The presets of those stacks are the same:
+`php`, `typescript`, `css` and `html`). The presets of those stacks are the same:
 
 ```toml
 [stack.go.rules]

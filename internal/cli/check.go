@@ -281,11 +281,11 @@ func checkEnv(root string, eff verify.Effective) verify.PlanEnv {
 // checkLanes plans kinds, adds the wiki's lanes and runs them all, judged by
 // the armed set it read.
 func checkLanes(root, request string, eff verify.Effective, kinds []string, facts detect.Facts, env verify.PlanEnv, stderr io.Writer) ([]verify.Outcome, verify.ArmedSet, error) {
-	if err := verify.PrepareCover(root); err != nil {
-		return nil, verify.ArmedSet{}, err
-	}
 	jobs, err := checkPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeCheck}, env)
 	if err != nil {
+		return nil, verify.ArmedSet{}, err
+	}
+	if err := verify.PrepareRun(root, jobs); err != nil {
 		return nil, verify.ArmedSet{}, err
 	}
 	// The wiki's lane is built by the hooks, like its edit lane; appended

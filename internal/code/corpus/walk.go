@@ -14,9 +14,11 @@ package corpus
 
 import (
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -76,6 +78,9 @@ var pruneDirs = map[string]bool{
 func SkipSegment(name string) bool {
 	return strings.HasPrefix(name, ".") || pruneDirs[name]
 }
+
+// PruneDirs are the names of pruneDirs in byte order, a copy of its own.
+func PruneDirs() []string { return slices.Sorted(maps.Keys(pruneDirs)) }
 
 // PrunedDir reports whether a directory name is one of pruneDirs, without the
 // dot rule. A caller that filters an already enumerated path list checks this

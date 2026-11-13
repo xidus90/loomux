@@ -236,7 +236,7 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 		return end(ExitInternal)
 	}
 	jobs = append(jobs, WikiGateJobs(eff, facts, root, kinds)...)
-	if err := verify.PrepareCover(root); err != nil {
+	if err := verify.PrepareRun(root, jobs); err != nil {
 		say("%v", err)
 		return end(ExitInternal)
 	}
