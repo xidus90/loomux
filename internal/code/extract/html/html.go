@@ -389,7 +389,7 @@ func embed(rel, source string, parts []part, minted map[string]bool, read func(l
 }
 
 // remint gives every node of part an id not yet in minted, and points its
-// edges, offers and bridges at the new ids.
+// edges and offers at the new ids.
 func remint(part *extract.Result, minted map[string]bool) {
 	ids := map[model.NodeID]model.NodeID{}
 	for i, n := range part.Nodes {
@@ -407,9 +407,6 @@ func remint(part *extract.Result, minted map[string]bool) {
 	}
 	for i := range part.Exports {
 		part.Exports[i].Target = to(part.Exports[i].Target)
-	}
-	for i := range part.Bridges {
-		part.Bridges[i].Source = to(part.Bridges[i].Source)
 	}
 }
 

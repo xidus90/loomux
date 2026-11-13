@@ -360,9 +360,116 @@ func TestECMAScriptWeb(t *testing.T) {
 		"web/app.js#greet -references-> web/index.html#main extracted",
 		"web/index.html#inline -references-> web/index.html#main extracted",
 		"web/comp.jsx#C -references-> web/app.css#.card extracted",
+		"web/comp.jsx -imports-> web/app.css extracted",
 		// A page's call of a script function is not scoped to its scripts.
 		"web/index.html#button -calls-> web/app.js#greet inferred",
 		"web/index.html#button -calls-> web/index.html#inline inferred",
+	)
+}
+
+// A class a module hands over reaches the stylesheets it imports: by a
+// relative path, not by a bare name without a tsconfig, nor by a URL.
+func TestECMAScriptWebStyleScope(t *testing.T) {
+	g := webGraph(t, map[string]string{
+		"src/m.js": "import \"./a.css\";\nimport \"../b.scss\";\nimport \"pkg/c.css\";\nimport \"https://cdn.example/d.css\";\n" +
+			"function wire(el) { el.classList.add(\"k\"); }\n",
+		"src/a.css": ".k {}\n",
+		"b.scss":    ".k {}\n",
+		"pkg/c.css": ".k {}\n",
+	})
+	wantEdges(t, g,
+		"src/m.js -imports-> src/a.css extracted",
+		"src/m.js -imports-> b.scss extracted",
+		"src/m.js#wire -references-> src/a.css#.k extracted",
+		"src/m.js#wire -references-> b.scss#.k extracted",
+	)
+}
+
+// A classic script reaches the stylesheets of the pages that load it, and
+// their own <style>.
+func TestECMAScriptWebClassicScriptReachesThePageStyles(t *testing.T) {
+	app := "function w(el) { el.classList.add(\"btn\"); }\n"
+	g := webGraph(t, map[string]string{
+		"p.html":   "<link rel=\"stylesheet\" href=\"site.css\">\n<script src=\"app.js\"></script>\n",
+		"site.css": ".btn {}\n",
+		"app.js":   app,
+	})
+	wantEdges(t, g,
+		"p.html -imports-> site.css extracted",
+		"p.html -imports-> app.js extracted",
+		"app.js#w -references-> site.css#.btn extracted",
+	)
+	g = webGraph(t, map[string]string{
+		"p.html":    "<style>.btn {}</style>\n<script src=\"app.js\"></script>\n",
+		"other.css": ".btn {}\n",
+		"app.js":    app,
+	})
+	wantEdges(t, g,
+		"p.html -imports-> app.js extracted",
+		"app.js#w -references-> p.html#.btn extracted",
+	)
+}
+
+// css.class takes every hit: one script on two pages, each with its own
+// site.css, reaches both.
+func TestECMAScriptWebClassOnTwoPagesReachesBoth(t *testing.T) {
+	page := "<link rel=\"stylesheet\" href=\"site.css\">\n<script src=\"/app.js\"></script>\n"
+	g := webGraph(t, map[string]string{
+		"a/p.html":   page,
+		"b/p.html":   page,
+		"a/site.css": ".btn {}\n",
+		"b/site.css": ".btn {}\n",
+		"app.js":     "function w(el) { el.classList.add(\"btn\"); }\n",
+	})
+	wantEdges(t, g,
+		"a/p.html -imports-> a/site.css extracted",
+		"a/p.html -imports-> app.js extracted",
+		"b/p.html -imports-> b/site.css extracted",
+		"b/p.html -imports-> app.js extracted",
+		"app.js#w -references-> a/site.css#.btn extracted",
+		"app.js#w -references-> b/site.css#.btn extracted",
+	)
+}
+
+// A selector's id reaches the page's element and the linked rule.
+func TestECMAScriptWebSelectorIDReachesElementAndRule(t *testing.T) {
+	g := webGraph(t, map[string]string{
+		"p.html":   "<link rel=\"stylesheet\" href=\"site.css\">\n<div id=\"app\"></div>\n<script src=\"app.js\"></script>\n",
+		"site.css": "#app {}\n",
+		"app.js":   "function w() { document.querySelector(\"#app\"); }\n",
+	})
+	wantEdges(t, g,
+		"p.html -imports-> site.css extracted",
+		"p.html -imports-> app.js extracted",
+		"app.js#w -references-> p.html##app extracted",
+		"app.js#w -references-> site.css##app extracted",
+	)
+}
+
+// A module with no page and no stylesheet import has no scope for its
+// classes: no edge.
+func TestECMAScriptWebClassWithoutScopeGivesNoEdge(t *testing.T) {
+	g := webGraph(t, map[string]string{
+		"C.jsx":    "export function C() { return <div className=\"a\" />; }\n",
+		"site.css": ".a {}\n",
+	})
+	wantEdges(t, g)
+}
+
+// An aliased stylesheet import loads the file under the tsconfig's paths;
+// a query after the path does not hide it.
+func TestECMAScriptWebAliasedAndQueriedStylesheets(t *testing.T) {
+	files := webFiles(t, map[string]string{
+		"src/main.tsx":     "import \"@/styles/x.css\";\nimport \"./y.css?inline\";\nexport function C() { return <div className=\"a\" />; }\n",
+		"src/styles/x.css": ".a {}\n",
+		"src/y.css":        "",
+	})
+	mods := []resolve.Module{{Dir: "", TS: &resolve.TSConfig{Paths: map[string][]string{"@/*": {"src/*"}}}}}
+	g, _ := resolve.GraphWith(files, mods, stamp)
+	wantEdges(t, validated(t, g),
+		"src/main.tsx -imports-> src/styles/x.css extracted",
+		"src/main.tsx -imports-> src/y.css extracted",
+		"src/main.tsx#C -references-> src/styles/x.css#.a extracted",
 	)
 }
 

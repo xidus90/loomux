@@ -535,20 +535,19 @@ function wire(el) {
 	ref := func(member, name string) extract.RawEdge {
 		return extract.RawEdge{Source: "src/m.js#wire", Relation: model.RelationReferences, Name: name, File: "src/m.js", Member: model.Kind(member)}
 	}
+	// The resolver scopes each: TestECMAScriptWebStyleScope.
 	same(t, "references", edgesOf(r, model.RelationReferences), []extract.RawEdge{
 		ref("html.id", "x"),
 		ref("html.id", "y"), ref("css.id", "y"),
-		ref("html.id", "z"), ref("css.id", "z"),
+		ref("css.class", "a"),
+		ref("html.id", "z"), ref("css.id", "z"), ref("css.class", "b"),
+		ref("css.class", "c"), ref("css.class", "d"),
+		ref("css.class", "e"), ref("css.class", "f"),
+		ref("css.class", "g"), ref("css.class", "h"), ref("css.class", "i"),
 	})
-	var classes []string
-	for _, b := range r.Bridges {
-		if b.Source != "src/m.js#wire" || b.Relation != model.RelationReferences || b.Namespace != extract.NamespaceCSSClass || b.File != "src/m.js" || b.Line == 0 {
-			t.Errorf("bridge %+v, want a css.class reference from wire with a line", b)
-		}
-		same(t, "scope of "+b.Name, b.Scope, []string{"src/a.css", "b.scss"})
-		classes = append(classes, b.Name)
+	if r.Bridges != nil {
+		t.Errorf("bridges = %+v, want handovers as raw edges alone", r.Bridges)
 	}
-	same(t, "classes", classes, []string{"a", "b", "c", "d", "e", "f", "g", "h", "i"})
 }
 
 func TestJSXHandoversAndOffers(t *testing.T) {
@@ -563,13 +562,19 @@ const top = <p id="top" />;
 		{Namespace: extract.NamespaceHTMLID, Name: "top", Target: "ui/App.jsx"},
 	})
 	var classes []string
-	for _, b := range r.Bridges {
-		if b.Source != "ui/App.jsx#App" || b.Scope != nil || b.Line != 2 {
-			t.Errorf("bridge %+v, want one from App on line 2 without a scope", b)
+	for _, e := range r.Edges {
+		if e.Relation != model.RelationReferences {
+			continue
 		}
-		classes = append(classes, b.Name)
+		if e.Source != "ui/App.jsx#App" || e.Member != "css.class" || e.Line != 2 {
+			t.Errorf("reference %+v, want a css.class from App on line 2", e)
+		}
+		classes = append(classes, e.Name)
 	}
 	same(t, "classes", classes, []string{"a", "b", "c"})
+	if r.Bridges != nil {
+		t.Errorf("bridges = %+v, want handovers as raw edges alone", r.Bridges)
+	}
 }
 
 func TestBrokenDefinitionsKeepTheRest(t *testing.T) {

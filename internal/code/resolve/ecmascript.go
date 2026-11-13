@@ -14,10 +14,11 @@ import (
 // resolveECMAScript resolves the raw edges of the JavaScript and TypeScript
 // files, one family, against an index of those files alone
 // (docs/.superpowers/specs/2026-11-11-ecmascript-design.md): an import to
-// the file it loads (importFile), a base and a call through the file's
-// declarations and import bindings (target), this and super through the
-// bases of the calling class. The pages that load a script (w.pages) scope
-// its element ids, and they make a classic script offer its functions.
+// the file it loads (importFile, else styleFile), a base and a call through
+// the file's declarations and import bindings (target), this and super
+// through the bases of the calling class. The pages that load a script
+// (pagesOf) scope its element ids, styleScope its classes and style ids,
+// and the pages make a classic script offer its functions.
 // paths is every file of the build.
 //
 // Only a base gives an Unresolved entry, and only one whose name an import
@@ -34,11 +35,7 @@ func resolveECMAScript(files []extract.Result, mods []Module, w webLinks, paths 
 	// line of the imports that make it.
 	imported := map[[2]model.NodeID]int{}
 	for _, f := range files {
-		// An embedded part shares its page's path, and its page is its scope.
-		scope := pages[f.Path]
-		if _, ok := esExts[path.Ext(f.Path)]; !ok {
-			scope = []string{f.Path}
-		}
+		ownPages, styles := pagesOf(f, w), styleScope(f, x, w, paths)
 		for _, raw := range f.Edges {
 			switch raw.Relation {
 			case model.RelationContains:
@@ -48,6 +45,9 @@ func resolveECMAScript(files []extract.Result, mods []Module, w webLinks, paths 
 				})
 			case model.RelationImports:
 				target, ok := x.importFile(f.Path, raw.Specifier)
+				if !ok {
+					target, ok = x.styleFile(f.Path, raw.Specifier, paths)
+				}
 				key := [2]model.NodeID{raw.Source, model.NodeID(target)}
 				if !ok || key[1] == raw.Source {
 					continue
@@ -81,7 +81,10 @@ func resolveECMAScript(files []extract.Result, mods []Module, w webLinks, paths 
 			case model.RelationCalls:
 				calls = append(calls, raw)
 			case model.RelationReferences:
-				// An element id: only the pages loading the script know it.
+				scope := styles
+				if extract.Namespace(raw.Member) == extract.NamespaceHTMLID {
+					scope = ownPages
+				}
 				hs = append(hs, handover{bridge: extract.Bridge{
 					Source: raw.Source, Relation: raw.Relation, Namespace: extract.Namespace(raw.Member),
 					Name: raw.Name, Scope: scope, File: raw.File, Line: raw.Line,
@@ -98,6 +101,55 @@ func resolveECMAScript(files []extract.Result, mods []Module, w webLinks, paths 
 		}
 	}
 	return langOut{edges: out, unresolved: un, offers: esOffers(files, pages), handovers: hs}
+}
+
+// pagesOf are the pages that load f: an embedded part, which shares its
+// page's path, has its page alone.
+func pagesOf(f extract.Result, w webLinks) []string {
+	if !esExts[path.Ext(f.Path)] {
+		return []string{f.Path}
+	}
+	return w.pages[f.Path]
+}
+
+// styleScope is where a class or a style id f hands over may land: the
+// stylesheets f imports, then for each page that loads it the stylesheets
+// the page links and the page itself, which stands for its <style>.
+func styleScope(f extract.Result, x *esIndex, w webLinks, paths map[string]bool) []string {
+	var out []string
+	for _, imp := range f.Imports {
+		if p, ok := x.styleFile(f.Path, imp.Path, paths); ok {
+			out = appendNew(out, p)
+		}
+	}
+	for _, page := range pagesOf(f, w) {
+		for _, s := range w.sheets[page] {
+			out = appendNew(out, s)
+		}
+		out = appendNew(out, page)
+	}
+	return out
+}
+
+// styleFile is the stylesheet in paths an import of file loads, false for
+// none: a .css or .scss path read by localPath, a relative one by pageRef,
+// any other through the tsconfig nearest file.
+func (x *esIndex) styleFile(file, spec string, paths map[string]bool) (string, bool) {
+	p, ok := localPath(spec)
+	if ext := path.Ext(p); !ok || ext != ".css" && ext != ".scss" {
+		return "", false
+	}
+	cands := aliased(x.config[file], p)
+	if strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../") {
+		rel, _ := pageRef(file, spec)
+		cands = []string{rel}
+	}
+	for _, c := range cands {
+		if paths[c] {
+			return c, true
+		}
+	}
+	return "", false
 }
 
 // esExts are the extensions of the family's files.
