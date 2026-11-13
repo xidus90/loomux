@@ -8,13 +8,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:566cf2977af11c829e02f11721b8a4fa178ca41acebaaec70d9e70fd0d1f21d0"
-    revision: 8
+    content_hash: "sha256:d75c995eb2af5df759fc9a06ba0e5695a94a99dbcf736283133b0c3e62ac4210"
+    revision: 9
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:2508a842244d6e301310c4df3b65887633f84d2a76a9c6b987b04243ec1b2d35"
-    revision: 48
+    content_hash: "sha256:bfec3796e6791934bc999feaea218d63f79b8cd38f820dba10f356f72745b35d"
+    revision: 49
 ---
 
 ## Wofür
@@ -291,15 +291,70 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   Größengrenze und kostet Sekunden an Parsefehlern (d3.min.js: 2 s, 16
   Fehler).
 
+- **HTML, CSS und SCSS** liest er auf demselben Kern, mit zwei Extraktoren
+  für drei Sprachen: `html` (`internal/code/extract/html`, `.html` und
+  `.htm`, Version `html/1`) und `css` und `scss`
+  (`internal/code/extract/stylesheet`, `.css` und `.scss`, Versionen
+  `css/1` und `scss/1`). Eine Seite hat ihren Dateiknoten und je Element
+  mit `id` einen Knoten der Art `element` namens `#id`; ein zweites
+  Element derselben `id` bekommt eine Ordinalzahl. `<link
+  rel="stylesheet" href>` und `<script src>` sind Importe der Arten
+  `stylesheet` und `script`, `<a href>` ist Navigation und keiner. Die
+  Rümpfe der Inline-Skripte einer Sprache und aller `<style>` sind je ein
+  **eingebetteter Teil** (`Result.Embedded`), ein Teil je Sprache und Seite,
+  nicht je Block: Der Extraktor der Sprache liest eine Kopie der Seite, in
+  der alles außer diesen Rümpfen ausgeblendet ist (`mask`), sodass Offsets,
+  Zeilen und Spans in die Seite zeigen, und hinter jeden Skript-Rumpf
+  schreibt die Maske ein `;`, damit zwei Skripte nicht zu einer Anweisung
+  verschmelzen. Ein Skript ist JavaScript ohne `type`, mit `module` oder
+  einem JavaScript-MIME-Typ, TypeScript mit `lang="ts"` oder
+  `type="text/typescript"`; jeder andere Typ ist Daten oder Vorlage. Ein
+  Teil hat keinen eigenen Dateiknoten, seine Definitionen hängen per
+  `contains` an der Seite, und die IDs vergibt die Seite gemeinsam: erst
+  die Elemente, dann jeder Teil, also sind `<div id="app">` und
+  `<style>#app{}` `p.html##app` und `p.html##app~2`. Eine Regel
+  (`rule_set`, auch in `@media`, `@supports`, `@layer` oder einem Mixin)
+  ist ein Knoten der Art `rule`; ihr **Name** ist die Selektorliste mit
+  Leerraum zu einem Leerzeichen gefaltet, `~` bleibt erhalten (es steht in
+  einem Selektor nie vor einer Ziffer, und nur `~` mit Ziffern ist eine
+  Ordinalzahl), die Signatur hält den Text wie geschrieben, und eine
+  verschachtelte SCSS-Regel heißt `Eltern › Kind`. SCSS fügt `@mixin`
+  (Art `mixin`), `@function` (Art `function`) und Platzhalter `%p` (Art
+  `rule`) hinzu. Jede Klasse eines Selektors bietet `css.class` an, jede
+  ID `css.id`, und `&__el` hängt sein Suffix an die Klassen, auf die der
+  Elternselektor endet. `@include` und der Aufruf einer Funktion in einem
+  SCSS-Wert sind `calls`, `@extend` ist `extends`; plain CSS ruft nichts.
+  Wo die SCSS-Grammatik eine ganze Datei in einen ERROR zöge, maskiert der
+  Extraktor drei Formen vor dem Parsen in einer Kopie gleicher Länge: das
+  `%` von `@extend %p`, ein Map-Literal `($k: v)` als Argument und `#{$v}`
+  in einem Namen in einem Wert. HTML ist eine eigene Familie, CSS und SCSS
+  sind eine (`stylesheet`). **Alle Verweise einer Seite liest eine
+  Funktion, `pageRef`** (`internal/code/resolve/web.go`): `<script src>`,
+  `<link href>`, `@import`, `@use` und der relative Stylesheet-Import eines
+  Skripts werden über `localPath` als URL gelesen, `/x` ist `x` an der
+  Wurzel des Repositorys, jeder andere Pfad relativ zum Ordner der Datei.
+  Ein SCSS-Import probiert mit Endung den Pfad und sein Partial
+  (`_x.scss`), ohne Endung `_x.scss`, `x.scss` und `x/_index.scss`. `@include m` und `f()` lösen
+  sich in der Breite über die Importe auf, die Datei selbst zuerst, `ns.m`
+  nur über das `@use`, das `ns` bindet, und dessen `@forward`-Kette; die
+  erste Tiefe mit dem Namen entscheidet, und nur mit genau einem Treffer.
+  `@extend` sieht jede Tiefe. Was die Seiten laden und verlinken, liest
+  `webOf` einmal je Build aus allen Seiten; es gibt den Geltungsbereich der
+  Web-Brücken
+  (`docs/.superpowers/specs/2026-11-11-web-design.md`).
+
 Jede Familie löst in einem eigenen Namensindex auf (`familyOf` in
 `internal/code/resolve/resolve.go`): meist ist das eine Sprache, nur
-JavaScript und TypeScript, die einander importieren, teilen sich einen. Eine
+JavaScript und TypeScript, die einander importieren, teilen sich einen,
+ebenso CSS und SCSS. Eine
 Familie löst an der Stelle ihrer ersten Sprache in der sortierten Liste auf,
 damit der Graph einer Familie aus einer Sprache Byte für Byte gleich bleibt;
 das Meta des Graphen listet weiter die einzelnen Sprachen. Über eine
 Sprachgrenze geht ein Godot-Pfad, der eine Datei nennt, die ein anderer
 Extraktor liest (etwa eine `.py`-, `.go`- oder `.cs`-Datei): er landet auf
-deren Dateiknoten. Eine Datei, die kein Extraktor liest (eine Textur), ergibt
+deren Dateiknoten. Ebenso landen `<link>` und `<script src>` einer Seite und
+der Stylesheet-Import eines Skripts auf dem Dateiknoten des Stylesheets oder
+Skripts. Eine Datei, die kein Extraktor liest (eine Textur), ergibt
 keine Kante.
 
 Symbol zu Symbol über eine Sprachgrenze geht nur über eine **Brücke**
@@ -343,21 +398,46 @@ Extraktor kann Teile einer Datei in einer anderen Sprache als eingebettete
 Ergebnisse melden (`Result.Embedded`, etwa Inline-Skripte); sie landen im
 Index ihrer eigenen Familie.
 
-Für das Web liefert die JavaScript-Seite schon Übergaben und Angebote in den
-Namensräumen `html.id`, `css.class`, `css.id` und `js.function`; die
-Gegenseite, ein HTML- und ein CSS-Extraktor, folgt mit dem Web-Plan
-(`docs/.superpowers/specs/2026-11-11-web-design.md`), bis dahin entsteht
-daraus keine Kante. `document.getElementById("x")` übergibt `html.id`, ein
-`querySelector*` allein aus `#x` und `.a` dazu `css.id` und `css.class`,
-`getElementsByClassName`, `classList.*` und ein JSX-`className` übergeben
-`css.class`, ein JSX-`id` bietet `html.id` an (Ziel ist die Komponente). Den
-Geltungsbereich einer ID setzt der Resolver: die HTML-Seiten, deren
-`<script src>` auf die Datei zeigt (`scriptPages`, `src` als URL gelesen,
-ohne Query und Fragment). Den einer Klasse setzt der Extraktor: die
-Stylesheets, die das Modul über einen relativen Pfad importiert. Die
-Funktionen auf oberster Ebene eines klassischen Skripts (ohne `import`,
-`export`, `require` und `module.exports`), das eine Seite einbindet, bietet
-der Resolver als `js.function` an.
+Das Web hat vier Brücken-Namensräume. Jede Übergabe ist eine Rohkante mit
+dem Namensraum in `RawEdge.Member`, und den Geltungsbereich setzt der
+Resolver, nie der Extraktor; so liest jeder Verweis dieselbe `pageRef`.
+
+| Namensraum | Karte | ohne Geltungsbereich | ohne Treffer im Geltungsbereich |
+|---|---|---|---|
+| `css.class` | alle Treffer | keine Kante | keine Kante |
+| `css.id` | alle Treffer | keine Kante | keine Kante |
+| `html.id` | genau einer | im Repo, `inferred` | keine Kante |
+| `js.function` | genau einer | im Repo, `inferred` | keine Kante |
+
+- **Seite → Regel:** `class="a b"` übergibt je Klasse `css.class` mit der
+  Relation `references` von der Datei; Geltungsbereich sind die Stylesheets,
+  die die Seite verlinkt, und die Seite selbst (ihr `<style>`).
+- **Seite → Funktion:** ein `on*`-Attribut, dessen Wert mit einem einfachen
+  Aufruf beginnt (`go(…)`, `return go(…)`), übergibt `js.function` mit der
+  Relation `calls`; Geltungsbereich sind die Skripte, die die Seite lädt,
+  und die Seite selbst. Angeboten werden die Funktionen auf oberster Ebene
+  eines klassischen Skripts (ohne `import`, `export`, `require` und
+  `module.exports`): inline vom HTML-Extraktor, als Datei, die eine Seite
+  lädt, vom Resolver.
+- **Skript → Element:** `document.getElementById("x")` übergibt `html.id`,
+  ein `querySelector*` allein aus `#x` und `.a` zusätzlich `css.id` und
+  `css.class`; ein JSX-`id` bietet `html.id` an (Ziel ist die Komponente).
+  Geltungsbereich sind die Seiten, die das Skript laden (`pagesOf`, aus
+  `webOf`); für einen eingebetteten Teil die eigene Seite.
+- **Skript → Regel:** `getElementsByClassName`, `classList.*`, ein
+  JSX-`className` und die Klassen und IDs eines `querySelector*` übergeben
+  `css.class` und `css.id`. Geltungsbereich (`styleScope`) sind die
+  Stylesheets, die das Modul importiert (`./`/`../` über `pageRef`, alles
+  andere über `paths` und `baseUrl` der `tsconfig.json`, Query wie `?inline`
+  abgeschnitten), dann je ladender Seite deren verlinkte Stylesheets und die
+  Seite selbst. Ein solcher Import ist zugleich eine `imports`-Kante auf das
+  Stylesheet, damit der Blast-Radius eines Stylesheets seine Importeure
+  zeigt.
+
+`css.class` und `css.id` raten nie: Eine Regel wie `.btn`, die zwanzig
+Komponenten nennen, bekäme sonst bei jedem CSS-Edit zwanzig geratene
+Aufrufer. Das bleibt so, weil `blast-audit` geratene Kanten mitzählt
+(`blast.New` legt jede Walk-Kante in den In-Grad).
 
 Unveränderte Dateien nimmt der Build aus dem
 Extraktions-Cache (`.loomux/state/graph/cache/extract.json`), statt sie neu zu
@@ -510,7 +590,13 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   Verzeichnis `test` oder `tests` in jeder Schreibung, für JavaScript und
   TypeScript `*.test.*`, `*.spec.*` und alles unter einem Verzeichnis
   `__tests__`, `test` oder `tests` (so geschrieben); Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
-  `project.godot` nie.
+  `project.godot` nie. Für die Web-Brücken entscheidet eine bestehende
+  Regel: `blast.signal` prüft nur Saaten der Art `function` oder `method`,
+  denn nur sie sind Verhalten. Regeln, Elemente und Mixins geben darum das
+  Signal `na` und nie einen Befund, auch wenn sechs Seiten mit
+  `class="btn"` der Regel `.btn` sechs sichere Kanten geben; eine
+  SCSS-`@function` mit genug Aufrufern und ohne Test gibt einen, wie eine
+  Go-Funktion ohne Test.
 - **Prüfart `rules`:** Die sechste Art liest denselben Extraktor-Kern, aber
   nie den gespeicherten Graphen: `check rules` baut ihn im Prozess aus den
   Dateien, die git kennt (mit `--cached` aus dem Index), und prüft jede
@@ -542,7 +628,8 @@ das Binary kommt über die üblichen Wege.
   abgenommen (`docs/.superpowers/parity/code-g5.md` in den Arbeitspapieren des
   Archiv-Release `archive/parity-recordings`); G5c (GDScript, Szenen,
   Ressourcen), G5d (C++, samt GDExtension) und G5b (JavaScript, JSX,
-  TypeScript und TSX) sind gebaut. Der erste
+  TypeScript und TSX) sind gebaut, ebenso HTML, CSS und SCSS mit den
+  Web-Brücken. Der erste
   Plan, Tree-sitter als WebAssembly über `wazero`, ist verworfen.
 - **Eingebaute Skripte einer Szene** (`[sub_resource type="GDScript"]`) bleiben
   ohne Kante.
@@ -599,14 +686,6 @@ das Binary kommt über die üblichen Wege.
     JavaScript-Grammatik: Die Definition, die es enthält, bekommt keinen
     Knoten, und der Rest der Datei wird nur ab Deklarationen in Spalte 0 neu
     gelesen. `.jsx` liest es mit der tsx-Grammatik.
-  - Ein Stylesheet, das über einen Alias importiert wird (`import "@/x.css"`),
-    setzt keinen Geltungsbereich für `css.class`: den setzt der Extraktor,
-    der die Aliase nicht kennt. Ein `className` in einem solchen Modul bleibt
-    ohne Kante; der Web-Plan prüft das noch einmal.
-  - `classList.*`, `getElementsByClassName` und `querySelector*(".a")` in
-    einem klassischen Skript haben keinen Geltungsbereich, weil das Skript
-    keine Stylesheets importiert; die Stylesheets seiner Seiten setzt erst
-    der Web-Plan.
   - Eine geänderte `tsconfig.json` oder `jsconfig.json` macht den Graphen für
     `graph-fresh` nicht veraltet, wie bei `go.mod`: die Frischeprobe sieht nur
     Quelldateien. Ein Alias greift erst mit dem nächsten Neubau.
@@ -621,6 +700,67 @@ das Binary kommt über die üblichen Wege.
     `unavailable`, nicht rot. Die Mitglieder, die ein Workspace in der Wurzel
     deklariert, sind eigene Bereiche, auch zwei Ebenen tief; ein Muster mit
     `**` findet nur eine Ebene.
+- **Lücken von HTML, CSS und SCSS:**
+  - Ein geteiltes Skript auf zwei Seiten, die beide `id="app"` haben,
+    erreicht keines der Elemente: `html.id` will genau einen Treffer
+    (`cardOne`). Ebenso bleibt `onclick="init()"` ohne Kante, wenn zwei
+    Skripte der Seite `init` definieren.
+  - Die `id` eines Elements erreicht keine Regel `#id`: `class` übergibt
+    `css.class`, aber `css.id` übergibt nur JavaScript.
+  - `.sass` und `.less` werden nur gelintet (beim Edit über
+    `stylelint {file}`), nicht in den Graphen gelesen; die indentierte
+    Sass-Syntax kennt die Grammatik nicht.
+  - Ein wurzelrelatives `import "/x.css"` aus einem Skript geht nicht über
+    `pageRef`, sondern über die Aliase der `tsconfig.json`; ohne
+    `paths`/`baseUrl` ergibt es keine Kante. Die Wurzel `/` eines Bundlers
+    ist Projektkonfiguration, die Repo-Wurzel zu raten gäbe falsche Kanten.
+  - Eine Seite, die nur gekürzte Ordner verlinkt (`dist/`, `build/`),
+    bekommt keine Kante auf ihre Stylesheets und keine für ihre Klassen.
+  - Der Klassen-Geltungsbereich einer Seite folgt keinem `@import`/`@use`
+    ihrer verlinkten Stylesheets.
+  - SCSS: keine Lade-Pfade (`node_modules`, `--load-path`); `-` und `_` in
+    Namen gelten als verschieden; `@forward … as`, `show` und `hide` werden
+    nicht berücksichtigt; `@use "x"` findet kein `x.css`; zwei Definitionen
+    in derselben Tiefe ergeben keine Kante; ein unqualifizierter Aufruf sieht
+    auch Mitglieder eines `@use` ohne `as *`, was Sass ablehnen würde;
+    `@extend %p, %q` liest nur `%p`, und ein verschachtelter Platzhalter
+    (`.a › %p`) ist für `@extend` unerreichbar.
+  - Grenzen der Grammatiken: Vorlagen-Tags (`<% %>`, `<?php ?>`) zerlegen
+    die Elemente um sie herum (Knoten ja, Span nur der Start-Tag); ein
+    einzelnes, nie geschlossenes `<p class>` am Dateiende verliert seine
+    Klassen; `import source` in einem Inline-Skript und `url(./x)` ohne
+    Anführungszeichen in `<style>` sind Parsefehler im Teil; ein
+    großgeschriebenes `@IMPORT` verliert den Import und die Regel danach;
+    `@use "x" with (…)` in einem ERROR gibt keinen Import, ein
+    Keyword-Argument `f($a: 1)` in einem Wert verliert den Aufruf, und eine
+    Map mit nackten Schlüsseln als Argument oder eine Interpolation mit
+    Aufruf oder Zeilenumbruch in einem Namen kann eine ganze Datei kosten.
+  - Weitere lokale Fehler der SCSS-Grammatik kosten nur, was in ihnen
+    steht: ein abschließendes Komma und verschachtelte Maps
+    (`defaults(( … ))`) in großen Maps, eine Map nach einem Schlüsselwort
+    (`@return ($k: $x)`, `@each … in ($k: 1)`), `@include m using ($a)`,
+    `@media ($a: 1)` und eine Map-Zuweisung über mehrere Zeilen. Eine Map
+    mit nackten Schlüsseln als Vorgabe eines Mixins kostet den Knoten des
+    Mixins, ein Aufruf in einem Map-Wert (`("a": 1, "b": f(2))`) seine
+    Kante; eine Interpolation über mehrere Zeilen in einem Wertnamen kann
+    einen Müllknoten hinterlassen. Eine verschachtelte Regel, die mit einem
+    Kombinator beginnt, heißt je nach Kontext `.a › .b` oder `.a › > .b`,
+    und ein verschachtelter privater Platzhalter (`.a { %-p {} }`) gilt als
+    exportiert.
+  - Inline-Skripte und Klassen: Ein `//`-Kommentar am Ende eines Skripts
+    verschluckt ein Skript, das in derselben Zeile folgt; teilen sich ein
+    Modul und ein klassisches Skript eine Zeile, werden die Funktionen des
+    Moduls als `js.function` angeboten (die Angebote hängen an der
+    Startzeile); ein nicht geschlossenes `{{` in einer Klasse übergibt die Tokens danach;
+    eine `id`, die zweimal kollidiert, bekommt `~2~2` statt `~3`.
+  - Prüfkette: Seiten und Stylesheets eines verschachtelten
+    Bereichs lintet der Bereich darüber mit; eine rote html-Lane mit
+    mehreren Befehlen druckt jeden Befehl mit seiner ganzen Seitenliste.
+  - Was der Extraktor bewusst so liest: `:not(.d)` bietet `d` an; Entities
+    in Attributen werden nicht dekodiert; ein `on*`-Wert mit
+    Mitgliedsaufruf (`a.b()`) übergibt nichts; Klassen mit
+    Vorlagen-Platzhalter (`{{ x }}`) oder `%` (Tailwinds `w-[50%]`)
+    entfallen.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
   Verhalten zählen nur Funktionen und Methoden, eine Änderung an einer Klasse
   ohne `__init__` läuft darum still durch `blast-audit`.

@@ -9,8 +9,8 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:d7ba6822d757d758c84316ae28192e3e07dc1948bdcd975da0872ceed13b3989"
-    revision: 47
+    content_hash: "sha256:285db9504d5d3a8018baecc4db93cdaebf4efc9bdc5f91c93c3c3c23d747ab6a"
+    revision: 48
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9

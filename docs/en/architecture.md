@@ -141,7 +141,7 @@ flowchart LR
 > **Packages.** The read model and the two calculators are `internal/code/model`,
 > `internal/code/pagerank` and `internal/code/blast`; the graph they read comes from
 > `sourceset`, the extractors in `extract/all` (`extract/golang` on `go/parser`,
-> `extract/python`, `extract/gdscript`, `extract/csharp`, `extract/cpp`, `extract/java`, `extract/php` and `extract/ecmascript` (JavaScript and TypeScript) on the shared tree-sitter core `extract/treesitter`, which runs on
+> `extract/python`, `extract/gdscript`, `extract/csharp`, `extract/cpp`, `extract/java`, `extract/php`, `extract/ecmascript` (JavaScript and TypeScript), `extract/html` (pages with their inline scripts and styles) and `extract/stylesheet` (CSS and SCSS) on the shared tree-sitter core `extract/treesitter`, which runs on
 > `gotreesitter` in pure Go), `resolve` and `store`, and `freshness` answers
 > whether it still matches the tree. `internal/code/lexicon` tokenizes queries and
 > documents and keeps the `ask-index.json` sidecar; `internal/code/ask` blends
