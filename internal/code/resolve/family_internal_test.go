@@ -10,6 +10,7 @@ import (
 func TestFamilyOf(t *testing.T) {
 	for lang, want := range map[string]string{
 		"javascript": "ecmascript", "typescript": "ecmascript", "go": "go", "cpp": "cpp", "": "",
+		"css": "stylesheet", "scss": "stylesheet", "html": "html",
 	} {
 		if got := familyOf(lang); got != want {
 			t.Errorf("familyOf(%q) = %q, want %q", lang, got, want)
