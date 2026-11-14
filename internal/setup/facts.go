@@ -266,11 +266,13 @@ func (f *Facts) readGitHooks(dir string) error {
 	return nil
 }
 
-// unmergeable is the error of a file init merges into and cannot read.
+// unmergeable is the error of a file init merges into and cannot read or
+// merge.
 type unmergeable struct{ error }
 
-// Unmergeable says whether Gather stopped at a file init merges into -- the
-// configuration or a host file -- rather than at one it only looks at.
+// Unmergeable says whether Gather or Build stopped at a file init merges into
+// -- the configuration, .mcp.json or a host file -- because of what the file
+// says, rather than at one it only looks at or failed to read.
 func Unmergeable(err error) bool {
 	var u unmergeable
 	return errors.As(err, &u)

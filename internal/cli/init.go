@@ -275,7 +275,7 @@ func initCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "loomux init: %v\n", binaryErr)
 	case len(report.Failed) > 0 && !d.BinaryThere():
 		// The binary step was switched off or declined, and none stood there.
-		fmt.Fprintln(stderr, noBinary(report.Failed))
+		fmt.Fprintln(stderr, "loomux init: "+setup.NoBinary(report.Failed))
 	}
 	printReport(stdout, report)
 	if err != nil {
@@ -395,17 +395,6 @@ func switchModule(c *setup.Choice, f setup.Facts, m schema.Module, on bool) {
 func moduleOff(c setup.Choice, m schema.Module) bool {
 	on, set := c.Modules[m]
 	return set && !on
-}
-
-// noBinary says why a run without a binary left out what calls one, built
-// from what was dropped: the merge hook calls the installed binary and
-// stays in where that stands, even in a checkout without bin/loomux.exe.
-func noBinary(failed []string) string {
-	left := "host entries and git hooks are left out"
-	if slices.Contains(failed, "merge-hook") {
-		left = "host entries, git hooks and the merge hook are left out"
-	}
-	return "loomux init: no loomux binary where the entries call it; " + left
 }
 
 // printPlan writes the summary: every change as a diff under its path, then

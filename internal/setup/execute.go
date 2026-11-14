@@ -37,6 +37,17 @@ func Notes(f Facts, c Choice, p Plan) []string {
 	return notes
 }
 
+// NoBinary says why a run without a binary left out what calls one, built
+// from what was dropped: the merge hook calls the installed binary and
+// stays in where that stands, even in a checkout without bin/loomux.exe.
+func NoBinary(failed []string) string {
+	left := "host entries and git hooks are left out"
+	if slices.Contains(failed, "merge-hook") {
+		left = "host entries, git hooks and the merge hook are left out"
+	}
+	return "no loomux binary where the entries call it; " + left
+}
+
 // HookFiles are the paths of the git hooks the plan writes.
 func HookFiles(p Plan) []string {
 	var paths []string

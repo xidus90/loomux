@@ -119,7 +119,9 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 		before, exists := b.file(configPath)
 		redo := func(current string) (string, error) { return configText(current, f.Detect.Stacks, c) }
 		after, err := redo(string(before))
-		b.fail(err)
+		if err != nil {
+			b.fail(unmergeable{err})
+		}
 		b.redoable("config", configPath, before, exists, after, redo)
 	}
 	// A project loomux was not set up in before this run starts in
@@ -355,7 +357,7 @@ func (b *builder) mcpJSON() {
 	before, exists := b.file(mcpPath)
 	after, err := withMCPServer(before)
 	if err != nil {
-		b.fail(err)
+		b.fail(unmergeable{err})
 		return
 	}
 	// The server entry calls the installed binary in every project.
@@ -368,7 +370,7 @@ func (b *builder) hostEntries(h hosts.Host) {
 	before, exists := b.file(path)
 	result, err := hostfile.Merge(h, before, hostfile.Entries(h, b.f.Binary))
 	if err != nil {
-		b.fail(err)
+		b.fail(unmergeable{err})
 		return
 	}
 	for _, slot := range result.Foreign {
