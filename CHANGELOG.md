@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.26.2] - 2026-11-14
+
+<https://github.com/xidus90/loomux/pull/162>
+
+### Fixed
+- `[grep] max_filesize` in the configuration is read: `graph build` and `graph grep` take the project's limit when no flag is given, instead of always the 64 MiB default.
+
 ## [1.26.1] - 2026-11-13
 
 <https://github.com/xidus90/loomux/pull/161>
