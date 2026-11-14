@@ -20,6 +20,8 @@ import (
 // target: a brace expansion alone may bring 64.
 type judge struct {
 	root     string
+	stateDir string
+	cwd      string // where the host says a shell stands; "" when it does not
 	policy   config.Policy
 	flows    func() ([]string, error)
 	base     func() (string, error)
@@ -56,6 +58,12 @@ func (j judge) reasons(targets []shellTarget) []string {
 		named, err := j.named(target)
 		if err != nil {
 			reasons = append(reasons, err.Error())
+			continue
+		}
+		reasons = append(reasons, j.stateReasons(named, target.removes)...)
+		// A link is judged only for the machine-wide files it would hand
+		// a second name; the path itself is no write.
+		if target.linked {
 			continue
 		}
 		// A removal takes one name and leaves the file under the others.
@@ -391,6 +399,9 @@ func (j judge) unknownReaches(base, word string) (bool, error) {
 	named, err := j.named(target)
 	if err != nil {
 		return false, err
+	}
+	if len(j.stateReasons(named, false)) > 0 {
+		return true, nil
 	}
 	rels, err := j.rels(named)
 	for _, rel := range rels {
