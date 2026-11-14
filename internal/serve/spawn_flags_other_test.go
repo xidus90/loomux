@@ -9,8 +9,10 @@ func TestDetachAttrsAskForASessionOfItsOwn(t *testing.T) {
 	// attempts ask for the same thing: a session in which no terminal signal
 	// of the parent's reaches the service.
 	for _, breakaway := range []bool{true, false} {
-		if attrs := detachAttrs(breakaway); !attrs.Setsid {
-			t.Errorf("detachAttrs(%v) does not ask for setsid", breakaway)
+		for _, console := range []bool{true, false} {
+			if attrs := detachAttrs(breakaway, console); !attrs.Setsid {
+				t.Errorf("detachAttrs(%v, %v) does not ask for setsid", breakaway, console)
+			}
 		}
 	}
 }

@@ -80,3 +80,17 @@ func TestChildEnvKeepsWhatGhNeeds(t *testing.T) {
 		}
 	}
 }
+
+func TestDetachFailsWhenTheStateDirectoryCannotBeResolved(t *testing.T) {
+	saved := absolutePath
+	absolutePath = func(string) (string, error) { return "", errors.New("no working directory") }
+	t.Cleanup(func() { absolutePath = saved })
+
+	_, err := Detach(DetachSpec{StateDir: "state", Args: []string{"x"}}, func(*exec.Cmd) error {
+		t.Error("the spawner ran although nobody knows where the state is")
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "no working directory") {
+		t.Fatalf("Detach: %v, want the failure of resolving the state directory", err)
+	}
+}

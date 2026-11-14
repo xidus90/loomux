@@ -1,0 +1,21 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Preview</h1>
+{{if .Changed}}<p class="error">Nothing was written: the file changed since the preview. This is the change against the file as it is now.</p>{{end}}
+{{if .Error}}
+<p class="error">{{.Error}}</p>
+<p>Nothing was written.</p>
+{{else if .Diff}}
+<pre>{{.Diff}}</pre>
+<form method="post" action="/settings/{{.ID}}/apply">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="before" value="{{.Before}}">
+<input type="hidden" name="next" value="{{.Next}}">
+<button type="submit">Apply</button>
+</form>
+{{else}}
+<p>nothing to change</p>
+{{end}}
+<p><a href="/settings/{{.ID}}">Back to the settings</a> · <a href="/settings/{{.ID}}/raw">Raw text</a></p>
+{{end}}
+{{end}}

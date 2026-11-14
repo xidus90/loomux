@@ -1,0 +1,34 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Add project</h1>
+<p>Step 2 of 4: what is there, and what to set up. Folder <code>{{.Path}}</code></p>
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{if .Parts}}
+<h2>Found</h2>
+<ul>
+<li>Agents: {{range $i, $h := .Facts.Hosts}}{{if $i}}, {{end}}{{$h}}{{end}}</li>
+<li>Languages: {{range $i, $s := .Facts.Detect.Stacks}}{{if $i}}, {{end}}{{$s}}{{else}}none recognised{{end}}</li>
+<li>Git: {{if .Facts.Detect.HasGit}}a repository{{else}}no repository{{end}}</li>
+<li>Configuration: {{if .Facts.Config}}<code>.loomux/config.toml</code> exists{{else}}none yet{{end}}</li>
+<li>Registry: {{if .Facts.Registered}}registered as an area already{{else}}not registered{{end}}</li>
+</ul>
+<form method="post" action="/projects/new/plan">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="path" value="{{.Path}}">
+<h2>Modules</h2>
+{{range .Modules}}<p><label><input type="checkbox" name="module" value="{{.ID}}"{{if .On}} checked{{end}}> {{.ID}}</label></p>
+{{end}}
+<h2>Parts</h2>
+{{range .Parts}}<p><label><input type="checkbox" name="part" value="{{.ID}}"{{if .On}} checked{{end}}> <strong>{{.ID}}</strong> ({{.Module}}): {{.Label}}</label></p>
+{{end}}
+<h2>Commit language</h2>
+<p><select name="lang">{{$lang := .Lang}}{{range .Languages}}<option value="{{.}}"{{if eq . $lang}} selected{{end}}>{{.}}</option>{{end}}</select></p>
+<h2>Scope of the area</h2>
+<p><input type="text" name="scope" value="{{.Scope}}" aria-label="Scope of the area"></p>
+<p><small>Asked as in <code>loomux init</code>: used when the area part and the brain module are on, and ignored otherwise.</small></p>
+<button type="submit">Show the plan</button>
+</form>
+{{end}}
+<p><a href="/projects/new">Another folder</a></p>
+{{end}}
+{{end}}

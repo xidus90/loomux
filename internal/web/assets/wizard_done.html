@@ -1,0 +1,16 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Add project</h1>
+<p>Step 4 of 4: the report.</p>
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+<ul>
+{{range .Report.Written}}<li>written: {{.}}</li>
+{{end}}{{range .Report.Skipped}}<li>skipped: {{.}}</li>
+{{end}}{{range .Report.Refused}}<li>refused: {{.}}</li>
+{{end}}{{range .Report.Failed}}<li>failed: {{.}}</li>
+{{end}}{{range .Report.Notes}}<li>note: {{.}}</li>
+{{end}}</ul>
+{{if .Output}}<pre>{{.Output}}</pre>{{end}}
+{{if not .Error}}<p><a href="/settings/{{.ID}}">Go to the settings of the project</a></p>{{end}}
+{{end}}
+{{end}}

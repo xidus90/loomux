@@ -1,0 +1,45 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Add project</h1>
+<p>Step 3 of 4: the plan. Only what is ticked is written or run.</p>
+{{if .Stale}}<p class="error">Nothing was run: a file changed since the plan was shown. This is the plan as the files are now.</p>{{end}}
+{{if .Nothing}}
+<p>nothing to do</p>
+{{range .Notes}}<p>{{.}}</p>
+{{end}}
+{{else}}
+<form method="post" action="/projects/new/apply">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="path" value="{{.Carry.Path}}">
+<input type="hidden" name="lang" value="{{.Carry.Lang}}">
+<input type="hidden" name="scope" value="{{.Carry.Scope}}">
+{{range .Carry.Modules}}<input type="hidden" name="module" value="{{.}}">
+{{end}}{{range .Carry.Parts}}<input type="hidden" name="part" value="{{.}}">
+{{end}}
+{{range .Changes}}
+<h2><label><input type="checkbox" name="change" value="{{.Path}}" checked> <code>{{.Path}}</code></label> ({{.Part}}{{if .New}}, new file{{end}})</h2>
+<input type="hidden" name="before:{{.Path}}" value="{{.Hash}}">
+<pre>{{.Diff}}</pre>
+{{end}}
+{{if .Actions}}
+<h2>Actions</h2>
+{{range .Actions}}<p><label><input type="checkbox" name="action" value="{{.ID}}" checked> {{.Describe}}</label></p>
+{{end}}
+{{end}}
+{{if .Notes}}
+<h2>Notes</h2>
+{{range .Notes}}<p>{{.}}</p>
+{{end}}
+{{end}}
+{{if .AskLLM}}
+<h2>llm_config</h2>
+<p>{{.Opens}}.</p>
+<p>{{.Loosens}}</p>
+<p><label><input type="checkbox" name="llm" value="1"> I understand, turn it on</label></p>
+{{end}}
+<button type="submit">Set up the project</button>
+</form>
+{{end}}
+<p><a href="/projects/new">Start again</a></p>
+{{end}}
+{{end}}

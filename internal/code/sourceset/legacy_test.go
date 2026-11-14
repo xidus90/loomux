@@ -115,6 +115,11 @@ func TestGraphListUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List(repo): %v", err)
 	}
+	// The old walk knew fewer languages; the repository's files of a later one
+	// (the web interface's HTML and CSS) are no difference of the walk.
+	gotRepo = slices.DeleteFunc(gotRepo, func(p string) bool {
+		return !slices.Contains(legacyExtensions, filepath.Ext(p))
+	})
 	if want := legacyGraphList(t, repo); !slices.Equal(gotRepo, want) {
 		t.Fatalf("repository list differs from the old walk:\ngot  %d files\nwant %d files", len(gotRepo), len(want))
 	}

@@ -1,0 +1,115 @@
+{{define "content"}}
+{{with .Data}}
+<h1>{{.Title}}</h1>
+{{if .Root}}<p><code>{{.Root}}</code></p>{{end}}
+{{if .Missing}}<p class="error">This project has no .loomux/config.toml any more; the keys below show their defaults.</p>{{end}}
+<form method="get" action="/settings/{{.ID}}">
+<input type="search" name="q" value="{{.Query}}" placeholder="Search keys and descriptions" aria-label="Search">
+<label><input type="checkbox" name="modified" value="1"{{if .Modified}} checked{{end}}> only modified</label>
+<button type="submit">Filter</button>
+</form>
+{{if .Notice}}<p class="error">{{.Notice}}</p>{{end}}
+{{if .Error}}
+<p class="error">{{.Error}}</p>
+<p><a href="/settings/{{.ID}}/raw">Open the raw text</a> to repair the file.</p>
+{{else}}
+<p><a href="/settings/{{.ID}}/raw">Raw text</a></p>
+{{end}}
+{{if .Proposals}}
+<section>
+<h2>Proposals</h2>
+{{range .Proposals}}
+<div>
+<p>{{if .Describe}}<code>{{.Describe}}</code> {{end}}<small>{{.ID}}{{if .Created}}, {{.Created}}{{end}}</small></p>
+{{if .Error}}<p class="error">{{.Error}}</p>
+{{else if .Diff}}<pre>{{.Diff}}</pre>
+{{else}}<p>nothing to change</p>
+{{end}}
+{{if not .Error}}<form method="post" action="/settings/{{$.Data.ID}}/proposals/{{.ID}}/apply">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="diff" value="{{.DiffHash}}">
+<button type="submit">Apply</button>
+</form>
+{{end}}<form method="post" action="/settings/{{$.Data.ID}}/proposals/{{.ID}}/reject">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<button type="submit">Reject</button>
+</form>
+</div>
+{{end}}
+</section>
+{{end}}
+{{if .Root}}
+<section>
+<h2>llm_config</h2>
+{{if .Registered}}<p>The switch is {{if .LLMConfig}}on{{else}}off{{end}}. <a href="/settings/{{.ID}}/llm">Change it</a></p>
+{{else}}<p>only a registered area has this switch</p>{{end}}
+</section>
+{{end}}
+{{range .Groups}}
+<section>
+<h2>{{.Module}}</h2>
+{{if .Off}}<p class="note">{{.Note}}</p>{{end}}
+<table>
+<thead><tr><th>Key</th><th>Value</th><th>Default</th><th>Origin</th></tr></thead>
+<tbody>
+{{range $row := .Rows}}
+<tr>
+<td><code>{{.ID}}</code><br>{{.Doc}}</td>
+<td>
+{{if .Problem}}<span class="error">{{.Problem}}</span>{{end}}
+{{if .Rules}}<ul>{{range .Rules}}
+<li><code>{{.What}}</code> — {{.Reason}}
+<small>[{{.Origin}}{{if .ReadOnly}}, read-only{{end}}]{{if .Note}} {{.Note}}{{end}}</small>
+{{if not .ReadOnly}}<form method="post" action="/settings/{{$.Data.ID}}/rules/preview">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="section" value="{{$row.Section}}">
+<button type="submit" name="remove" value="{{.Index}}">Remove</button>
+</form>{{end}}</li>
+{{end}}</ul>
+{{else if .Items}}<ul>{{range $i, $item := .Items}}<li><code>{{$item}}</code>
+<form method="post" action="/settings/{{$.Data.ID}}/rules/preview">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="section" value="{{$row.Section}}">
+<button type="submit" name="remove" value="{{$i}}">Remove</button>
+</form></li>{{end}}</ul>
+{{else if .RawOnly}}<code>{{.Value}}</code><br><small>A table: <a href="/settings/{{$.Data.ID}}/raw">edit it in the raw text</a>.</small>
+{{else}}<code>{{.Value}}</code>{{end}}
+{{if .Section}}
+<form method="post" action="/settings/{{$.Data.ID}}/rules/preview">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="section" value="{{.Section}}">
+{{if .Match}}<textarea name="match" rows="3" aria-label="Globs, one per line" placeholder="Globs, one per line"></textarea>
+{{else}}<input type="text" name="regex" aria-label="Regular expression" placeholder="Regular expression">
+{{end}}<input type="text" name="reason" aria-label="Reason" placeholder="Reason">
+<button type="submit">Preview new rule</button>
+</form>
+{{end}}
+{{if .Editable}}
+<form method="post" action="/settings/{{$.Data.ID}}/preview">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="key" value="{{.ID}}">
+{{if .Choices}}{{$in := .Input}}<select name="value" aria-label="{{.ID}}">{{range .Choices}}<option{{if eq . $in}} selected{{end}}>{{.}}</option>{{end}}</select>
+{{else}}<input type="text" name="value" value="{{.Input}}" aria-label="{{.ID}}">
+{{end}}<button type="submit">Preview</button>
+{{if .Resettable}}<button type="submit" name="reset" value="1">Reset to default</button>{{end}}
+</form>
+{{end}}
+</td>
+<td><code>{{.Default}}</code></td>
+<td>{{.Origin}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</section>
+{{end}}
+{{if .Unknown}}
+<section>
+<h2>Not in the schema</h2>
+<p>The file holds keys that have no form here. They stay as they are; <a href="/settings/{{.ID}}/raw">read and change them in the raw text</a>.</p>
+<ul>{{range .Unknown}}<li><code>{{.}}</code></li>
+{{end}}</ul>
+</section>
+{{end}}
+{{end}}
+{{end}}

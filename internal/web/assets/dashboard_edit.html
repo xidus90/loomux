@@ -1,0 +1,34 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Arrange tiles</h1>
+{{if .Notice}}<p class="error">{{.Notice}}</p>{{end}}
+<p><a href="/">Back to the dashboard</a></p>
+<table>
+<thead><tr><th>Tile</th><th>Shown</th><th>Order</th></tr></thead>
+<tbody>
+{{range .Rows}}
+<tr>
+<td>{{.Title}}</td>
+<td>
+<form method="post" action="/dashboard/edit">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="tile" value="{{.ID}}">
+{{if .Shown}}<button type="submit" name="action" value="hide">Hide</button>{{else}}<button type="submit" name="action" value="show">Show</button>{{end}}
+</form>
+</td>
+<td>
+{{if .Shown}}
+<form method="post" action="/dashboard/edit">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="tile" value="{{.ID}}">
+{{if not .First}}<button type="submit" name="action" value="up">Up</button>{{end}}
+{{if not .Last}}<button type="submit" name="action" value="down">Down</button>{{end}}
+</form>
+{{end}}
+</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+{{end}}

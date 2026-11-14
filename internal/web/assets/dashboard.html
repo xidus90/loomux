@@ -1,0 +1,113 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Dashboard</h1>
+{{if .Notice}}<p class="error">{{.Notice}}</p>{{end}}
+<p><a href="/dashboard/edit">Arrange tiles</a></p>
+{{range .Tiles}}
+<section id="tile-{{.ID}}">
+<h2>{{.Title}}</h2>
+{{if .Error}}<p class="error">{{.Error}}</p>{{else}}{{.Body}}{{end}}
+</section>
+{{else}}
+<p>No tile shows. <a href="/dashboard/edit">Arrange tiles</a> to bring one back.</p>
+{{end}}
+{{end}}
+{{end}}
+
+{{define "tile_projects"}}
+{{if .Rows}}
+<table>
+<thead><tr><th>Project</th><th>Hooks</th><th>llm_config</th><th></th></tr></thead>
+<tbody>
+{{range .Rows}}
+<tr>
+<td>{{if .Missing}}{{.Name}}{{else}}<a href="/settings/{{.ID}}">{{.Name}}</a>{{end}}<br><small>{{.Root}}</small>
+{{if .Problem}}<br><span class="error">{{.Problem}}</span>{{end}}</td>
+<td>{{if .Missing}}<span class="error">no .loomux/config.toml</span>{{else if .Hooks}}{{.Hooks}}{{if .Binary}}<br><span class="error">{{.Binary}}</span>{{end}}{{else}}<small>not read</small>{{end}}</td>
+<td>{{if .Registered}}{{if .LLMConfig}}on{{else}}off{{end}}{{else}}<small>not registered</small>{{end}}</td>
+<td>{{if .Missing}}<form method="post" action="/projects/{{.ID}}/forget">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<button type="submit">Forget</button>
+</form>{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{else}}
+<p>No project yet. <a href="/projects/new">Add one</a>.</p>
+{{end}}
+{{end}}
+
+{{define "tile_proposals"}}
+{{if .}}
+<ul>
+{{range .}}<li><a href="/settings/{{.ID}}">{{.Title}}</a>:
+{{if .Problem}}<span class="error">{{.Problem}}</span>{{else}}{{.Count}} open{{if .Unreadable}}, {{.Unreadable}} not readable{{end}}{{end}}</li>
+{{end}}
+</ul>
+{{else}}
+<p>No open proposals.</p>
+{{end}}
+{{end}}
+
+{{define "tile_flow_runs"}}
+{{if .}}
+<table>
+<thead><tr><th>Run</th><th>Project</th><th>Waiting at</th></tr></thead>
+<tbody>
+{{range .}}
+<tr>
+<td>{{if .Run}}{{.Run}}{{if .Flow}}<br><small>{{.Flow}}</small>{{end}}{{end}}</td>
+<td><a href="/settings/{{.ProjectID}}">{{.Project}}</a></td>
+<td>{{if .Problem}}<span class="error">{{.Problem}}</span>{{else}}<code>{{.Node}}</code>: {{.Question}}{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{else}}
+<p>No run waits at a gate.</p>
+{{end}}
+{{end}}
+
+{{define "tile_review_cases"}}
+{{if .None}}<p>{{.None}}</p>
+{{else}}
+{{if .Cases}}
+<table>
+<thead><tr><th>Case</th><th>Area</th><th>Target</th><th>State</th></tr></thead>
+<tbody>
+{{range .Cases}}
+<tr><td>{{.Address}}</td><td>{{.Case.Area}}</td><td>{{.Case.Target}}</td><td>{{.Case.State}}{{if .Case.Manual}} (manual){{end}}</td></tr>
+{{end}}
+</tbody>
+</table>
+{{else}}
+<p>No open cases.</p>
+{{end}}
+{{range .Broken}}<p class="error">Unreadable case: {{.}}</p>
+{{end}}
+{{end}}
+{{end}}
+
+{{define "tile_index"}}
+<h3>Code graph</h3>
+{{if .Rows}}
+<ul>
+{{range .Rows}}<li><a href="/settings/{{.ID}}">{{.Name}}</a>: {{if .Problem}}<span class="error">{{.Problem}}</span>{{else}}{{.State}}{{end}}</li>
+{{end}}
+</ul>
+{{else}}
+<p>No project to look at.</p>
+{{end}}
+<h3>Search</h3>
+{{if .SearchProblem}}<p class="error">{{.SearchProblem}}</p>
+{{else}}<pre>{{.Search}}</pre>
+{{end}}
+{{end}}
+
+{{define "tile_version"}}
+<p>loomux {{.Running}}, {{.Channel}} channel.</p>
+<p>{{.Update}}</p>
+{{range .Problems}}<p class="error">{{.}}</p>
+{{end}}
+{{end}}

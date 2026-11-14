@@ -40,24 +40,15 @@ func casesCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := flags.Parse(args); err != nil || refusesArguments(flags, stderr) {
 		return 2
 	}
-	_, root, err := reviewCentre()
+	listed, broken, err := maintenance.ListCases(config.StateDir())
 	if err != nil {
 		return reportReconcileError(stderr, err)
 	}
-	listed := 0
-	var broken []string
-	for _, path := range maintenance.CaseFiles(root) {
-		read, err := maintenance.ReadCase(path)
-		if err != nil {
-			broken = append(broken, err.Error())
-			continue
-		}
-		directory := filepath.Dir(path)
-		fmt.Fprintln(stdout, caseLine(filepath.Base(directory), read))
-		warnRenamed(stderr, directory, read)
-		listed++
+	for _, item := range listed {
+		fmt.Fprintln(stdout, caseLine(item.Address, item.Case))
+		warnRenamed(stderr, item.Directory, item.Case)
 	}
-	if listed == 0 {
+	if len(listed) == 0 {
 		fmt.Fprintln(stdout, "keine offenen Fälle")
 	}
 	return reportUnreadable(stderr, broken)

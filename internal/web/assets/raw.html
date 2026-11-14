@@ -1,0 +1,13 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Raw text</h1>
+<p>The whole file. Nothing is written before the preview shows what changes.</p>
+<form method="post" action="/settings/{{.ID}}/preview">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<textarea name="raw" rows="30" spellcheck="false" aria-label="Raw text">
+{{.Text}}</textarea>
+<button type="submit">Preview</button>
+</form>
+<p><a href="/settings/{{.ID}}">Back to the settings</a></p>
+{{end}}
+{{end}}

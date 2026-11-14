@@ -26,6 +26,7 @@ var commands = map[string]command{
 	"merge-hook": mergeHookCommand,
 	"reconcile":  reconcileCommand,
 	"reindex":    reindexCommand,
+	"ui":         uiCommand,
 	"upgrade":    upgradeCommand,
 	"serve":      serveCommand,
 	"status":     statusCommand,
