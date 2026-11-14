@@ -10,6 +10,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/config/edit"
 	"github.com/xidus90/loomux/internal/config/schema"
+	"github.com/xidus90/loomux/internal/config/target"
 	"github.com/xidus90/loomux/internal/tui"
 )
 
@@ -29,7 +30,7 @@ func openConsole() (tui.Terminal, func() error, error) {
 	return tui.Open(os.Stdin, os.Stdout)
 }
 
-func runConfigUI(target configTarget, stderr io.Writer) (code int) {
+func runConfigUI(tgt target.Target, stderr io.Writer) (code int) {
 	term, restore, err := openTerminal()
 	if err != nil {
 		fmt.Fprintln(stderr, "loomux config: the interactive form needs a terminal; use `loomux config list`, `get`, `set` or `unset`")
@@ -43,7 +44,7 @@ func runConfigUI(target configTarget, stderr io.Writer) (code int) {
 			code = 1
 		}
 	}()
-	err = configUI(term, target)
+	err = configUI(term, tgt)
 	// A console that closes under the form ends it like q does.
 	if err != nil && !errors.Is(err, io.EOF) {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
@@ -55,13 +56,13 @@ func runConfigUI(target configTarget, stderr io.Writer) (code int) {
 // configUI is the list loop: choose a row, change it, see the diff, confirm.
 // Every change is written on its own, the way `config set` writes it, and the
 // file is read again before the next choice.
-func configUI(term tui.Terminal, target configTarget) error {
+func configUI(term tui.Terminal, tgt target.Target) error {
 	for {
-		text, err := target.read()
+		text, err := tgt.Read()
 		if err != nil {
 			return err
 		}
-		entries, err := target.entries(text)
+		entries, err := tgt.Entries(text)
 		if err != nil {
 			return err
 		}
@@ -73,21 +74,21 @@ func configUI(term tui.Terminal, target configTarget) error {
 			}
 			rows[i] = tui.Row{Group: string(e.Key.Module), Label: e.Key.ID(), Value: value, Note: string(e.Origin)}
 		}
-		title := "loomux config — " + target.path
-		if n := target.openProposals(); n > 0 {
+		title := "loomux config — " + tgt.Path
+		if n := tgt.OpenCount(); n > 0 {
 			title += " — " + proposalHint(n)
 		}
 		chosen, err := tui.List(term, title, rows)
 		if err != nil || chosen < 0 {
 			return err
 		}
-		if err := changeOne(term, target, text, entries[chosen]); err != nil {
+		if err := changeOne(term, tgt, text, entries[chosen]); err != nil {
 			return err
 		}
 	}
 }
 
-func changeOne(term tui.Terminal, target configTarget, text string, e schema.Entry) error {
+func changeOne(term tui.Terminal, tgt target.Target, text string, e schema.Entry) error {
 	// A family row has no line of its own; like a table row it is shown, and
 	// the dialog names the command that sets one member.
 	if e.Key.Named() {
@@ -122,9 +123,9 @@ func changeOne(term tui.Terminal, target configTarget, text string, e schema.Ent
 	_, ok, err := tui.Input(term, e.Key.ID()+" — "+e.Key.Doc, e.Input, choices, func(s string) error {
 		var err error
 		if s == defaultChoice {
-			next, err = proposeUnset(target, text, e.Key.ID())
+			next, err = tgt.Unset(text, e.Key.ID())
 		} else {
-			next, err = proposeChange(target, text, e.Key.ID(), s)
+			next, err = tgt.Change(text, e.Key.ID(), s)
 		}
 		return err
 	})
@@ -139,5 +140,5 @@ func changeOne(term tui.Terminal, target configTarget, text string, e schema.Ent
 	if err != nil || !yes {
 		return err
 	}
-	return writeConfig(target, text, next)
+	return tgt.Write(text, next)
 }

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 
 	"github.com/BurntSushi/toml"
@@ -35,7 +34,7 @@ type SearchSettings struct {
 // ReadSearchSettings reads the global file. Anything but a regular file
 // declares nothing and yields the defaults.
 func ReadSearchSettings(stateDir string) (SearchSettings, error) {
-	path := filepath.Join(stateDir, "config.toml")
+	path := GlobalConfigPath(stateDir)
 	info, err := os.Stat(path)
 	if err != nil || !info.Mode().IsRegular() {
 		return ParseSearchSettings(path, "")

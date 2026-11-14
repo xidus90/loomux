@@ -1,11 +1,7 @@
 package cli
 
 import (
-	"errors"
-	"io/fs"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -76,44 +72,5 @@ func TestConfigSetWithoutAHintEndsWithTheWrittenLine(t *testing.T) {
 	want := "loomux config: wrote " + filepath.Join(root, ".loomux", "config.toml") + "\n"
 	if code != 0 || !strings.HasSuffix(errOut, want) {
 		t.Fatalf("code %d, stderr %q; want it to end with %q", code, errOut, want)
-	}
-}
-
-// A file that cannot be read is reported as the read error, not as a file
-// that changed since it was read.
-func TestWriteConfigReportsTheReadErrorOfAnUnreadableFile(t *testing.T) {
-	_, target := projectTarget(t, "")
-	if err := os.Remove(target.path); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(target.path, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	err := writeConfig(target, "[commit]\nthreshold = 2\n", "x")
-	var pe *fs.PathError
-	if !errors.As(err, &pe) || strings.Contains(err.Error(), "changed since it was read") {
-		t.Fatalf("err = %v, want the read error", err)
-	}
-}
-
-// A directory that cannot be made is reported as that, not as the failed
-// temporary file the write would try next.
-func TestWriteConfigReportsADirectoryItCannotMake(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".loomux"), "")
-	target, err := resolveConfigTarget(root, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = writeConfig(target, "", "x")
-	var pe *fs.PathError
-	if !errors.As(err, &pe) {
-		t.Fatalf("err = %v, want a path error", err)
-	}
-	// Where the reader already refuses a path under a file (ENOTDIR on
-	// POSIX), the read is the step that fails; Windows reads it as absent.
-	readRefuses := runtime.GOOS != "windows" && pe.Op == "open"
-	if pe.Op != "mkdir" && !readRefuses {
-		t.Fatalf("err = %v (op %q), want the failed mkdir", err, pe.Op)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/config/schema"
+	"github.com/xidus90/loomux/internal/config/target"
 	"github.com/xidus90/loomux/internal/tui"
 )
 
@@ -33,7 +34,7 @@ func proposalFiles(t *testing.T, dir string) []string {
 
 // forgeProposal writes a proposal file the way an agent with file access
 // could, to show that apply acts on op, key and input alone.
-func forgeProposal(t *testing.T, dir string, p proposal) {
+func forgeProposal(t *testing.T, dir string, p target.Proposal) {
 	t.Helper()
 	data, err := json.Marshal(p)
 	if err != nil {
@@ -60,7 +61,7 @@ func TestConfigProposeStoresTheChangeAndWritesNothing(t *testing.T) {
 	if !strings.Contains(out, "+ language = \"de\"") || !strings.Contains(out, "loomux config apply "+id) {
 		t.Fatalf("out:\n%s", out)
 	}
-	var p proposal
+	var p target.Proposal
 	data, _ := os.ReadFile(filepath.Join(proposalDir(root), names[0]))
 	if err := json.Unmarshal(data, &p); err != nil {
 		t.Fatal(err)
@@ -88,9 +89,9 @@ func forgeRaw(t *testing.T, dir, id, text string) {
 func TestConfigProposalTextIsEscapedForTheTerminal(t *testing.T) {
 	root := configRoot(t, "")
 	dir := proposalDir(root)
-	forgeProposal(t, dir, proposal{ID: "a-1", Op: "set", Key: "area.scope", Input: "x\x1b[2Jy"})
-	forgeProposal(t, dir, proposal{ID: "a-2", Op: "set", Key: "commit.\x1b]0;t\x07", Input: "\u009b1m"})
-	forgeProposal(t, dir, proposal{ID: "a-3", Op: "set", Key: "area.scope", Input: "d\x7fe\u009bf"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-1", Op: "set", Key: "area.scope", Input: "x\x1b[2Jy"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-2", Op: "set", Key: "commit.\x1b]0;t\x07", Input: "\u009b1m"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-3", Op: "set", Key: "area.scope", Input: "d\x7fe\u009bf"})
 	_, out, errOut := runConfig(t, "", "proposals", "--root", root)
 	// JSON escapes only C0 controls itself; DEL and the C1 range would pass.
 	_, asJSON, _ := runConfig(t, "", "proposals", "--json", "--root", root)
@@ -118,31 +119,9 @@ func TestCleanKeepsLinesAndEscapesControls(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 	for in, want := range map[string]string{"de": "de", "": `""`, "a b": `"a b"`, "x\x1b": `"x\x1b"`, "ü": "ü"} {
-		if got := word(in); got != want {
+		if got := target.Word(in); got != want {
 			t.Errorf("word(%q) = %q, want %q", in, got, want)
 		}
-	}
-}
-
-// Without hard links the name is claimed by an exclusive create instead.
-func TestStoreProposalWithoutHardLinks(t *testing.T) {
-	restore := linkFile
-	linkFile = func(string, string) error { return errors.New("not supported") }
-	t.Cleanup(func() { linkFile = restore })
-	dir := t.TempDir()
-	now := time.Date(2026, 9, 24, 10, 15, 30, 0, time.UTC)
-	first, err1 := storeProposal(dir, now, proposal{Op: "set", Key: "a"})
-	second, err2 := storeProposal(dir, now, proposal{Op: "set", Key: "b"})
-	if err1 != nil || err2 != nil || first != "20260924T101530Z-001" || second != "20260924T101530Z-002" {
-		t.Fatalf("%s %v %s %v", first, err1, second, err2)
-	}
-	data, _ := os.ReadFile(filepath.Join(dir, second+".json"))
-	if names := proposalFiles(t, dir); len(names) != 2 || !strings.Contains(string(data), `"key": "b"`) {
-		t.Fatalf("%v %s", names, data)
-	}
-	// A directory that cannot be made is reported, not retried.
-	if _, err := storeProposal(filepath.Join(dir, "missing", "\x00"), now, proposal{}); err == nil {
-		t.Fatal("no error")
 	}
 }
 
@@ -150,12 +129,12 @@ func TestStoreProposalWithoutHardLinks(t *testing.T) {
 // the change is in, not that it is still waiting.
 func TestConfigApplyWhenTheProposalCannotBeRemoved(t *testing.T) {
 	restore := removeProposalFile
-	removeProposalFile = func(string) error { return errors.New("locked") }
+	removeProposalFile = func(target.Target, string) error { return errors.New("locked") }
 	t.Cleanup(func() { removeProposalFile = restore })
 	root := configRoot(t, "[commit]\nlanguage = \"de\"\n")
 	dir := proposalDir(root)
-	forgeProposal(t, dir, proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
-	forgeProposal(t, dir, proposal{ID: "a-2", Op: "set", Key: "commit.language", Input: "de"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-2", Op: "set", Key: "commit.language", Input: "de"})
 	code, _, errOut := runConfig(t, "", "apply", "--all", "--yes", "--root", root)
 	if code != 1 || strings.Contains(errOut, "stays") ||
 		!strings.Contains(errOut, "wrote") || !strings.Contains(errOut, "could not be removed: locked") ||
@@ -169,10 +148,10 @@ func TestConfigApplyWhenTheProposalCannotBeRemoved(t *testing.T) {
 
 func TestConfigApplyWhenTheWriteFails(t *testing.T) {
 	restore := applyWrite
-	applyWrite = func(configTarget, string, string) error { return errors.New("disk full") }
+	applyWrite = func(target.Target, string, string) error { return errors.New("disk full") }
 	t.Cleanup(func() { applyWrite = restore })
 	root := configRoot(t, "")
-	forgeProposal(t, proposalDir(root), proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
+	forgeProposal(t, proposalDir(root), target.Proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
 	code, _, errOut := runConfig(t, "", "apply", "a-1", "--yes", "--root", root)
 	if code != 1 || !strings.Contains(errOut, "disk full; nothing written, the proposal stays") || len(proposalFiles(t, proposalDir(root))) != 1 {
 		t.Fatalf("%d %s", code, errOut)
@@ -233,26 +212,6 @@ func TestConfigProposeReportsAStoreThatFails(t *testing.T) {
 	}
 }
 
-// Two proposals of one second get two names, in the order they were made.
-func TestStoreProposalTakesTheNextFreeName(t *testing.T) {
-	dir := t.TempDir()
-	now := time.Date(2026, 9, 24, 10, 15, 30, 0, time.UTC)
-	first, err := storeProposal(dir, now, proposal{Op: "set", Key: "a"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := storeProposal(dir, now, proposal{Op: "set", Key: "b"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != "20260924T101530Z-001" || second != "20260924T101530Z-002" {
-		t.Fatalf("%s %s", first, second)
-	}
-	if names := proposalFiles(t, dir); len(names) != 2 {
-		t.Fatalf("leftovers: %v", names)
-	}
-}
-
 func TestConfigProposalsListsOpenProposals(t *testing.T) {
 	root := configRoot(t, "")
 	if code, out, _ := runConfig(t, "", "proposals", "--root", root); code != 0 || out != "" {
@@ -266,9 +225,9 @@ func TestConfigProposalsListsOpenProposals(t *testing.T) {
 	// Each diff is computed now against the current file; what the file
 	// says its diff is counts for nothing.
 	forgeRaw(t, dir, "20260101T000000Z-002", `{"op":"set","key":"commit.threshold","input":"7","created":"2026-01-01T00:00:00Z","diff":"+ evil = true\n"}`)
-	forgeProposal(t, dir, proposal{ID: "20260101T000000Z-001", Op: "unset", Key: "commit.language", Created: "2026-01-01T00:00:00Z"})
-	forgeProposal(t, dir, proposal{ID: "20260101T000000Z-003", Op: "set", Key: "commit.language", Input: "fr"})
-	forgeProposal(t, dir, proposal{ID: "20260101T000000Z-004", Op: "set", Key: "commit.language", Input: "de"})
+	forgeProposal(t, dir, target.Proposal{ID: "20260101T000000Z-001", Op: "unset", Key: "commit.language", Created: "2026-01-01T00:00:00Z"})
+	forgeProposal(t, dir, target.Proposal{ID: "20260101T000000Z-003", Op: "set", Key: "commit.language", Input: "fr"})
+	forgeProposal(t, dir, target.Proposal{ID: "20260101T000000Z-004", Op: "set", Key: "commit.language", Input: "de"})
 	code, out, _ := runConfig(t, "", "proposals", "--root", root)
 	first := strings.Index(out, "20260101T000000Z-001  2026-01-01T00:00:00Z  unset commit.language\n- [commit]")
 	second := strings.Index(out, "20260101T000000Z-002  2026-01-01T00:00:00Z  set commit.threshold 7\n  language = \"de\"\n+ threshold = 7")
@@ -278,7 +237,7 @@ func TestConfigProposalsListsOpenProposals(t *testing.T) {
 		t.Fatalf("%d\n%s", code, out)
 	}
 	code, out, _ = runConfig(t, "", "proposals", "--json", "--root", root)
-	var list []proposalView
+	var list []target.ProposalView
 	if code != 0 || json.Unmarshal([]byte(out), &list) != nil || len(list) != 4 || list[0].ID != "20260101T000000Z-001" ||
 		list[1].Input != "7" || !strings.Contains(list[1].Diff, "+ threshold = 7") || list[1].Error != "" ||
 		list[2].Diff != "" || !strings.Contains(list[2].Error, "language") || strings.Contains(out, "evil") {
@@ -299,7 +258,7 @@ func TestConfigProposalsListsOpenProposals(t *testing.T) {
 func TestConfigProposalsReportsWhatItCannotRead(t *testing.T) {
 	root := configRoot(t, "")
 	writeFile(t, filepath.Join(proposalDir(root), "a.json"), "{")
-	forgeProposal(t, proposalDir(root), proposal{ID: "b", Op: "set", Key: "commit.threshold", Input: "4"})
+	forgeProposal(t, proposalDir(root), target.Proposal{ID: "b", Op: "set", Key: "commit.threshold", Input: "4"})
 	// The file that does not read is named; the others are still listed.
 	if code, out, errOut := runConfig(t, "", "proposals", "--root", root); code != 1 || !strings.Contains(errOut, "proposal a") || !strings.Contains(out, "b  ") {
 		t.Fatalf("%d %q %q", code, out, errOut)
@@ -347,10 +306,10 @@ func TestConfigListCountsOpenProposals(t *testing.T) {
 }
 
 func TestConfigUIShowsOpenProposalsInItsTitle(t *testing.T) {
-	root, target := projectTarget(t, "")
+	root, tgt := projectTarget(t, "")
 	runConfig(t, "", "set", "commit.threshold", "4", "--propose", "--root", root)
 	term := tui.Script(500, 60, tui.Keys("q")...)
-	if err := configUI(term, target); err != nil {
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(term.Output(), "1 proposal open — loomux config proposals") {
@@ -420,8 +379,8 @@ func TestConfigApplyIgnoresTheStoredDiff(t *testing.T) {
 func TestConfigApplyAllGoesInIdOrder(t *testing.T) {
 	root := configRoot(t, "")
 	dir := proposalDir(root)
-	forgeProposal(t, dir, proposal{ID: "20260101T000000Z-002", Op: "set", Key: "commit.threshold", Input: "7"})
-	forgeProposal(t, dir, proposal{ID: "20260101T000000Z-001", Op: "set", Key: "commit.threshold", Input: "5"})
+	forgeProposal(t, dir, target.Proposal{ID: "20260101T000000Z-002", Op: "set", Key: "commit.threshold", Input: "7"})
+	forgeProposal(t, dir, target.Proposal{ID: "20260101T000000Z-001", Op: "set", Key: "commit.threshold", Input: "5"})
 	code, _, errOut := runConfig(t, "y\ny\n", "apply", "--all", "--root", root)
 	if code != 0 || strings.Index(errOut, "-001") > strings.Index(errOut, "-002") {
 		t.Fatalf("%d %s", code, errOut)
@@ -439,11 +398,11 @@ func TestConfigApplyAllGoesInIdOrder(t *testing.T) {
 func TestConfigApplyAllKeepsWhatFailsAndGoesOn(t *testing.T) {
 	root := configRoot(t, "")
 	dir := proposalDir(root)
-	forgeProposal(t, dir, proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
-	forgeProposal(t, dir, proposal{ID: "a-2", Op: "set", Key: "commit.language", Input: "fr"})
-	forgeProposal(t, dir, proposal{ID: "a-3", Op: "rename", Key: "commit.language"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-2", Op: "set", Key: "commit.language", Input: "fr"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-3", Op: "rename", Key: "commit.language"})
 	writeFile(t, filepath.Join(dir, "a-4.json"), "{")
-	forgeProposal(t, dir, proposal{ID: "a-5", Op: "set", Key: "verify.timeout", Input: "30"})
+	forgeProposal(t, dir, target.Proposal{ID: "a-5", Op: "set", Key: "verify.timeout", Input: "30"})
 	code, _, errOut := runConfig(t, "", "apply", "--all", "--yes", "--root", root)
 	for _, want := range []string{"proposal a-2 (set commit.language fr)", "unknown operation rename", "proposal a-4", "the proposal stays"} {
 		if !strings.Contains(errOut, want) {
@@ -463,7 +422,7 @@ func TestConfigApplyAllKeepsWhatFailsAndGoesOn(t *testing.T) {
 
 func TestConfigApplyOfWhatIsAlreadySoRemovesTheProposal(t *testing.T) {
 	root := configRoot(t, "[commit]\nthreshold = 4\n")
-	forgeProposal(t, proposalDir(root), proposal{ID: "a-1", Op: "unset", Key: "commit.language"})
+	forgeProposal(t, proposalDir(root), target.Proposal{ID: "a-1", Op: "unset", Key: "commit.language"})
 	code, _, errOut := runConfig(t, "", "apply", "a-1", "--root", root)
 	if code != 0 || !strings.Contains(errOut, "already so; removed") || len(proposalFiles(t, proposalDir(root))) != 0 {
 		t.Fatalf("%d %s", code, errOut)
@@ -472,7 +431,7 @@ func TestConfigApplyOfWhatIsAlreadySoRemovesTheProposal(t *testing.T) {
 
 func TestConfigApplyAndRejectOfAnUnknownProposal(t *testing.T) {
 	root := configRoot(t, "")
-	forgeProposal(t, proposalDir(root), proposal{ID: "a-1", Op: "unset", Key: "commit.language"})
+	forgeProposal(t, proposalDir(root), target.Proposal{ID: "a-1", Op: "unset", Key: "commit.language"})
 	writeFile(t, filepath.Join(root, ".loomux", "x.json"), "{}")
 	for _, sub := range []string{"apply", "reject"} {
 		for _, id := range []string{"nope", "../x", "a-1.json"} {
@@ -504,7 +463,7 @@ func TestConfigApplyReportsAFileItCannotRead(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".loomux", "config.toml"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	forgeProposal(t, proposalDir(root), proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
+	forgeProposal(t, proposalDir(root), target.Proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
 	if code, _, errOut := runConfig(t, "", "apply", "a-1", "--yes", "--root", root); code != 1 || !strings.Contains(errOut, "stays") {
 		t.Fatalf("%d %q", code, errOut)
 	}
@@ -514,7 +473,7 @@ func TestConfigRejectRemovesProposals(t *testing.T) {
 	root := configRoot(t, "")
 	dir := proposalDir(root)
 	for _, id := range []string{"a-1", "a-2", "a-3"} {
-		forgeProposal(t, dir, proposal{ID: id, Op: "unset", Key: "commit.language"})
+		forgeProposal(t, dir, target.Proposal{ID: id, Op: "unset", Key: "commit.language"})
 	}
 	if code, _, errOut := runConfig(t, "", "reject", "a-2", "--root", root); code != 0 || !strings.Contains(errOut, "rejected a-2") {
 		t.Fatalf("%d %s", code, errOut)
@@ -543,7 +502,7 @@ func TestConfigProposalsForTheGlobalFile(t *testing.T) {
 	if code, _, _ := runConfig(t, "", "set", "commit.threshold", "4", "--propose", "--global"); code != 1 || len(proposalFiles(t, dir)) != 0 {
 		t.Fatalf("code %d", code)
 	}
-	forgeProposal(t, dir, proposal{ID: "g-1", Op: "set", Key: "commit.threshold", Input: "4", Target: "global"})
+	forgeProposal(t, dir, target.Proposal{ID: "g-1", Op: "set", Key: "commit.threshold", Input: "4", Target: "global"})
 	if code, out, _ := runConfig(t, "", "proposals", "--global"); code != 0 || !strings.Contains(out, "g-1") {
 		t.Fatalf("%d %q", code, out)
 	}
@@ -554,9 +513,9 @@ func TestConfigProposalsForTheGlobalFile(t *testing.T) {
 		t.Fatalf("reject: %d", code)
 	}
 
-	target := configTarget{path: filepath.Join(state, "config.toml"), keys: schema.Keys(), global: true}
+	tgt := target.Target{Path: filepath.Join(state, "config.toml"), Keys: schema.Keys(), Global: true}
 	var out, errOut bytes.Buffer
-	if code := configPropose(target, proposal{Op: "set", Key: "commit.threshold", Input: "4"}, &out, &errOut); code != 0 {
+	if code := configPropose(tgt, target.Proposal{Op: "set", Key: "commit.threshold", Input: "4"}, &out, &errOut); code != 0 {
 		t.Fatalf("%d %s", code, errOut.String())
 	}
 	names := proposalFiles(t, dir)
@@ -564,7 +523,7 @@ func TestConfigProposalsForTheGlobalFile(t *testing.T) {
 	if len(names) != 1 || !strings.Contains(string(data), `"target": "global"`) {
 		t.Fatalf("%v %s", names, data)
 	}
-	if code := configApply(target, "", true, true, strings.NewReader(""), &errOut); code != 0 {
+	if code := configApply(tgt, "", true, true, strings.NewReader(""), &errOut); code != 0 {
 		t.Fatalf("%d %s", code, errOut.String())
 	}
 	data, _ = os.ReadFile(filepath.Join(state, "config.toml"))
@@ -624,7 +583,7 @@ func TestConfigApplyOfTheBackboneHints(t *testing.T) {
 	state := t.TempDir()
 	t.Setenv("LOOMUX_STATE_DIR", state)
 	dir := filepath.Join(state, "config", "proposals")
-	forgeProposal(t, dir, proposal{ID: "g-1", Op: "set", Key: "search.backbone", Input: "vulkan", Target: "global"})
+	forgeProposal(t, dir, target.Proposal{ID: "g-1", Op: "set", Key: "search.backbone", Input: "vulkan", Target: "global"})
 	code, _, errOut := runConfig(t, "", "apply", "g-1", "--yes", "--global")
 	if code != 0 || strings.Count(errOut, backboneHint) != 1 {
 		t.Fatalf("%d %q", code, errOut)
@@ -632,7 +591,7 @@ func TestConfigApplyOfTheBackboneHints(t *testing.T) {
 	if data, _ := os.ReadFile(filepath.Join(state, "config.toml")); string(data) != "[search]\nbackbone = \"vulkan\"\n" {
 		t.Fatalf("%q", data)
 	}
-	forgeProposal(t, dir, proposal{ID: "g-2", Op: "set", Key: "model.enabled", Input: "true", Target: "global"})
+	forgeProposal(t, dir, target.Proposal{ID: "g-2", Op: "set", Key: "model.enabled", Input: "true", Target: "global"})
 	if code, _, errOut := runConfig(t, "", "apply", "g-2", "--yes", "--global"); code != 0 || strings.Contains(errOut, backboneHint) {
 		t.Fatalf("%d %q", code, errOut)
 	}

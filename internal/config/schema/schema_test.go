@@ -179,6 +179,13 @@ func TestEveryNewKeyIsBase(t *testing.T) {
 func TestTheGlobalKeysAreTheirReadersKeys(t *testing.T) {
 	got := map[string][]string{}
 	for _, k := range GlobalKeys() {
+		if k.Section == "policy.paths.rules" || k.Section == "policy.commands.rules" {
+			// The rule lists are the project's own keys, read by the same reader.
+			if k.Kind != TableList || k.Module != Base || !strings.Contains(k.Doc, "every project") {
+				t.Errorf("%+v", k)
+			}
+			continue
+		}
 		if k.Module != Brain || k.Doc == "" {
 			t.Errorf("%+v", k)
 		}
@@ -330,5 +337,15 @@ func TestSchemaKeyMaxFilesize(t *testing.T) {
 	}
 	if k.Kind != Int || k.Module != Graph || k.Default != "67108864" {
 		t.Fatalf("grep.max_filesize = %+v", k)
+	}
+}
+
+func TestSwitchableModulesAreTheOnesTheModulesTableSwitches(t *testing.T) {
+	var names []string
+	for _, m := range Switchable() {
+		names = append(names, string(m))
+	}
+	if got := ids("modules"); !slices.Equal(got, sorted(names)) {
+		t.Fatalf("modules keys %v, switchable %v", got, names)
 	}
 }

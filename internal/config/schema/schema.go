@@ -207,7 +207,9 @@ func fill(pattern, parts []string) (string, bool) {
 
 // GlobalKeys are the keys of the per-user file `<state>/config.toml`: the
 // local model's settings, of which an area may only narrow enabled and roles,
-// and the search engine's backbone, which no area has a say in.
+// the two rule lists of [policy] that bind every project (list tables, which
+// the key editor does not take), and the search engine's backbone, which no
+// area has a say in.
 func GlobalKeys() []Key {
 	return []Key{
 		{Section: "model", Name: "enabled", Kind: Bool, Default: "false", Module: Brain, Doc: "Let the local model be asked at all; an area can only switch it off."},
@@ -215,6 +217,12 @@ func GlobalKeys() []Key {
 		{Section: "model", Name: "name", Kind: String, Default: strconv.Quote(config.DefaultModelName), Module: Brain, Doc: "The Ollama model that is asked."},
 		{Section: "model", Name: "roles", Kind: Table, Default: "{ describe = true, place = true, propose = true }", Module: Brain, Doc: "Which roles the model takes; once set, an unnamed role is off."},
 		{Section: "model", Name: "temperature", Kind: Float, Default: "0.0", Module: Brain, Doc: "The sampling temperature, between 0 and 2."},
+		{Section: "policy.paths.rules", Kind: TableList, Module: Base, Doc: "Paths no agent may write in every project, each with a match and a reason."},
+		{Section: "policy.commands.rules", Kind: TableList, Module: Base, Doc: "Shell commands no agent may run in every project, each with a regex and a reason."},
 		{Section: "search", Name: "backbone", Kind: String, Default: strconv.Quote(config.DefaultSearchBackbone), Module: Brain, Doc: "What qmd computes on: cuda, vulkan or cpu; a running qmd daemon keeps its backbone until it is restarted."},
 	}
 }
+
+// Switchable are the modules a configuration can switch off, in the order init
+// asks about them; Base always runs.
+func Switchable() []Module { return []Module{Hooks, Brain, Graph} }

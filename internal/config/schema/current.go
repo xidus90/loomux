@@ -96,7 +96,7 @@ func entryOf(doc map[string]any, k Key) Entry {
 		e.Count = len(list)
 		blocks := make([]string, len(list))
 		for i, block := range list {
-			blocks[i] = fmt.Sprint(block)
+			blocks[i] = inlineTable(block)
 		}
 		e.Value = strings.Join(blocks, "\n")
 		if found {
@@ -162,6 +162,27 @@ func inputForm(value any) string {
 	}
 }
 
+// inlineTable is one [[x]] block as the inline table a human would write:
+// keys in name order, each value as one line of TOML.
+func inlineTable(block any) string {
+	table, ok := block.(map[string]any)
+	if !ok {
+		return fmt.Sprint(block)
+	}
+	pairs := make([]string, 0, len(table))
+	for _, name := range slices.Sorted(maps.Keys(table)) {
+		pairs = append(pairs, name+" = "+tomlValue(table[name]))
+	}
+	return "{ " + strings.Join(pairs, ", ") + " }"
+}
+
+// tomlValue is value as the text after `key = ` in a TOML file.
+func tomlValue(value any) string {
+	var b strings.Builder
+	_ = toml.NewEncoder(&b).Encode(map[string]any{"v": value})
+	return strings.TrimSpace(strings.TrimPrefix(b.String(), "v = "))
+}
+
 // literal is value as one line of TOML. The encoder writes a table as a
 // [v] section over several lines rather than inline, so a table is shown
 // the way Go prints the map instead.
@@ -169,7 +190,5 @@ func literal(k Key, value any) string {
 	if k.Kind == Table {
 		return fmt.Sprint(value)
 	}
-	var b strings.Builder
-	_ = toml.NewEncoder(&b).Encode(map[string]any{"v": value})
-	return strings.TrimSpace(strings.TrimPrefix(b.String(), "v = "))
+	return tomlValue(value)
 }

@@ -72,9 +72,6 @@ type policyFile struct {
 // ReadPolicy reads the policy of the project at root. A missing file is an
 // empty policy; every other failure is an error naming the file, because the
 // guard refuses on it and the human who fixes the file needs to find it.
-//
-// Every expression is compiled here. A compile error dropped would leave a
-// rule with a lookahead that never matches, without a word (spec, 2026-09-14).
 func ReadPolicy(root string) (Policy, error) {
 	path := ManifestPath(root)
 	data, err := os.ReadFile(path)
@@ -84,40 +81,113 @@ func ReadPolicy(root string) (Policy, error) {
 	if err != nil {
 		return Policy{}, fmt.Errorf("%s: %w", path, err)
 	}
+	return ParsePolicy(path, data)
+}
+
+// GlobalConfigPath is the machine-wide config.toml in the state directory: the
+// per-user file whose [policy] applies in every project, with [model] and
+// [search].
+func GlobalConfigPath(stateDir string) string {
+	return filepath.Join(stateDir, "config.toml")
+}
+
+// ReadGlobalPolicy reads the rule lists of the per-user file. A missing file,
+// or no state directory, is an empty policy. [guard] is a project's setting:
+// in this file it would look machine-wide and bind nothing, so it is an error
+// naming the file.
+func ReadGlobalPolicy(stateDir string) (Policy, error) {
+	if stateDir == "" {
+		return Policy{}, nil
+	}
+	path := GlobalConfigPath(stateDir)
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return Policy{}, nil
+	}
+	if err != nil {
+		return Policy{}, fmt.Errorf("%s: %w", path, err)
+	}
+	return ParseGlobalPolicy(path, data)
+}
+
+// ParseGlobalPolicy decodes the machine-wide file whose text is data and
+// refuses a [guard] table as ReadGlobalPolicy does; path only names the file
+// in an error.
+func ParseGlobalPolicy(path string, data []byte) (Policy, error) {
+	policy, hasGuard, err := parsePolicy(path, data)
+	if err != nil {
+		return Policy{}, err
+	}
+	if hasGuard {
+		return Policy{}, fmt.Errorf("%s: [guard] belongs in a project's .loomux/config.toml, not in the machine-wide file", path)
+	}
+	return policy, nil
+}
+
+// ReadEffectivePolicy is the policy the guard judges by: the machine-wide
+// rules first, then the project's own, so a project adds to them and never
+// lifts one. [guard] is the project's.
+func ReadEffectivePolicy(root, stateDir string) (Policy, error) {
+	global, err := ReadGlobalPolicy(stateDir)
+	if err != nil {
+		return Policy{}, err
+	}
+	project, err := ReadPolicy(root)
+	if err != nil {
+		return Policy{}, err
+	}
+	project.Paths = append(global.Paths, project.Paths...)
+	project.Commands = append(global.Commands, project.Commands...)
+	return project, nil
+}
+
+// ParsePolicy decodes the policy of a file whose text is data; path only
+// names the file in an error.
+//
+// Every expression is compiled here. A compile error dropped would leave a
+// rule with a lookahead that never matches, without a word (spec, 2026-09-14).
+func ParsePolicy(path string, data []byte) (Policy, error) {
+	policy, _, err := parsePolicy(path, data)
+	return policy, err
+}
+
+// parsePolicy is ParsePolicy that also says whether the text holds a [guard]
+// table, so a caller that refuses one need not decode the text again.
+func parsePolicy(path string, data []byte) (Policy, bool, error) {
 	var file policyFile
 	if err := toml.Unmarshal(data, &file); err != nil {
-		return Policy{}, fmt.Errorf("%s: %w", path, err)
+		return Policy{}, false, fmt.Errorf("%s: %w", path, err)
 	}
 	var policy Policy
 	for i, rule := range file.Policy.Paths.Rules {
 		globs, err := globList(rule.Match)
 		if err != nil {
-			return Policy{}, fmt.Errorf("%s: [[policy.paths.rules]] #%d match: %w", path, i+1, err)
+			return Policy{}, false, fmt.Errorf("%s: [[policy.paths.rules]] #%d match: %w", path, i+1, err)
 		}
 		if rule.Reason == "" {
-			return Policy{}, fmt.Errorf("%s: [[policy.paths.rules]] #%d needs a reason", path, i+1)
+			return Policy{}, false, fmt.Errorf("%s: [[policy.paths.rules]] #%d needs a reason", path, i+1)
 		}
 		policy.Paths = append(policy.Paths, PathRule{Match: globs, Reason: rule.Reason})
 	}
 	for i, rule := range file.Policy.Commands.Rules {
 		if rule.Regex == "" {
-			return Policy{}, fmt.Errorf("%s: [[policy.commands.rules]] #%d needs a regex", path, i+1)
+			return Policy{}, false, fmt.Errorf("%s: [[policy.commands.rules]] #%d needs a regex", path, i+1)
 		}
 		compiled, err := regexp.Compile(rule.Regex)
 		if err != nil {
-			return Policy{}, fmt.Errorf("%s: [[policy.commands.rules]] #%d regex %s does not compile: %w", path, i+1, rule.Regex, err)
+			return Policy{}, false, fmt.Errorf("%s: [[policy.commands.rules]] #%d regex %s does not compile: %w", path, i+1, rule.Regex, err)
 		}
 		if rule.Reason == "" {
-			return Policy{}, fmt.Errorf("%s: [[policy.commands.rules]] #%d needs a reason", path, i+1)
+			return Policy{}, false, fmt.Errorf("%s: [[policy.commands.rules]] #%d needs a reason", path, i+1)
 		}
 		policy.Commands = append(policy.Commands, CommandRule{Regex: compiled, Source: rule.Regex, Reason: rule.Reason})
 	}
 	guard, err := parseGuard(path, file.Guard)
 	if err != nil {
-		return Policy{}, err
+		return Policy{}, false, err
 	}
 	policy.Strict, policy.GraphHintOff = guard.strict, guard.graphHintOff
-	return policy, nil
+	return policy, file.Guard != nil, nil
 }
 
 // globList also refuses what would load and never match: no glob at all, an

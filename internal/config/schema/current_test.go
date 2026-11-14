@@ -36,7 +36,7 @@ func TestCurrentTellsWhereEachValueComesFrom(t *testing.T) {
 	if e := got["commit.threshold"]; e.Origin != Default || e.Value != "2" {
 		t.Errorf("threshold %+v", e)
 	}
-	if e := got["policy.paths.rules"]; e.Origin != Set || e.Count != 2 || e.Value != "map[match:[a] reason:r]\nmap[match:[b] reason:r]" {
+	if e := got["policy.paths.rules"]; e.Origin != Set || e.Count != 2 || e.Value != "{ match = [\"a\"], reason = \"r\" }\n{ match = [\"b\"], reason = \"r\" }" {
 		t.Errorf("paths %+v", e)
 	}
 	if e := got["commit.allow"]; e.Origin != Unset || e.Count != 0 {
@@ -49,6 +49,12 @@ func TestCurrentTellsWhereEachValueComesFrom(t *testing.T) {
 	// mirrors; the preset is the truer answer.
 	if e := got["verify.profiles"]; e.Origin != Preset || e.Value != "" {
 		t.Errorf("profiles %+v", e)
+	}
+}
+
+func TestAListOfTablesThatHoldsNoTableIsShownAsItIs(t *testing.T) {
+	if e := byID(t, "[commit]\nallow = [1]\n")["commit.allow"]; e.Count != 1 || e.Value != "1" {
+		t.Errorf("allow %+v", e)
 	}
 }
 

@@ -8,6 +8,14 @@ import (
 	"github.com/xidus90/loomux/internal/config/schema"
 )
 
+func TestCheckScope(t *testing.T) {
+	for scope, ok := range map[string]bool{"project/a": true, "": false, "project/a b": false, "a\tb": false} {
+		if got := CheckScope(scope) == nil; got != ok {
+			t.Errorf("%q: ok = %v", scope, got)
+		}
+	}
+}
+
 func TestACheckoutGetsOnlyWhatItHasCheckedIn(t *testing.T) {
 	files := fixture(t)
 	files["go.mod"] = checkoutGoMod
