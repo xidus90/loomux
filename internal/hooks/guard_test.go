@@ -802,6 +802,7 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 	// The spellings, then what makes init, config, area and merge-hook
 	// write in them.
 	refused := append(loomuxSpellings(),
+		"cd cmd/loomux && go run . init",
 		// An alias or a variable the line sets itself is put in.
 		"alias l=loomux; l init",
 		"M=loomux; $M init",
@@ -1004,8 +1005,6 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		// An alias or a program in a variable set elsewhere than on the line.
 		"l init",
 		"$M init",
-		// go run of a package that names no cmd/loomux.
-		"cd cmd/loomux && go run . init",
 		// A script that names no loomux command.
 		"sh apply.sh",
 		// script -c holds its command in a string, as sh -c does.

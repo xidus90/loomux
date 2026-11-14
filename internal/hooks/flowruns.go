@@ -1,18 +1,14 @@
 package hooks
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/xidus90/loomux/flows"
 	"github.com/xidus90/loomux/internal/config"
-	"github.com/xidus90/loomux/internal/flow/journal"
 	"github.com/xidus90/loomux/internal/flow/runs"
 )
 
@@ -36,7 +32,7 @@ func waitingRuns(root, version string, stderr io.Writer) []string {
 	// An absent runs directory means no runs. One that cannot be listed is
 	// named and announces nothing: this hook has no verdict to give on a
 	// project it cannot read.
-	entries, err := listed(filepath.Join(root, filepath.FromSlash(runs.Dir)))
+	waiting, err := runs.WaitingRuns(root)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %s cannot be read as a folder of runs: %v\n", runs.Dir, err)
 	}
@@ -45,25 +41,17 @@ func waitingRuns(root, version string, stderr io.Writer) []string {
 		binary = shellWord(filepath.ToSlash(path))
 	}
 	var lines []string
-	// ReadDir sorts by name, so two machines announce the same runs in the
-	// same order.
-	for _, entry := range entries {
-		id, isJournal := strings.CutSuffix(entry.Name(), ".jsonl")
-		if entry.IsDir() || !isJournal {
-			continue
-		}
-		gate, err := journal.Pending(runs.JournalPath(root, id))
-		if err == nil && gate == nil {
-			continue
-		}
-		marker, markerErr := runs.ReadMarker(runs.MarkerPath(root, id))
+	// The listing is sorted by name, so two machines announce the same runs
+	// in the same order.
+	for _, run := range waiting {
+		id, gate, marker := run.ID, run.Gate, run.Marker
 		switch {
-		case err != nil && marker != nil && marker.Version != "" && marker.Version != version:
+		case run.Err != nil && marker != nil && marker.Version != "" && marker.Version != version:
 			fmt.Fprintf(stderr, "loomux hook session-start: run %s was written by loomux %s, this is %s\n", id, marker.Version, version)
-		case err != nil:
-			fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)
-		case markerErr != nil:
-			fmt.Fprintf(stderr, "loomux hook session-start: %v\n", markerErr)
+		case run.Err != nil:
+			fmt.Fprintf(stderr, "loomux hook session-start: %v\n", run.Err)
+		case run.MarkerErr != nil:
+			fmt.Fprintf(stderr, "loomux hook session-start: %v\n", run.MarkerErr)
 		case marker == nil:
 			fmt.Fprintf(stderr, "loomux hook session-start: run %q does not say which flow it belongs to\n", id)
 		default:
@@ -87,22 +75,6 @@ func shellWord(path string) string {
 	return path
 }
 
-// listed is dir's entries, none when it is absent. One that cannot be listed
-// -- a file, or a folder the process may not read -- is an error. Stat tells a
-// file from an absent folder, as load's underDir does: Windows lists a file as
-// a path it cannot find, POSIX as no directory.
-func listed(dir string) ([]os.DirEntry, error) {
-	entries, err := os.ReadDir(dir)
-	info, statErr := os.Stat(dir)
-	switch {
-	case errors.Is(statErr, fs.ErrNotExist):
-		return nil, nil
-	case statErr == nil && !info.IsDir():
-		err = errors.New("it is a file")
-	}
-	return entries, err
-}
-
 // origin is a run's flow and where it came from, the origin spelled as run,
 // show and list print it.
 func origin(marker *runs.Marker) string {
@@ -123,7 +95,7 @@ func origin(marker *runs.Marker) string {
 // whoever reads it for a reason. A flows folder that cannot be listed is said
 // in load.Find's words, since a bundled flow it would hide runs in its place.
 func ignoredFlowFolders(root string) []string {
-	entries, err := listed(filepath.Join(root, filepath.FromSlash(flowsDir)))
+	entries, err := runs.ListDir(filepath.Join(root, filepath.FromSlash(flowsDir)))
 	if err != nil {
 		return []string{flowsDir + " cannot be read as a folder of flows: " + err.Error()}
 	}
