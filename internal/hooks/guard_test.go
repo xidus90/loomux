@@ -1253,15 +1253,15 @@ func TestTheOwnManifestIsOpenWhenTheSwitchIsOn(t *testing.T) {
 	for _, tool := range []string{"Write", "Edit"} {
 		for _, path := range open {
 			input := map[string]any{"file_path": path}
-			if got := checkToolOpen(root, tool, input, config.Policy{}, switchOn, elsewhere); len(got) != 0 {
+			if got := checkToolOpen(root, "", "", tool, input, config.Policy{}, switchOn, elsewhere); len(got) != 0 {
 				t.Errorf("%s %s, switch on: reasons %q, want none", tool, path, got)
 			}
-			if got := checkToolOpen(root, tool, input, config.Policy{}, switchOff, atRoot); !slices.Equal(got, []string{manifestReason}) {
+			if got := checkToolOpen(root, "", "", tool, input, config.Policy{}, switchOff, atRoot); !slices.Equal(got, []string{manifestReason}) {
 				t.Errorf("%s %s, switch off: reasons %q, want the manifest's", tool, path, got)
 			}
 		}
 		for _, path := range []string{".loomux/config.toml", ".LOOMUX/Config.toml"} {
-			if got := checkToolOpen(root, tool, map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
+			if got := checkToolOpen(root, "", "", tool, map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
 				t.Errorf("%s %s, switch on: reasons %q, want the manifest's", tool, path, got)
 			}
 		}
@@ -1280,7 +1280,7 @@ func TestALinkedManifestPathStaysShutForAWritingTool(t *testing.T) {
 		t.Skipf("no such link here: %v", err)
 	}
 	path := filepath.Join(root, ".loomux", "config.toml")
-	if got := checkToolOpen(root, "Write", map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
+	if got := checkToolOpen(root, "", "", "Write", map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
 		t.Errorf("reasons %q, want the manifest's", got)
 	}
 }
@@ -1289,7 +1289,7 @@ func TestALinkedManifestPathStaysShutForAWritingTool(t *testing.T) {
 func TestAForeignManifestStaysShut(t *testing.T) {
 	root := t.TempDir()
 	for _, path := range []string{"../other/.loomux/config.toml", "sub/.loomux/config.toml"} {
-		if got := checkToolOpen(root, "Write", map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
+		if got := checkToolOpen(root, "", "", "Write", map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
 			t.Errorf("%s: reasons %q, want the manifest's", path, got)
 		}
 	}
@@ -1300,8 +1300,8 @@ func TestTheSwitchIsNotReadForAnOrdinaryCall(t *testing.T) {
 	root := t.TempDir()
 	asked := 0
 	counted := func() bool { asked++; return true }
-	checkToolOpen(root, "Write", map[string]any{"file_path": "src/a.go"}, config.Policy{}, counted, counted)
-	checkToolOpen(root, "Bash", map[string]any{"command": "git status"}, config.Policy{}, counted, counted)
+	checkToolOpen(root, "", "", "Write", map[string]any{"file_path": "src/a.go"}, config.Policy{}, counted, counted)
+	checkToolOpen(root, "", "", "Bash", map[string]any{"command": "git status"}, config.Policy{}, counted, counted)
 	if asked != 0 {
 		t.Fatalf("the switch was read %d times", asked)
 	}

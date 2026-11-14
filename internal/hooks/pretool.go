@@ -50,7 +50,7 @@ func PreToolUse(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string
 	// does not say counts as standing elsewhere.
 	cwd, _ := object["cwd"].(string)
 	here := sync.OnceValue(func() bool { return guard.AtRoot(cwd, root) })
-	reasons, policy, err := policyReasons(object, root, open, here)
+	reasons, policy, err := policyReasons(object, root, stateDir, open, here)
 	if tool, _ := guard.Call(object); err != nil && hintOnly(tool) {
 		// These tools reach the hook for the graph hint alone; a broken
 		// policy must not take the search, and the graph it points at, away.
@@ -82,7 +82,7 @@ const llmConfigNote = "llm_config is on for this project: agents may edit .loomu
 // job, with the barrier's wording, one step later. An object that names no
 // tool is refused here, before the policy file is read: no rule can be
 // matched against it, and a call nobody judged does not pass.
-func policyReasons(object map[string]any, root string, open, here func() bool) ([]string, config.Policy, error) {
+func policyReasons(object map[string]any, root, stateDir string, open, here func() bool) ([]string, config.Policy, error) {
 	if object == nil {
 		return nil, config.Policy{}, nil
 	}
@@ -94,5 +94,6 @@ func policyReasons(object map[string]any, root string, open, here func() bool) (
 	if err != nil {
 		return nil, config.Policy{}, err
 	}
-	return checkToolOpen(root, tool, input, policy, open, here), policy, nil
+	cwd, _ := object["cwd"].(string)
+	return checkToolOpen(root, stateDir, cwd, tool, input, policy, open, here), policy, nil
 }

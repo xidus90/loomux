@@ -10,7 +10,8 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-// spelled is how a test reads targets: w: for a write, rm: for a removal, the
+// spelled is how a test reads targets: w: for a write, rm: for a removal,
+// ln: for a path a link is made onto or from, the
 // path with forward slashes, sorted and each once.
 func spelled(targets []shellTarget) []string {
 	var out []string
@@ -18,6 +19,9 @@ func spelled(targets []shellTarget) []string {
 		kind := "w:"
 		if t.removes {
 			kind = "rm:"
+		}
+		if t.linked {
+			kind = "ln:"
 		}
 		spelling := kind + strings.ReplaceAll(t.path, `\`, "/")
 		for _, f := range t.filters {
@@ -350,7 +354,8 @@ func TestACopyIntoAFolderLandsUnderTheSourceName(t *testing.T) {
 		`xcopy C:\tmp\config.toml .loomux`:  {"w:.loomux", "w:.loomux/C:tmpconfig.toml", "w:.loomux/config.toml"},
 		`xcopy C:\tmp\tpl docs /E`:          {"rm:docs", "w:docs"},
 		`xcopy a b.txt`:                     {"w:b.txt"},
-		"ln -s a docs":                      {"w:docs", "w:docs/a"},
+		"ln -s a docs":                      {"ln:a", "ln:docs", "w:docs", "w:docs/a"},
+		"cmd /c mklink /J j x":              {"ln:j", "ln:x", "w:j"},
 	} {
 		targets, _ := shellWrites(root, line)
 		if got := spelled(targets); !slices.Equal(got, want) {
