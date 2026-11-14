@@ -1,8 +1,10 @@
 package setup
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/xidus90/loomux/internal/config/schema"
 	"github.com/xidus90/loomux/internal/hosts"
@@ -74,6 +76,15 @@ type Choice struct {
 func (c Choice) moduleOn(m schema.Module) bool {
 	on, set := c.Modules[m]
 	return m == schema.Base || !set || on
+}
+
+// CheckScope refuses a scope area add could not take; the command line and
+// the web interface ask the same question and give the same answer.
+func CheckScope(s string) error {
+	if s == "" || strings.ContainsFunc(s, unicode.IsSpace) {
+		return errors.New("a scope is not empty and has no spaces")
+	}
+	return nil
 }
 
 // scopeName is the last segment of the default scope: the directory's name

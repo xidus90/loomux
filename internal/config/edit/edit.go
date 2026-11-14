@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/BurntSushi/toml"
 )
 
 // ErrAmbiguous marks a document whose shape would make any placement a guess.
@@ -367,6 +369,31 @@ func AppendBlock(text, section string, pairs [][2]string) string {
 		lines = append(lines, p[0]+" = "+p[1])
 	}
 	return join(bom, lines, eol)
+}
+
+// AppendRule adds one entry to the rule list at the dotted section, in the
+// form the file already uses for that list: an inline table inside
+// key = [ ... ] where the human wrote it so, a [[section]] block otherwise (a
+// [[section]] header after an inline array would define the key twice).
+func AppendRule(text, section string, pairs [][2]string) (string, error) {
+	if _, inline := RuleNode(text, section).([]any); inline {
+		return AppendInline(text, section, pairs)
+	}
+	return AppendBlock(text, section, pairs), nil
+}
+
+// RuleNode is what text holds at the dotted section of a rule list: a
+// []map[string]any for [[section]] entries, a []any for key = [ ... ]. A text
+// that is no TOML holds nothing; the caller's validation names its error.
+func RuleNode(text, section string) any {
+	doc := map[string]any{}
+	_ = toml.Unmarshal([]byte(text), &doc)
+	var node any = doc
+	for _, part := range strings.Split(section, ".") {
+		table, _ := node.(map[string]any)
+		node = table[part]
+	}
+	return node
 }
 
 // AppendInline adds one inline table to the array a [[section]] entry would

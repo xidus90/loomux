@@ -3,32 +3,20 @@ package cli
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"text/tabwriter"
 
-	"github.com/BurntSushi/toml"
-
-	"github.com/xidus90/loomux/internal/brain/model"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/config/edit"
 	"github.com/xidus90/loomux/internal/config/schema"
+	"github.com/xidus90/loomux/internal/config/target"
 	"github.com/xidus90/loomux/internal/hosts"
-	"github.com/xidus90/loomux/internal/lock"
 )
-
-// configTarget is the one file a run reads and writes, and the keys it knows.
-type configTarget struct {
-	path   string
-	keys   []schema.Key
-	global bool
-}
 
 func configUsage(stderr io.Writer) int {
 	fmt.Fprintln(stderr, "usage: loomux config [list [--json] | get <key> | set <key> <value> [--yes | --propose] | unset <key> [--yes | --propose] |")
@@ -93,41 +81,41 @@ func configCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 		(*propose && (!writes || *yes)) || (*all && !picks) {
 		return configUsage(stderr)
 	}
-	target, err := resolveConfigTarget(*root, *global)
+	tgt, err := resolveConfigTarget(*root, *global)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
 		return 1
 	}
 	switch sub {
 	case "":
-		return runConfigUI(target, stderr)
+		return runConfigUI(tgt, stderr)
 	case "list":
-		return configList(target, *asJSON, stdout, stderr)
+		return configList(tgt, *asJSON, stdout, stderr)
 	case "get":
-		return configGet(target, positional[0], stdout, stderr)
+		return configGet(tgt, positional[0], stdout, stderr)
 	case "proposals":
-		return configProposals(target, *asJSON, stdout, stderr)
+		return configProposals(tgt, *asJSON, stdout, stderr)
 	case "apply":
-		return configApply(target, strings.Join(positional, ""), *all, *yes, stdin, stderr)
+		return configApply(tgt, strings.Join(positional, ""), *all, *yes, stdin, stderr)
 	case "reject":
-		return configReject(target, strings.Join(positional, ""), *all, stderr)
+		return configReject(tgt, strings.Join(positional, ""), *all, stderr)
 	}
 	if *propose {
-		p := proposal{Op: sub, Key: positional[0]}
+		p := target.Proposal{Op: sub, Key: positional[0]}
 		if sub == "set" {
 			p.Input = positional[1]
 		}
-		return configPropose(target, p, stdout, stderr)
+		return configPropose(tgt, p, stdout, stderr)
 	}
-	after := writtenHint(target, positional[0])
+	after := writtenHint(tgt, positional[0])
 	switch sub {
 	case "unset":
-		return configWrite(target, func(text string) (string, error) {
-			return proposeUnset(target, text, positional[0])
+		return configWrite(tgt, func(text string) (string, error) {
+			return tgt.Unset(text, positional[0])
 		}, after, *yes, stdin, stderr)
 	default:
-		return configWrite(target, func(text string) (string, error) {
-			return proposeChange(target, text, positional[0], positional[1])
+		return configWrite(tgt, func(text string) (string, error) {
+			return tgt.Change(text, positional[0], positional[1])
 		}, after, *yes, stdin, stderr)
 	}
 }
@@ -144,8 +132,8 @@ const backboneHint = "loomux config: a running qmd daemon keeps its backbone unt
 	"the next search starts it with the new backbone"
 
 // writtenHint is the line a write of key prints after it, or "".
-func writtenHint(t configTarget, key string) string {
-	if t.global && key == "search.backbone" {
+func writtenHint(t target.Target, key string) string {
+	if t.Global && key == "search.backbone" {
 		return backboneHint
 	}
 	return ""
@@ -157,43 +145,18 @@ func namesPropose(arg string) bool {
 	return name != arg && (name == "propose" || strings.HasPrefix(name, "propose="))
 }
 
-func resolveConfigTarget(root string, global bool) (configTarget, error) {
+func resolveConfigTarget(root string, global bool) (target.Target, error) {
 	if global {
-		return configTarget{path: filepath.Join(config.StateDir(), "config.toml"), keys: schema.GlobalKeys(), global: true}, nil
+		return target.Global(config.StateDir()), nil
 	}
 	if root == "" {
 		found, err := hosts.FindRoot(".")
 		if err != nil {
-			return configTarget{}, err
+			return target.Target{}, err
 		}
 		root = found
 	}
-	return configTarget{path: config.ManifestPath(root), keys: schema.Keys()}, nil
-}
-
-// read answers an empty configuration for a file that is not there yet:
-// `set` creates it, and every key then shows its default.
-func (t configTarget) read() (string, error) {
-	data, err := os.ReadFile(t.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	return string(data), err
-}
-
-// entries pairs this target's keys with their values in text: the global
-// file shares the project file's reader but not its keys. A parse error
-// names the global file by its path; the project file keeps its short name.
-func (t configTarget) entries(text string) ([]schema.Entry, error) {
-	file := schema.ProjectFile
-	if t.global {
-		file = t.path
-	}
-	return schema.CurrentOf(file, t.keys, text)
-}
-
-func (t configTarget) lookup(id string) (schema.Key, bool) {
-	return schema.Match(t.keys, id)
+	return target.Project(root), nil
 }
 
 // shownValue is what a human reads for an entry. A preset row has no value
@@ -206,8 +169,8 @@ func shownValue(e schema.Entry) string {
 	return e.Value
 }
 
-func configList(t configTarget, asJSON bool, stdout, stderr io.Writer) int {
-	entries, err := t.readEntries()
+func configList(t target.Target, asJSON bool, stdout, stderr io.Writer) int {
+	entries, err := readEntries(t)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
 		return 1
@@ -222,7 +185,7 @@ func configList(t configTarget, asJSON bool, stdout, stderr io.Writer) int {
 		_ = enc.Encode(rows)
 		return 0
 	}
-	if !t.global && llmConfigOn(filepath.Dir(filepath.Dir(t.path))) {
+	if !t.Global && llmConfigOn(filepath.Dir(filepath.Dir(t.Path))) {
 		fmt.Fprintln(stdout, "llm_config: on — agents may edit this file")
 	}
 	w := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
@@ -236,7 +199,7 @@ func configList(t configTarget, asJSON bool, stdout, stderr io.Writer) int {
 	_ = w.Flush()
 	// The human who reads the list is the one who applies what agents
 	// proposed; the JSON form stays the bare rows a script expects.
-	if n := t.openProposals(); n > 0 {
+	if n := t.OpenCount(); n > 0 {
 		fmt.Fprintln(stdout, proposalHint(n))
 	}
 	return 0
@@ -264,24 +227,24 @@ func entryCount(n int) string {
 
 // readEntries is read and entries in one step, the way list and get both
 // need them.
-func (t configTarget) readEntries() ([]schema.Entry, error) {
-	text, err := t.read()
+func readEntries(t target.Target) ([]schema.Entry, error) {
+	text, err := t.Read()
 	if err != nil {
 		return nil, err
 	}
-	return t.entries(text)
+	return t.Entries(text)
 }
 
-func configGet(t configTarget, id string, stdout, stderr io.Writer) int {
-	key, ok := t.lookup(id)
+func configGet(t target.Target, id string, stdout, stderr io.Writer) int {
+	key, ok := t.Lookup(id)
 	if !ok {
 		fmt.Fprintf(stderr, "loomux config: unknown key %q\n", id)
 		return 1
 	}
 	// Only the key asked for: the full list has no row for a name the file
 	// does not hold, and that name is unset like any other key.
-	t.keys = []schema.Key{key}
-	entries, err := t.readEntries()
+	t.Keys = []schema.Key{key}
+	entries, err := readEntries(t)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
 		return 1
@@ -292,108 +255,11 @@ func configGet(t configTarget, id string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// editableKey finds a key that a line edit can change: known to this target
-// and not a table.
-func (t configTarget) editableKey(id string) (schema.Key, error) {
-	key, ok := t.lookup(id)
-	if !ok {
-		return schema.Key{}, fmt.Errorf("unknown key %q", id)
-	}
-	if key.Kind == schema.Table || key.Kind == schema.TableList {
-		return schema.Key{}, fmt.Errorf("%s is a table; edit it by hand", id)
-	}
-	return key, nil
-}
-
-// proposeChange computes the new text for one key; callers show and confirm
-// it. It is shared with the interactive form.
-func proposeChange(t configTarget, text, id, input string) (string, error) {
-	key, err := t.editableKey(id)
-	if err != nil {
-		return "", err
-	}
-	// Without [area] the declaration reader stops before the brain's keys,
-	// so Validate below would pass any value there unseen.
-	if key.Module == schema.Brain && !t.global && id != "area.scope" {
-		hasArea, err := declaresArea(text)
-		if err != nil {
-			return "", err
-		}
-		if !hasArea {
-			return "", fmt.Errorf("%s belongs to the brain, which reads nothing without [area]; set area.scope first", id)
-		}
-	}
-	literal, err := edit.Render(key.Kind, input)
-	if err != nil {
-		return "", err
-	}
-	// Defaults are never written: a file that repeats them would pin them
-	// against a later change of the default.
-	var next string
-	if literal == key.Default {
-		next, err = edit.Remove(text, key.Section, key.Name)
-	} else {
-		next, err = edit.Set(text, key.Section, key.Name, literal)
-	}
-	if err != nil {
-		return "", err
-	}
-	return t.validated(next)
-}
-
-// proposeUnset computes the text without the key's line. It needs no [area]
-// for a brain key: a line the brain cannot read is the one worth removing.
-func proposeUnset(t configTarget, text, id string) (string, error) {
-	key, err := t.editableKey(id)
-	if err != nil {
-		return "", err
-	}
-	next, err := edit.Remove(text, key.Section, key.Name)
-	if err != nil {
-		return "", err
-	}
-	return t.validated(next)
-}
-
-// validated hands a new text to the reader that runs in operation: the
-// declaration readers for a project file, the model reader, the client's
-// loopback guard and the search reader for the global one. The guard runs
-// here too so that the file never holds an address the next pass would
-// refuse.
-func (t configTarget) validated(next string) (string, error) {
-	if t.global {
-		settings, err := config.ParseModelSettings(t.path, next)
-		if err != nil {
-			return "", err
-		}
-		if err := model.GuardEndpoint(settings.Endpoint); err != nil {
-			return "", fmt.Errorf("%s: %w", t.path, err)
-		}
-		if _, err := config.ParseSearchSettings(t.path, next); err != nil {
-			return "", err
-		}
-		return next, nil
-	}
-	if err := schema.Validate(next); err != nil {
-		return "", err
-	}
-	return next, nil
-}
-
-func declaresArea(text string) (bool, error) {
-	doc := map[string]any{}
-	if err := toml.Unmarshal([]byte(text), &doc); err != nil {
-		return false, fmt.Errorf(".loomux/config.toml: not valid TOML: %w", err)
-	}
-	_, ok := doc["area"].(map[string]any)
-	return ok, nil
-}
-
 // configWrite is set and unset after the argument check: propose, show the
 // diff, confirm, write.
 // after, when not empty, is one more line once the file is written.
-func configWrite(t configTarget, propose func(text string) (string, error), after string, yes bool, stdin io.Reader, stderr io.Writer) int {
-	text, err := t.read()
+func configWrite(t target.Target, propose func(text string) (string, error), after string, yes bool, stdin io.Reader, stderr io.Writer) int {
+	text, err := t.Read()
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
 		return 1
@@ -417,11 +283,11 @@ func configWrite(t configTarget, propose func(text string) (string, error), afte
 			return 0
 		}
 	}
-	if err := writeConfig(t, text, next); err != nil {
+	if err := t.Write(text, next); err != nil {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stderr, "loomux config: wrote %s\n", t.path)
+	fmt.Fprintf(stderr, "loomux config: wrote %s\n", t.Path)
 	if after != "" {
 		fmt.Fprintln(stderr, after)
 	}
@@ -432,23 +298,4 @@ func configWrite(t configTarget, propose func(text string) (string, error), afte
 func confirmed(answer string) bool {
 	a := strings.ToLower(strings.TrimSpace(answer))
 	return a == "y" || a == "yes"
-}
-
-// writeConfig is the one way every form puts a new text in place: set,
-// unset, the interactive form and apply. before is the text next was made
-// from; a file that no longer holds it was changed by someone else while
-// the human read the diff, and next would take that change back unseen.
-func writeConfig(t configTarget, before, next string) error {
-	current, err := t.read()
-	if err != nil {
-		return err
-	}
-	if current != before {
-		return fmt.Errorf("%s changed since it was read; nothing written", t.path)
-	}
-	err = os.MkdirAll(filepath.Dir(t.path), 0o755)
-	if err == nil {
-		err = lock.ReplaceText(t.path, next)
-	}
-	return err
 }

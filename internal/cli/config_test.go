@@ -488,31 +488,6 @@ func TestConfigSetRefusesAFileChangedBeforeTheAnswer(t *testing.T) {
 	}
 }
 
-func TestWriteConfigRefusesATextItWasNotMadeFrom(t *testing.T) {
-	_, target := projectTarget(t, "[commit]\nthreshold = 5\n")
-	err := writeConfig(target, "[commit]\nthreshold = 2\n", "[commit]\nthreshold = 3\n")
-	if err == nil || !strings.Contains(err.Error(), "changed since it was read; nothing written") {
-		t.Fatalf("err = %v, want a refusal", err)
-	}
-	// A file that went missing since it was read changed too.
-	os.Remove(target.path)
-	if err := writeConfig(target, "[commit]\nthreshold = 5\n", "x"); err == nil {
-		t.Fatal("a vanished file was written over")
-	}
-	if _, err := os.Stat(target.path); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("stat = %v, want the file still missing", err)
-	}
-}
-
-func TestWriteConfigReportsAFileItCannotRead(t *testing.T) {
-	_, target := projectTarget(t, "")
-	os.Remove(target.path)
-	os.Mkdir(target.path, 0o755)
-	if err := writeConfig(target, "", "x"); err == nil {
-		t.Fatal("no error for a configuration that is a directory")
-	}
-}
-
 func TestConfigSetRefusesWhatAReaderRefuses(t *testing.T) {
 	root := configRoot(t, "")
 	code, _, errOut := runConfig(t, "", "set", "commit.language", "fr", "--yes", "--root", root)

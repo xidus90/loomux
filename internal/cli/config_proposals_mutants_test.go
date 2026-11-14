@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/xidus90/loomux/internal/config/target"
 )
 
 // isolateProposalMutantEnv points every directory the config commands may read
@@ -36,71 +37,6 @@ func proposalSelfLoop(t *testing.T, path string) {
 	}
 	if err := os.Symlink(path, path); err != nil {
 		t.Skipf("no symlink on this machine: %v", err)
-	}
-}
-
-// stubProposalLink replaces the hard link for one test.
-func stubProposalLink(t *testing.T, link func(string, string) error) {
-	t.Helper()
-	restore := linkFile
-	linkFile = link
-	t.Cleanup(func() { linkFile = restore })
-}
-
-// The name is claimed by linking the complete temporary file: what is
-// linked is a file that exists and already holds the proposal.
-func TestStoreProposalLinksTheWrittenTemporaryFile(t *testing.T) {
-	var linked []string
-	stubProposalLink(t, func(oldname, newname string) error {
-		data, err := os.ReadFile(oldname)
-		if err != nil || !strings.Contains(string(data), `"key": "a"`) {
-			t.Errorf("linked %q: %q %v", oldname, data, err)
-		}
-		linked = append(linked, oldname)
-		return os.Link(oldname, newname)
-	})
-	dir := t.TempDir()
-	id, err := storeProposal(dir, time.Date(2026, 9, 24, 10, 15, 30, 0, time.UTC), proposal{Op: "set", Key: "a"})
-	if err != nil || id != "20260924T101530Z-001" || len(linked) != 1 {
-		t.Fatalf("%s %v %v", id, err, linked)
-	}
-	if names := proposalFiles(t, dir); len(names) != 1 {
-		t.Fatalf("files %v", names)
-	}
-}
-
-// A temporary file that cannot be written ends the store; no name is
-// claimed for a proposal that was never written.
-func TestStoreProposalStopsWhenTheTemporaryFileFails(t *testing.T) {
-	stubProposalLink(t, func(oldname, newname string) error {
-		t.Errorf("link %q -> %q after the temporary file failed", oldname, newname)
-		return errors.New("not supported")
-	})
-	_, err := storeProposal(filepath.Join(t.TempDir(), "missing", "\x00"), time.Now(), proposal{})
-	if err == nil {
-		t.Fatal("no error")
-	}
-}
-
-// A link that finds its name taken moves on to the next name; the exclusive
-// create is the stand-in for a file system without links, not a second try
-// at a name another writer holds.
-func TestStoreProposalMovesOnWhenTheLinkFindsTheNameTaken(t *testing.T) {
-	calls := 0
-	stubProposalLink(t, func(oldname, newname string) error {
-		calls++
-		if calls == 1 {
-			return &fs.PathError{Op: "link", Path: newname, Err: fs.ErrExist}
-		}
-		return os.Link(oldname, newname)
-	})
-	dir := t.TempDir()
-	id, err := storeProposal(dir, time.Date(2026, 9, 24, 10, 15, 30, 0, time.UTC), proposal{Op: "set", Key: "a"})
-	if err != nil || id != "20260924T101530Z-002" {
-		t.Fatalf("%s %v", id, err)
-	}
-	if names := proposalFiles(t, dir); strings.Join(names, " ") != "20260924T101530Z-002.json" {
-		t.Fatalf("files %v", names)
 	}
 }
 
@@ -161,7 +97,7 @@ func TestConfigApplyReportsAProposalThatDoesNotParse(t *testing.T) {
 func TestConfigApplyWritesNothingWhenTheFileDoesNotRead(t *testing.T) {
 	isolateProposalMutantEnv(t)
 	restore := applyWrite
-	applyWrite = func(configTarget, string, string) error {
+	applyWrite = func(target.Target, string, string) error {
 		t.Error("wrote although the file did not read")
 		return nil
 	}
@@ -170,7 +106,7 @@ func TestConfigApplyWritesNothingWhenTheFileDoesNotRead(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".loomux", "config.toml"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	forgeProposal(t, proposalDir(root), proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
+	forgeProposal(t, proposalDir(root), target.Proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})
 	code, _, errOut := runConfig(t, "", "apply", "a-1", "--yes", "--root", root)
 	if code != 1 || !strings.Contains(errOut, "config.toml") || !strings.Contains(errOut, "the proposal stays") ||
 		len(proposalFiles(t, proposalDir(root))) != 1 {
