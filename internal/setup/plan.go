@@ -2,7 +2,9 @@ package setup
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -66,6 +68,18 @@ type builder struct {
 	err  error
 	// unarming is the pre-commit hook that stays and does not arm, by path.
 	unarming string
+}
+
+// ProjectReader reads a file of the project relative to root, in the form
+// Build asks for; a missing file is reported as absent, not as an error.
+func ProjectReader(root string) func(string) ([]byte, bool, error) {
+	return func(rel string) ([]byte, bool, error) {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, false, nil
+		}
+		return data, err == nil, err
+	}
 }
 
 // Build plans what c does to the project f describes; read gives the

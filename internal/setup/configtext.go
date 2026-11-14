@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/config/edit"
 	"github.com/xidus90/loomux/internal/config/schema"
@@ -71,7 +70,7 @@ func configText(before string, stacks []string, c Choice) (string, error) {
 	}
 	text := before
 	var err error
-	for _, m := range []schema.Module{schema.Hooks, schema.Brain, schema.Graph} {
+	for _, m := range schema.Switchable() {
 		name := string(m)
 		switch e, set := current["modules."+name]; {
 		case !c.moduleOn(m) && (!set || e.Input != "false"):
@@ -102,14 +101,8 @@ func configText(before string, stacks []string, c Choice) (string, error) {
 		if !slices.Contains(stacks, r.stack) || hasRule(text, r) {
 			continue
 		}
-		// Rules written as key = [ ... ] cannot also be a [[...]] list.
-		if _, inline := ruleNode(text, r.section).([]any); inline {
-			text, err = edit.AppendInline(text, r.section, r.pairs)
-			if err != nil {
-				return "", namedConfig(err)
-			}
-		} else {
-			text = edit.AppendBlock(text, r.section, r.pairs)
+		if text, err = edit.AppendRule(text, r.section, r.pairs); err != nil {
+			return "", namedConfig(err)
 		}
 	}
 	if text != before {
@@ -120,25 +113,11 @@ func configText(before string, stacks []string, c Choice) (string, error) {
 	return text, nil
 }
 
-// ruleNode is what text holds at the dotted section of a rule table: a
-// []map[string]any for [[section]] entries, a []any for key = [ ... ].
-func ruleNode(text, section string) any {
-	doc := map[string]any{}
-	// The text has passed the loaders or was built from text that did.
-	_ = toml.Unmarshal([]byte(text), &doc)
-	var node any = doc
-	for _, part := range strings.Split(section, ".") {
-		table, _ := node.(map[string]any)
-		node = table[part]
-	}
-	return node
-}
-
 // hasRule says whether text already carries r, in either form, decoded
 // rather than searched: a rule standing in a comment is no rule.
 func hasRule(text string, r rule) bool {
 	var blocks []map[string]any
-	switch v := ruleNode(text, r.section).(type) {
+	switch v := edit.RuleNode(text, r.section).(type) {
 	case []map[string]any:
 		blocks = v
 	case []any:

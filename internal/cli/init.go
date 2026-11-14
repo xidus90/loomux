@@ -107,7 +107,7 @@ func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
 }
 
 // initModules are the modules init asks about, in the order it asks.
-var initModules = []schema.Module{schema.Base, schema.Hooks, schema.Brain, schema.Graph}
+var initModules = append([]schema.Module{schema.Base}, schema.Switchable()...)
 
 // initOptions is a parsed command line of init.
 type initOptions struct {
@@ -138,7 +138,7 @@ func parseInit(args []string, stderr io.Writer) (initOptions, bool) {
 	flags.BoolVar(&o.detectOnly, "detect-only", false, "print what the project is, as JSON")
 	flags.BoolVar(&o.yes, "yes", false, "take the defaults and approve every change")
 	given := map[schema.Module]*string{}
-	for _, m := range initModules[1:] {
+	for _, m := range schema.Switchable() {
 		given[m] = flags.String(string(m), "", "all, each or none")
 	}
 	hostList := flags.String("hosts", "", "comma-separated hosts")
@@ -162,7 +162,7 @@ func parseInit(args []string, stderr io.Writer) (initOptions, bool) {
 			problem = cmp.Or(problem, "--detect-only takes no other flag than --root")
 		}
 	})
-	for _, m := range initModules[1:] {
+	for _, m := range schema.Switchable() {
 		switch v := *given[m]; v {
 		case "":
 		case "all", "each", "none":
@@ -202,8 +202,7 @@ func initCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "loomux init: %s is no directory\n", root)
 		return 2
 	}
-	home, _ := os.UserHomeDir()
-	facts, err := setup.Gather(root, home, setup.Running{Version: bareVersion(), VersionOf: binaryVersion}, gitFacts)
+	facts, err := gatherFacts(root)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux init: %v\n", err)
 		// A file init has to merge and cannot read stops it as a plan
@@ -238,12 +237,12 @@ func initCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 			return code
 		}
 	}
-	p, err := setup.Build(facts, c, projectReader(root))
+	p, err := setup.Build(facts, c, setup.ProjectReader(root))
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux init: %v\n", err)
 		return 2
 	}
-	p.Notes = append(p.Notes, initNotes(facts, c, p)...)
+	p.Notes = append(p.Notes, setup.Notes(facts, c, p)...)
 	printPlan(stdout, p)
 	if o.dryRun {
 		return 0
@@ -259,27 +258,22 @@ func initCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	} else if code, done := askApproval(p, approved, stderr); done {
 		return code
 	}
-	hooksPathApproved(p, approved)
-	// Without area add the consent the merge hook waits for is not written.
-	if !approved["area-add"] && !facts.HookWanted() {
-		approved["merge-hook"] = false
-	}
-	var refused []string
-	p.Actions = slices.DeleteFunc(p.Actions, func(a setup.Action) bool {
-		if !approved[a.ID] {
-			refused = append(refused, a.ID)
+	var binaryErr error
+	d := setupDeps(root, facts, c.Scope, stdout, stderr)
+	inner := d.Run
+	// A failed binary step does not stop the run; init says why afterwards.
+	d.Run = func(a setup.Action) error {
+		err := inner(a)
+		if a.ID == "binary-install" || a.ID == "binary-build" {
+			binaryErr = err
 		}
-		return !approved[a.ID]
-	})
-	run := &initRun{root: root, facts: facts, scope: c.Scope, stdout: stdout, stderr: stderr}
-	present := binaryThere(root, facts)
-	report, err := setup.Apply(root, p, c, func(ch setup.Change) bool { return approved[ch.Path] },
-		run.action, present, Version, time.Now())
-	report.Refused = append(report.Refused, refused...)
+		return err
+	}
+	report, err := setup.Execute(root, facts, c, p, approved, d, Version, time.Now())
 	switch {
-	case run.binaryErr != nil:
-		fmt.Fprintf(stderr, "loomux init: %v\n", run.binaryErr)
-	case len(report.Failed) > 0 && !present():
+	case binaryErr != nil:
+		fmt.Fprintf(stderr, "loomux init: %v\n", binaryErr)
+	case len(report.Failed) > 0 && !d.BinaryThere():
 		// The binary step was switched off or declined, and none stood there.
 		fmt.Fprintln(stderr, noBinary(report.Failed))
 	}
@@ -290,13 +284,20 @@ func initCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	// What a binary switched off or declined leaves out is the human's
 	// answer, not a failure; a binary step that failed is one.
-	if run.binaryErr != nil {
+	if binaryErr != nil {
 		return 1
 	}
 	if !o.yes && !o.dryRun {
 		return askLLMConfigAfterRun(root, stderr)
 	}
 	return 0
+}
+
+// gatherFacts reads the project at root the way init and the web interface
+// both do.
+func gatherFacts(root string) (setup.Facts, error) {
+	home, _ := os.UserHomeDir()
+	return setup.Gather(root, home, setup.Running{Version: bareVersion(), VersionOf: binaryVersion}, gitFacts)
 }
 
 // askLLMConfigAfterRun asks the last question where the run left an area at
@@ -396,23 +397,6 @@ func moduleOff(c setup.Choice, m schema.Module) bool {
 	return set && !on
 }
 
-// initNotes are what the plan cannot say itself: a module switched off
-// that no configuration records, and a build no checkout can do.
-func initNotes(f setup.Facts, c setup.Choice, p setup.Plan) []string {
-	var notes []string
-	for _, m := range initModules[1:] {
-		if moduleOff(c, m) && !c.Parts["config"] {
-			notes = append(notes, fmt.Sprintf("modules.%s = false is not written; the part config is off", m))
-		}
-	}
-	for _, a := range p.Actions {
-		if a.ID == "binary-build" && !f.Checkout {
-			notes = append(notes, "binary-build: "+notCheckout)
-		}
-	}
-	return notes
-}
-
 // noBinary says why a run without a binary left out what calls one, built
 // from what was dropped: the merge hook calls the installed binary and
 // stays in where that stands, even in a checkout without bin/loomux.exe.
@@ -423,11 +407,6 @@ func noBinary(failed []string) string {
 	}
 	return "loomux init: no loomux binary where the entries call it; " + left
 }
-
-// notCheckout is why binary-build cannot run in a project that is no
-// checkout of loomux but whose entries call the checkout's binary.
-const notCheckout = "the host entries call the checkout's own build (under ${LOCALAPPDATA}/loomux/dev/), but go.mod does not declare " +
-	"github.com/xidus90/loomux, so init cannot build it here; build it, or remove the entries to get the installed binary"
 
 // printPlan writes the summary: every change as a diff under its path, then
 // the actions, then the notes.
@@ -464,17 +443,6 @@ func printReport(w io.Writer, r setup.Report) {
 	}
 }
 
-// projectReader reads a file of the project relative to root.
-func projectReader(root string) func(string) ([]byte, bool, error) {
-	return func(rel string) ([]byte, bool, error) {
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, false, nil
-		}
-		return data, err == nil, err
-	}
-}
-
 // gitFacts runs git for Gather. An exit 1 without output is an unset
 // setting, as detect.Runner asks; GIT_DIR and its kin are dropped, so a run
 // inside a git hook reads the project and not the repository committing.
@@ -488,6 +456,13 @@ func gitFacts(dir string, argv ...string) (string, error) {
 		return "", nil
 	}
 	return string(out), err
+}
+
+// setupDeps is what setup.Execute asks of the CLI: the actions of a plan run
+// through the commands init hands work to, and the look for the binary.
+func setupDeps(root string, f setup.Facts, scope string, stdout, stderr io.Writer) setup.Deps {
+	run := &initRun{root: root, facts: f, scope: scope, stdout: stdout, stderr: stderr}
+	return setup.Deps{Run: run.action, BinaryThere: binaryThere(root, f)}
 }
 
 // binaryThere looks for the binary at the path the entries call word for
@@ -505,21 +480,18 @@ type initRun struct {
 	root, scope    string
 	facts          setup.Facts
 	stdout, stderr io.Writer
-	binaryErr      error // Apply reports the binary step failed and goes on; init says why
 }
 
 // action is the setup.Runner of init.
 func (r *initRun) action(a setup.Action) error {
 	switch a.ID {
 	case "binary-install":
-		r.binaryErr = installStep()
-		return r.binaryErr
+		return installStep()
 	case "binary-build":
-		r.binaryErr = errors.New(notCheckout)
-		if r.facts.Checkout {
-			r.binaryErr = buildCheckout(r.root)
+		if !r.facts.Checkout {
+			return errors.New(setup.NotCheckout)
 		}
-		return r.binaryErr
+		return buildCheckout(r.root)
 	case "hooks-path":
 		_, err := runGit(r.root, "config", "core.hooksPath", ".githooks")
 		return err

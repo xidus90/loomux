@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 )
@@ -50,7 +49,7 @@ type ModelSettings struct {
 // ReadModelSettings reads the global file. Anything but a regular file
 // declares nothing and yields the defaults.
 func ReadModelSettings(stateDir string) (ModelSettings, error) {
-	path := filepath.Join(stateDir, "config.toml")
+	path := GlobalConfigPath(stateDir)
 	info, err := os.Stat(path)
 	if err != nil || !info.Mode().IsRegular() {
 		return ParseModelSettings(path, "")

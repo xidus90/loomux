@@ -790,7 +790,7 @@ func TestInitRefusesToBuildOutsideACheckout(t *testing.T) {
 	if code != 1 || s.built != 0 {
 		t.Fatalf("code %d, seams %+v: %s\n%s", code, s, errOut, out)
 	}
-	if !strings.Contains(out, "binary-build: "+notCheckout) || !strings.Contains(errOut, notCheckout) {
+	if !strings.Contains(out, "binary-build: "+setup.NotCheckout) || !strings.Contains(errOut, setup.NotCheckout) {
 		t.Errorf("stdout:\n%s\nstderr:\n%s", out, errOut)
 	}
 }
@@ -826,14 +826,6 @@ func TestGitFactsReadsAnUnsetSettingAsEmpty(t *testing.T) {
 	}
 	if _, err := gitFacts(filepath.Join(root, "missing"), "git", "status"); err == nil {
 		t.Fatal("no error for a missing directory")
-	}
-}
-
-func TestCheckScope(t *testing.T) {
-	for scope, ok := range map[string]bool{"project/a": true, "": false, "project/a b": false, "a\tb": false} {
-		if got := checkScope(scope) == nil; got != ok {
-			t.Errorf("%q: ok = %v", scope, got)
-		}
 	}
 }
 

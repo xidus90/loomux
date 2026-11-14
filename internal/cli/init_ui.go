@@ -4,9 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"io"
-	"slices"
 	"strings"
-	"unicode"
 
 	"github.com/xidus90/loomux/internal/config/edit"
 	"github.com/xidus90/loomux/internal/config/schema"
@@ -78,7 +76,7 @@ func interview(t tui.Terminal, f setup.Facts, c *setup.Choice, given map[schema.
 	if !c.Parts["area"] || moduleOff(*c, schema.Brain) {
 		return true, nil
 	}
-	scope, ok, err := tui.Input(t, "scope of the area", c.Scope, nil, checkScope)
+	scope, ok, err := tui.Input(t, "scope of the area", c.Scope, nil, setup.CheckScope)
 	if err != nil || !ok {
 		return false, err
 	}
@@ -107,14 +105,6 @@ func preset(c setup.Choice, m schema.Module, mine []setup.Part) string {
 	return "each"
 }
 
-// checkScope refuses a scope area add could not take.
-func checkScope(s string) error {
-	if s == "" || strings.ContainsFunc(s, unicode.IsSpace) {
-		return errors.New("a scope is not empty and has no spaces")
-	}
-	return nil
-}
-
 // approvePlan asks for every change and every action; approved gets the
 // path or id of each one the human took. It answers false when the human
 // cancelled.
@@ -126,10 +116,10 @@ func approvePlan(t tui.Terminal, p setup.Plan, approved map[string]bool) (bool, 
 		}
 		approved[ch.Path] = yes
 	}
-	hooks := hookFiles(p)
+	hooks := setup.HookFiles(p)
 	for _, a := range p.Actions {
 		if a.ID == "hooks-path" && len(hooks) > 0 {
-			// Asked with the hook files it points at; see hooksPathApproved.
+			// Asked with the hook files it points at; see setup.Execute.
 			continue
 		}
 		yes, err := tui.Confirm(t, a.ID+": "+a.Describe, "run "+a.ID+"?")
@@ -150,28 +140,4 @@ func askLLMConfig(t tui.Terminal, scope string) (bool, error) {
 		return false, nil
 	}
 	return on, err
-}
-
-// hookFiles are the paths of the git hooks the plan writes.
-func hookFiles(p setup.Plan) []string {
-	var paths []string
-	for _, ch := range p.Changes {
-		if ch.Part == "git-hooks" {
-			paths = append(paths, ch.Path)
-		}
-	}
-	return paths
-}
-
-// hooksPathApproved makes core.hooksPath and the hook files one unit:
-// pointing git at .githooks without a hook there would switch off the
-// hooks git ran before, and a hook written there without the setting is
-// never run. Where the plan writes hook files, the setting follows
-// whether at least one was approved; where it writes none -- a clone
-// whose .githooks is tracked -- the setting was asked on its own.
-func hooksPathApproved(p setup.Plan, approved map[string]bool) {
-	hooks := hookFiles(p)
-	if len(hooks) > 0 {
-		approved["hooks-path"] = slices.ContainsFunc(hooks, func(path string) bool { return approved[path] })
-	}
 }

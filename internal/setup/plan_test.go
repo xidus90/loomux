@@ -943,3 +943,23 @@ func TestAForeignPreCommitHookIsKeptAndNamed(t *testing.T) {
 		t.Fatalf("another hook: %v", p.Notes)
 	}
 }
+
+func TestProjectReaderReportsAMissingFileAsAbsent(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "a", "b.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read := ProjectReader(root)
+	if data, ok, err := read("a/b.txt"); string(data) != "x" || !ok || err != nil {
+		t.Errorf("present file: %q %v %v", data, ok, err)
+	}
+	if data, ok, err := read("a/none.txt"); data != nil || ok || err != nil {
+		t.Errorf("missing file: %q %v %v", data, ok, err)
+	}
+	if _, ok, err := read("a"); ok || err == nil {
+		t.Errorf("a directory is an error, not absent: %v %v", ok, err)
+	}
+}

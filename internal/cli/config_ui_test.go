@@ -8,14 +8,15 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/config/schema"
+	"github.com/xidus90/loomux/internal/config/target"
 	"github.com/xidus90/loomux/internal/tui"
 )
 
 // keysTo moves the list cursor onto id and then plays rest. The index comes
 // from entries, so a key added to the schema does not break the script.
-func keysTo(t *testing.T, target configTarget, text, id string, rest ...string) []tui.Key {
+func keysTo(t *testing.T, tgt target.Target, text, id string, rest ...string) []tui.Key {
 	t.Helper()
-	entries, err := target.entries(text)
+	entries, err := tgt.Entries(text)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,21 +36,21 @@ func keysTo(t *testing.T, target configTarget, text, id string, rest ...string) 
 	return append(keys, tui.Keys(rest...)...)
 }
 
-func projectTarget(t *testing.T, text string) (string, configTarget) {
+func projectTarget(t *testing.T, text string) (string, target.Target) {
 	t.Helper()
 	root := configRoot(t, text)
-	target, err := resolveConfigTarget(root, false)
+	tgt, err := resolveConfigTarget(root, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return root, target
+	return root, tgt
 }
 
 func TestConfigUIChangesOneValue(t *testing.T) {
 	text := "[commit]\nlanguage = \"en\"\n"
-	root, target := projectTarget(t, text)
-	term := tui.Script(100, 60, keysTo(t, target, text, "commit.language", "enter", "tab", "enter", "y", "q")...)
-	if err := configUI(term, target); err != nil {
+	root, tgt := projectTarget(t, text)
+	term := tui.Script(100, 60, keysTo(t, tgt, text, "commit.language", "enter", "tab", "enter", "y", "q")...)
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	if got := readConfig(t, root); got != "[commit]\nlanguage = \"de\"\n" {
@@ -58,9 +59,9 @@ func TestConfigUIChangesOneValue(t *testing.T) {
 }
 
 func TestConfigUIOffersTrueAndFalseForABool(t *testing.T) {
-	root, target := projectTarget(t, "")
-	term := tui.Script(100, 60, keysTo(t, target, "", "modules.graph", "enter", "tab", "enter", "y", "q")...)
-	if err := configUI(term, target); err != nil {
+	root, tgt := projectTarget(t, "")
+	term := tui.Script(100, 60, keysTo(t, tgt, "", "modules.graph", "enter", "tab", "enter", "y", "q")...)
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(term.Output(), "[true false (default)]") {
@@ -75,10 +76,10 @@ func TestConfigUIOffersTrueAndFalseForABool(t *testing.T) {
 // does; it is never written as a value.
 func TestConfigUIDefaultChoiceUnsetsTheKey(t *testing.T) {
 	text := "[commit]\nlanguage = \"de\"\n"
-	root, target := projectTarget(t, text)
+	root, tgt := projectTarget(t, text)
 	// From "de" one tab reaches the choice after the enum's values.
-	term := tui.Script(100, 60, keysTo(t, target, text, "commit.language", "enter", "tab", "enter", "y", "q")...)
-	if err := configUI(term, target); err != nil {
+	term := tui.Script(100, 60, keysTo(t, tgt, text, "commit.language", "enter", "tab", "enter", "y", "q")...)
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(term.Output(), ": (default)  (tab: [en de (default)])") {
@@ -92,9 +93,9 @@ func TestConfigUIDefaultChoiceUnsetsTheKey(t *testing.T) {
 // A key without a default has nothing to fall back to, so no such choice.
 func TestConfigUIOffersNoDefaultChoiceWithoutADefault(t *testing.T) {
 	text := "[area]\nscope = \"s\"\n"
-	_, target := projectTarget(t, text)
-	term := tui.Script(100, 60, keysTo(t, target, text, "model.enabled", "enter", "esc", "q")...)
-	if err := configUI(term, target); err != nil {
+	_, tgt := projectTarget(t, text)
+	term := tui.Script(100, 60, keysTo(t, tgt, text, "model.enabled", "enter", "esc", "q")...)
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	if out := term.Output(); !strings.Contains(out, "[true false]") || strings.Contains(out, "(default)") {
@@ -103,10 +104,10 @@ func TestConfigUIOffersNoDefaultChoiceWithoutADefault(t *testing.T) {
 }
 
 func TestConfigUIShowsARefusalAndWritesNothing(t *testing.T) {
-	root, target := projectTarget(t, "")
-	term := tui.Script(100, 60, keysTo(t, target, "", "verify.timeout",
+	root, tgt := projectTarget(t, "")
+	term := tui.Script(100, 60, keysTo(t, tgt, "", "verify.timeout",
 		"enter", "backspace", "backspace", "backspace", "backspace", "backspace", "soon", "enter", "esc", "q")...)
-	if err := configUI(term, target); err != nil {
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(term.Output(), `"soon" is not a whole number`) {
@@ -119,12 +120,12 @@ func TestConfigUIShowsARefusalAndWritesNothing(t *testing.T) {
 
 func TestConfigUIWritesNothingWhenDeclinedOrUnchanged(t *testing.T) {
 	text := "[commit]\nlanguage = \"en\"\n"
-	root, target := projectTarget(t, text)
+	root, tgt := projectTarget(t, text)
 	// Once declined at the diff, once confirmed without a change.
-	keys := keysTo(t, target, text, "commit.language", "enter", "tab", "enter", "n")
-	keys = append(keys, keysTo(t, target, text, "commit.conventional", "enter", "enter", "q")...)
+	keys := keysTo(t, tgt, text, "commit.language", "enter", "tab", "enter", "n")
+	keys = append(keys, keysTo(t, tgt, text, "commit.conventional", "enter", "enter", "q")...)
 	term := tui.Script(100, 60, keys...)
-	if err := configUI(term, target); err != nil {
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	if got := readConfig(t, root); got != text {
@@ -133,9 +134,9 @@ func TestConfigUIWritesNothingWhenDeclinedOrUnchanged(t *testing.T) {
 }
 
 func TestConfigUITablesAreShownNotEdited(t *testing.T) {
-	_, target := projectTarget(t, "")
-	term := tui.Script(100, 60, keysTo(t, target, "", "verify.profiles", "enter", "n", "q")...)
-	if err := configUI(term, target); err != nil {
+	_, tgt := projectTarget(t, "")
+	term := tui.Script(100, 60, keysTo(t, tgt, "", "verify.profiles", "enter", "n", "q")...)
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	out := term.Output()
@@ -152,13 +153,13 @@ func TestConfigUITablesAreShownNotEdited(t *testing.T) {
 // dialog that names the command setting one member, with the name to fill in
 // where the star stands, and the form goes on.
 func TestConfigUIShowsAFamilyRowsHint(t *testing.T) {
-	root, target := projectTarget(t, "")
+	root, tgt := projectTarget(t, "")
 	for id, command := range map[string]string{
 		"agent.roles.*":           "agent.roles.<name>",
 		"agent.models.*.provider": "agent.models.<name>.provider",
 	} {
-		term := tui.Script(100, 60, keysTo(t, target, "", id, "enter", "n", "q")...)
-		if err := configUI(term, target); err != nil {
+		term := tui.Script(100, 60, keysTo(t, tgt, "", id, "enter", "n", "q")...)
+		if err := configUI(term, tgt); err != nil {
 			t.Fatalf("%s: %v", id, err)
 		}
 		want := id + " stands for one key per name; set one with `loomux config set " + command + " <value>`"
@@ -173,14 +174,14 @@ func TestConfigUIShowsAFamilyRowsHint(t *testing.T) {
 
 func TestConfigUIShowsAListOfTablesByItsCount(t *testing.T) {
 	text := "[commit]\nthreshold = 3\n\n[[commit.allow]]\nregex = 'x'\nreason = \"y\"\n"
-	_, target := projectTarget(t, text)
-	term := tui.Script(100, 60, keysTo(t, target, text, "commit.allow", "enter", "n", "q")...)
-	if err := configUI(term, target); err != nil {
+	_, tgt := projectTarget(t, text)
+	term := tui.Script(100, 60, keysTo(t, tgt, text, "commit.allow", "enter", "n", "q")...)
+	if err := configUI(term, tgt); err != nil {
 		t.Fatal(err)
 	}
 	out := term.Output()
 	// The dialog shows what the row only counts.
-	if !strings.Contains(out, "edit it by hand") || !strings.Contains(out, "1 entry:") || !strings.Contains(out, "regex:x") {
+	if !strings.Contains(out, "edit it by hand") || !strings.Contains(out, "1 entry:") || !strings.Contains(out, `regex = "x"`) {
 		t.Fatal(out)
 	}
 	for _, line := range strings.Split(out, "\n") {
@@ -194,10 +195,10 @@ func TestConfigUIShowsAListOfTablesByItsCount(t *testing.T) {
 }
 
 func TestConfigUIMakesSeveralChangesInOneSession(t *testing.T) {
-	root, target := projectTarget(t, "")
-	keys := keysTo(t, target, "", "modules.graph", "enter", "tab", "enter", "y")
-	keys = append(keys, keysTo(t, target, "[modules]\ngraph = false\n", "modules.hooks", "enter", "tab", "enter", "y", "q")...)
-	if err := configUI(tui.Script(100, 60, keys...), target); err != nil {
+	root, tgt := projectTarget(t, "")
+	keys := keysTo(t, tgt, "", "modules.graph", "enter", "tab", "enter", "y")
+	keys = append(keys, keysTo(t, tgt, "[modules]\ngraph = false\n", "modules.hooks", "enter", "tab", "enter", "y", "q")...)
+	if err := configUI(tui.Script(100, 60, keys...), tgt); err != nil {
 		t.Fatal(err)
 	}
 	if got := readConfig(t, root); got != "[modules]\ngraph = false\nhooks = false\n" {
@@ -207,19 +208,19 @@ func TestConfigUIMakesSeveralChangesInOneSession(t *testing.T) {
 
 func TestConfigUIReturnsWhatStopsIt(t *testing.T) {
 	// Keys run out in the list: the terminal's end is the answer.
-	_, target := projectTarget(t, "")
-	if err := configUI(tui.Script(100, 60), target); err == nil {
+	_, tgt := projectTarget(t, "")
+	if err := configUI(tui.Script(100, 60), tgt); err == nil {
 		t.Fatal("want the end of the keys")
 	}
 	// Keys run out inside the form.
-	if err := configUI(tui.Script(100, 60, tui.Keys("enter")...), target); err == nil {
+	if err := configUI(tui.Script(100, 60, tui.Keys("enter")...), tgt); err == nil {
 		t.Fatal("want the end of the keys")
 	}
 	_, broken := projectTarget(t, "[commit\n")
 	if err := configUI(tui.Script(100, 60, tui.Keys("q")...), broken); err == nil {
 		t.Fatal("want the TOML error")
 	}
-	dir := configTarget{path: t.TempDir(), keys: schema.Keys()}
+	dir := target.Target{Path: t.TempDir(), Keys: schema.Keys()}
 	if err := configUI(tui.Script(100, 60, tui.Keys("q")...), dir); err == nil {
 		t.Fatal("want the read error")
 	}
@@ -227,12 +228,12 @@ func TestConfigUIReturnsWhatStopsIt(t *testing.T) {
 
 func TestConfigUICreatesTheFile(t *testing.T) {
 	root := t.TempDir()
-	target, err := resolveConfigTarget(root, false)
+	tgt, err := resolveConfigTarget(root, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	keys := keysTo(t, target, "", "commit.language", "enter", "tab", "enter", "y", "q")
-	if err := configUI(tui.Script(100, 60, keys...), target); err != nil {
+	keys := keysTo(t, tgt, "", "commit.language", "enter", "tab", "enter", "y", "q")
+	if err := configUI(tui.Script(100, 60, keys...), tgt); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(root, ".loomux", "config.toml"))
