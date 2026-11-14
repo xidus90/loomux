@@ -4,6 +4,36 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-11-13
+
+- 2026-11-13 — `topics/schreibschranke.md`: `loomux ui stop` beendet nur den
+  Prozess, dessen PID `/health` und `ui.json` gemeinsam nennen und der ein
+  `loomux`-Binary ausführt; ein Ordner namens loomux in einem Pfad ist kein
+  Start, `cmd/loomux/…` und ein relativer Pfad ab `loomux/` zählen weiter.
+  Quelle: `docs/de/cli-reference.md`, `internal/hooks/guardspell.go`.
+- 2026-11-13 — `topics/scheiben-und-abnahme.md`: ein Satz zur gebauten
+  Weboberfläche. Quelle: `docs/de/cli-reference.md`.
+- 2026-11-13 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
+  unverändert: `docs/de/cli-reference.md` (Seiten der Weboberfläche, der
+  Dienst gehört nicht zur Weboberfläche) und `docs/de/getting-started.md` (der
+  Haken `llm_config` auf der Planseite). Die zitierenden Seiten gegen den neuen
+  Text gelesen: `entities/brain-daemon.md`, `entities/okf.md`,
+  `entities/qmd.md`, `topics/brain-maintenance.md`, `topics/code-graph.md`,
+  `topics/datenmodell-und-bereiche.md`, `topics/datenschutz-und-kanaele.md`,
+  `topics/suche-und-profile.md`, `topics/wiki-schicht.md`.
+- 2026-11-13 — `topics/schreibschranke.md`: die Zustandsdateien werden auch
+  über Glob im `cwd`, `${NAME:-x}`, `$($env:NAME)`, `FileSystem::`, Punkt und
+  Leerzeichen am Ende, `::$DATA`, `\\?\UNC\…` und einen Link auf einen Ordner
+  darüber erkannt; ein von der Shell berechneter Pfad kommt durch. Quellen:
+  `docs/de/hooks.md`, `internal/hooks/statefiles.go`.
+- 2026-11-13 — `topics/schreibschranke.md`: die `config.toml` im
+  Zustandsverzeichnis darf die Regellisten von `[policy]` tragen; sie gelten
+  in jedem Projekt vor denen des Projekts. Quellen: `docs/de/configuration.md`,
+  `docs/de/hooks.md`, `internal/config/policy.go`. Die Seiten
+  `syntheses/modelladapter-ueber-die-cli.md`,
+  `topics/datenmodell-und-bereiche.md` und
+  `topics/datenschutz-und-kanaele.md` gegen die neue Doku geprüft, unverändert.
+
 ## 2026-11-12
 
 - 2026-11-12 — `topics/code-graph.md`: weitere Lücken von HTML, CSS und

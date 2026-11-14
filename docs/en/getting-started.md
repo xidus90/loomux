@@ -24,6 +24,16 @@ Every part, flag and exit code is in the [CLI reference](cli-reference.md#11-pro
 > Pass `--dry-run` to see what files would be created without writing to disk:
 > `loomux init --dry-run`
 
+### The second way: the browser
+
+`loomux ui` starts the local web interface ([CLI reference](cli-reference.md)); its **Add project** page sets up a project in the same stages as `loomux init` and through the same code:
+1. The folder: the absolute path of an existing directory.
+2. What is there: the detected agents, languages, git state and whether the project is registered; then the choice, filled in from what the folder already says: each module and part as a tick box, the commit language and the scope of the area (`project/<folder name>`; it counts when the area part and the brain module are on, as in the last question of `loomux init`, and a scope with a blank is refused).
+3. The plan: every file as a diff with a tick box, every action with one, and the notes. A project that is set up already shows only what is missing, or "nothing to do". The last choice is the `llm_config` switch, a tick box on the plan page, offered only where the run leaves a registered area; it is off unless you tick it, and it is turned on after the run, so a run that failed leaves it alone.
+4. The report: what was written, skipped, refused and what failed, with a link to the settings page of the project.
+
+Only what is ticked is written. If a file changed between the plan and the click on **Set up the project**, nothing is run and the plan is shown again as the files are now. The project is added to the list of the interface, so it shows up there with the other ones, also when a step failed half way and the files of the run are in place. A long action (the install of the binary, the model, the graph) runs while the page waits.
+
 ---
 
 ## 2. Review your configuration
