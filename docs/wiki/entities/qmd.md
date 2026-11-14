@@ -7,8 +7,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:36a31f8d8c47aea644099ac7faff111750de8e8706bcdaba041b21e3788aebb0"
-    revision: 50
+    content_hash: "sha256:ef612ecf8271f6d70ee53a169f4734b13920d7dd2bd74eb41d41863e2e471003"
+    revision: 53
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
@@ -17,8 +17,8 @@ sources:
   - id: erste-schritte
     resource: brain://project/loomux/docs/de/getting-started.md
     doc_id: 01M47W91R51JAGYP0JXJFDFAR4
-    content_hash: "sha256:e9afaa25e82d885a7027260f25ee610ba6a4e26d23060452a87d53506d6c88da"
-    revision: 9
+    content_hash: "sha256:8192c19ef070051b33cc74fbe34e94e6ee4c65c269d43bed7631d0208c53218d"
+    revision: 10
 ---
 
 Fremdes Werkzeug (github.com/tobi/qmd), vollständig lokal, hier in Version

@@ -1304,6 +1304,34 @@ kein Proxy wird aus der Umgebung genommen, keiner Umleitung gefolgt.
 
 Das `[model]` eines Bereichs darf `enabled` und `roles` nur einengen.
 
+#### Regeln für jedes Projekt: `[policy]`
+
+Dieselbe Datei nimmt die beiden Regellisten von `[policy.paths]` und
+`[policy.commands]` eines Projekts auf, in derselben Form:
+
+```toml
+[[policy.paths.rules]]
+match  = ["secrets/**"]
+reason = "Secrets are written by a human"
+
+[[policy.commands.rules]]
+regex  = '(^|\s)pip\s+install'
+reason = "uv, never pip"
+```
+
+Sie gelten zusätzlich zu den eingebauten Regeln und denen des Projekts, in
+jedem Projekt der Maschine, und kein Projekt hebt eine auf: der Wächter liest
+erst die globalen Regeln, dann die des Projekts. Sie binden dort, wo der Hook
+läuft, also in einem Projekt, das `loomux init` durchlaufen hat, und für einen
+Agenten eines Hosts, der ihn aufruft; eine Shell außerhalb davon wird nicht
+gehalten. Sie sperren das Schreiben, nicht das Lesen. Die Prüfungen sind die der
+Projektregeln: ein fehlerhafter Glob, ein fehlender `reason` oder ein Regex, der
+nicht kompiliert, ist ein Fehler, der diese Datei nennt, und der Wächter
+verweigert jeden Werkzeugaufruf, bis er behoben ist (eine Graph-Suche läuft
+weiter). Eine `[guard]`-Tabelle ist Sache des Projekts und hier ein Fehler. Wie
+jede Regelliste werden diese von Hand oder im Regelformular der
+Weboberfläche bearbeitet, und die Datei schreibt ein Mensch.
+
 `<scope>` ist der Scope, zu einem Verzeichnisnamen geplättet: jede Folge von
 Zeichen außer `A-Z a-z 0-9 _ . -` wird zu einem `-`, und Striche an beiden Enden
 fallen weg; aus `project/loomux` wird `project-loomux`.

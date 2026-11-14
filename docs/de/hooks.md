@@ -479,7 +479,9 @@ Werkzeugs ist nicht unserer: `init` fügt den ganzen loomux-Block daneben ein
 und überlässt den anderen Eintrag dir.
 
 **Jeder Grund, nicht der erste.** Erst kommen die eingebauten Regeln, dann die
-des Projekts in der Reihenfolge der Datei, und jede treffende Regel fügt ihren
+maschinenweiten aus `[policy]` in der `config.toml` des Zustandsverzeichnisses
+(siehe [Konfiguration](configuration.md#regeln-für-jedes-projekt-policy)), dann
+die des Projekts in der Reihenfolge der Datei, und jede treffende Regel fügt ihren
 Grund hinzu; die Ablehnung nennt alle. Sonst räumte der Agent einen Grund weg,
 liefe in den nächsten und bräuchte eine Runde je Regel. Ein Glob, der sich
 nicht auswerten lässt, ist eine Ablehnung für sich.
@@ -505,10 +507,47 @@ Die eingebauten Regeln (`internal/hooks/guard.go`):
 | Pfad | `**/.loomux/state/runs/**`, Journale und Marken der [Flow-Läufe](flows.md#2-einen-flow-fahren) | a flow's journal and marker are written by loomux, not by the party the gates ask |
 | Pfad | `.loomux/flows/<name>/` unter jedem Ordner und alles darin, für jeden Flow im Katalog dieses Binarys und jeden Namen in `[flow] overrides`; jeder `.loomux/flows`-Ordner in einem Pfad zählt, auch ein verschachtelter; ein Flow unter eigenem Namen bleibt frei | a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `<name>` |
 | Pfad | sieben Lockdateien, darunter `go.sum`, `package-lock.json` und `Cargo.lock` | lock files are written by their package manager, not by hand |
+| Zustandsdateien | `config.toml`, `ui.toml`, `ui.json` und `registry.toml` unmittelbar im Zustandsverzeichnis (`LOOMUX_STATE_DIR`): ein Schreiben, ein Entfernen (auch ein Ordner darüber), ein Verschieben aus ihnen heraus, ein Link, der auf eine von ihnen gelegt wird; und für jedes Schreiben das Zustandsverzeichnis selbst | loomux's machine-wide files are a human's to write; an agent proposes a change with `loomux config set\|unset … --global --propose` |
 | Befehl | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
 | Befehl | `loomux flow resume … --answer` in jeder Schreibweise, die die Regel für `loomux config` liest (ein Pfad zum Binary, Anführungszeichen, verkettete Befehle, `--answer text`, `--answer=text`), und jedes `Start-Process` von loomux, dessen Argumente der Wächter nicht sieht | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
 | Befehl | `loomux gate` mit jedem Unterbefehl außer `status`, in denselben Schreibweisen | loomux gate arm and disarm decide which lanes fail the gate; a human runs them, and an agent arms a lane only through a green `loomux check precommit --arm`. `loomux gate status` shows the lanes |
+| Befehl | `loomux ui` in jeder Form außer einem alleinstehenden `--help` oder `-h` (`--no-browser`, `stop`, `--foreground`), in denselben Schreibweisen, auch bei eingeschaltetem `llm_config` | loomux init, config, ui and area add write the configuration the guard reads (ui serves the interface that writes it), merge-hook install and remove write executable hooks into repositories, convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set\|unset … --propose`, which a human applies |
 | Befehl | ein Interpreter (`python`, `python3`, `python3.N`, `py`, `node`, `perl`, `ruby`, auch hinter `uv run` oder `uvx`, und `uv run -` selbst), der sein Programm von stdin nimmt, ohne dass dort echter Inhalt ankommt: ein einzelnes `-` oder kein Programm, ohne Pipe aus einem Befehl und ohne `<`-Datei; ein Heredoc oder Here-String hinein, auch über eine Pipe, zählt nie | loomux refuses an interpreter that reads its program from stdin (`python -`, a bare `python`, `uv run -`, a heredoc or here-string into one): with nothing piped in it waits until it is stopped, and a shell may rewrite the backslashes of inline program text. Write the script to a file in the scratchpad with the host's file tool (Write, write_to_file) and run that file. |
+
+**Die Zustandsdateien** beurteilt der Wächter in jedem Modus, für die
+Schreibwerkzeuge wie für Shell-Zeilen, wie geschrieben und wie das Dateisystem
+sie auflöst (ein Link, ein Kurzname, eine Schreibung, die die Plattform
+ignoriert). Eine Shell-Zeile erreicht sie in mehr Schreibweisen als einen Pfad im
+Projekt, und der Wächter liest diese: einen relativen Namen vom `cwd`, den der
+Host meldet (eine Shell im Zustandsverzeichnis schreibt `echo x > config.toml`),
+den Home-Ordner und die Variablen, die die Umgebung des Hooks selbst hält
+(`~/…`, `$HOME`, `${LOCALAPPDATA}`, `${HOME:-/tmp}` und die übrigen Operatoren
+von Bashs `${…}`, PowerShells `$env:NAME`, `${env:NAME}` und `$($env:NAME)`,
+cmds `%NAME%`), ein Glob, der in diesem `cwd` ebenso aufgelöst wird wie an der
+Wurzel (`rm -rf *` im Zustandsverzeichnis), PowerShells Präfix `FileSystem::`,
+und unter Windows Git Bashs `/c/…`, die administrative Freigabe
+`//localhost/c$/…` und `\\?\C:\…` oder `\\?\UNC\localhost\c$\…`, die Punkte und
+Leerzeichen, die Win32 vom Ende eines Elements streicht (`config.toml.`), und
+das `::$DATA` eines Schreibwerkzeugs. Ein Link, der auf eine Zustandsdatei, auf
+das Zustandsverzeichnis oder auf einen Ordner darüber gelegt wird (`ln`,
+`mklink`, `New-Item -ItemType SymbolicLink -Target`; ein relatives Ziel zählt
+vom Ordner des Links), wird verweigert, denn der Link besteht noch nicht, wenn
+ein Schreiben durch ihn beurteilt wird; ebenso alles, was unter das
+Zustandsverzeichnis schreibt, ohne eine Datei zu nennen, was nur der Ordner
+verrät: `tar -C`, `unzip -d`, `7z -o`, `cpio -D`, `Expand-Archive` (sein Ziel
+benannt oder positional), `cp` oder `mv` darauf, und jeder dieser Entpacker ohne
+Ziel, solange die Shell im Zustandsverzeichnis steht (nach einem `cd` oder im
+`cwd` des Hosts). `cp -s`, `cp -l` und ihre langen Formen legen einen Link an wie
+`ln`. Ein Entpacker (`gzip -d`, `gunzip`, `bunzip2`, `xz -d`, `zstd -d`)
+schreibt den Namen ohne Endung, ein Packer löscht seine Datei; die
+`--output`-Datei von git und der Ordner von `-C` oder `--work-tree` zählen. Ein Ordner darunter (`logs/`, `config/proposals/`) bleibt frei. Was der
+Wächter nicht liest: eine Variable, die die Zeile selbst setzt (`D=…; echo x >
+$D/config.toml`), einen Pfad, den die Shell berechnet
+(`"$(cygpath -u "$LOCALAPPDATA")/loomux/config.toml"`,
+`($env:LOCALAPPDATA + '/loomux/config.toml')`) und den auch der strikte Modus
+nicht verweigert, und im Standardmodus ein Programm, das die
+Datei selbst öffnet (`python -c "open(…)"`); der strikte Modus verweigert ein
+unbekanntes Programm, das eine Zustandsdatei oder das Zustandsverzeichnis nennt.
 
 **Ausnahme: der Schalter `llm_config`.** Hat die Area des Projekts `llm_config = true`
 (`loomux config llm on`, nur durch einen Menschen), entfällt die Manifest-Sperre für genau
@@ -641,13 +680,20 @@ des Programms in jeder Schreibweise, ohne `.exe`:
   `/.` und dem Schrägstrich am Ende bei rsync das Ziel selbst (`cp -r
   /tmp/x/.loomux .`);
 - das Ziel, das ein Flag nennt: `dd of=`, `tar -C`/`--directory` und beim
-  Erzeugen `-f`/`--file`; `unzip -d`, `Expand-Archive -DestinationPath`,
+  Erzeugen `-f`/`--file`; `unzip -d`, `Expand-Archive -DestinationPath` (oder
+  sein zweites positionales Argument), `7z x -o`, `cpio -D`, `--output` von
+  git, `archive -o` und `format-patch -o`, der Name eines Entpackers ohne
+  Endung; ein Entpacken ohne Ziel nennt den Arbeitsordner selbst;
   `robocopy`/`xcopy` (der zweite Pfad, die Dateinamen von robocopy darunter,
   die Quelle von xcopy unter ihrem Namen in einem Ordner, und der zweite
   Pfad als gelöscht bei `/E`, `/S` oder `/MIR`), `New-Item -Path`/`-Name`; Downloads
   per `curl -o`/`--output`, `curl -O`, `--remote-name` oder
   `--remote-name-all` (der Name aus der URL unter `--output-dir`), `wget -O`,
-  `wget` ohne (der Name aus der URL unter `-P`), `-OutFile`;
+  `wget` ohne (der Name aus der URL unter `-P`), `-OutFile`,
+  `certutil -urlcache`/`-decode`/`-encode` (das letzte Wort), `bitsadmin
+  /transfer` und `/addfile` (das letzte Wort), `fsutil file createnew`,
+  `seteof` und `setzerodata`; ein `GIT_WORK_TREE=` vor einem git-Aufruf (auch
+  hinter `env`) gilt als dessen `--work-tree`;
 - `find` mit `-delete` oder mit `-exec`, `-execdir`, `-ok`, `-okdir` und
   einem löschenden Verb löscht seine Startpfade (ohne einen den
   Arbeitsordner), mit einem Namensfilter (`-name`, `-iname`, `-path`,
@@ -787,7 +833,9 @@ lässt, gilt innerhalb der folgenden Grenzen, jede davon am 2026-10-12 gegen
   unbekanntes Programm, das einen geschützten Pfad in der Zeile nennt
   (`python -c "open('.loomux/flows/example/flow.toml','w')"`), aber ein Skript,
   das die Datei öffnet, ohne dass die Zeile sie nennt (`python tools/w.py`),
-  kommt in jedem Modus durch.
+  kommt in jedem Modus durch. Die Dateien des Zustandsverzeichnisses sind keine
+  Ausnahme: `python -c "open(r'<state>\config.toml','w')"` kommt im
+  Standardmodus durch.
 - **Eine Schreibweise, die der Wächter nicht erkennt.** Ein Verb unter anderem
   Namen oder eine Form, die die Verben oben nicht aufführen, gilt als kein
   Schreiben. Die Befehlsregeln, die aus `[policy.commands]` und die
@@ -816,12 +864,40 @@ lässt, gilt innerhalb der folgenden Grenzen, jede davon am 2026-10-12 gegen
 - **Eine Shell-Zeile, die außerhalb jedes beschreibbaren Baums schreibt.** Die
   Schreibschranke entscheidet nur über die schreibenden Werkzeuge des Hosts,
   darum kommt eine Shell-Zeile an ihr vorbei, wohin sie auch schreibt:
-  `echo x >> registry.toml`, `echo x > open.toml` und `Add-Content` auf die
-  Registry im Zustandsverzeichnis, `cp` auf das installierte `loomux.exe` dort,
+  `echo x > open.toml` im Zustandsverzeichnis (dessen `registry.toml`,
+  `config.toml`, `ui.toml` und `ui.json` gehören der Policy, siehe die
+  Zustandsdateien oben), `cp` auf das installierte `loomux.exe` dort,
   `echo {} > ~/.claude/settings.json` und `Set-Content` auf eine Datei unter
   `~/.gemini` kommen in beiden Modi durch, wo `Write` auf dieselben Dateien als
   außerhalb jedes beschreibbaren Baums verweigert wird (es sei denn, ein
   registrierter Baum umschließt sie).
+- **Ein Browser, den ein Agent steuert.** Der Wächter hindert einen Agenten
+  daran, `loomux ui` auszuführen, nicht daran, einen Browser zu benutzen, den
+  ein Mensch darauf geöffnet hat. Die Sitzung, die der Login geöffnet hat,
+  gilt, bis der Prozess endet, und was diesen Browser steuert (ein
+  ferngesteuerter oder automatisierter), kann über die Oberfläche
+  Konfiguration schreiben wie der Mensch. Jedes Schreiben zeigt weiterhin
+  seinen Diff und braucht das Formular-Token, das die Seite diesem Browser
+  selbst gibt. Wer einem Agenten einen Browser überlässt, beendet die
+  Oberfläche mit `loomux ui stop`.
+- **Ein `loomux ui`, das die Zeile außer Sicht buchstabiert.** Der Wächter
+  liest die Wörter einer Zeile und den Text darum und verweigert die
+  berechneten Formen, die er benennen kann (ein aufgelöstes erstes Argument,
+  `xargs`, ein Aufrufoperator auf einem nachgeschlagenen Befehl,
+  `Process.Start` und die Aufgabenplanung). Einige gehen durch: ein
+  Programmname, der aus Teilen gebaut wird (`& ('loo'+'mux') ui`,
+  `& "loo$()mux" ui`), eine Skriptdatei, die die Zeile schreibt und
+  dann startet (`echo "loomux ui" > x.ps1; ./x.ps1`), eine Zeile, die
+  dekodiert und an eine Shell gegeben wird (`echo bG9v… | base64 -d | sh`),
+  und die Binärdatei oder ihr Ordner unter einem anderen Namen, den eine
+  Kopie, ein Link oder ein Build ihr gab (`cp bin/loomux.exe x.exe; ./x.exe
+  ui`, `go build -o x.exe ./cmd/loomux`, eine Junction auf `cmd\loomux`).
+  Sie zu verweigern hieße, jeden Aufrufoperator auf einem berechneten Namen,
+  jedes Skript und jedes umbenannte Programm eines Agenten zu verweigern, und
+  ein späterer Aufruf in einem anderen Werkzeugaufruf zeigt die Kopie nie. Im
+  strengen Modus gilt ein Programm, das der Wächter nicht kennt, an seinen
+  Argumenten als loomux. Die Tests des Wächters halten alle als
+  festgehaltene Durchgänge.
 - **Die Hook-Verdrahtung des Hosts.** `.claude/settings.json`,
   `.claude/settings.local.json` (`disableAllHooks`) und `.agents/hooks.json`
   sind nicht geschützt, die Nutzereinstellungen `~/.claude/settings.json` nur
@@ -839,11 +915,11 @@ die die Zeile definiert (`function l { loomux $args }; l config apply`); ein
 Programm, das die Datei selbst öffnet (`python -c "open(…)"`, ein Skript des
 Agenten, ein Build-Werkzeug); ein Verb unter anderem Namen; einen Patch aus
 einer Pipe (`cat p.diff | git apply`) und einen, der sich zwischen dem Lesen
-des Wächters und dem Lauf ändert; `find … -exec loomux …` und `xargs
-loomux` mit seinen Argumenten von stdin; ein
+des Wächters und dem Lauf ändert; `find … -exec loomux …` (`xargs loomux`
+ohne eigenen Unterbefehl wird verweigert, weil stdin ihn liefern kann); ein
 Archiv, dessen Inhalt unbekannt ist (`tar -x` ohne `-C`, `unzip a.zip -d
-.loomux`); `git -C <ordner>`, dessen Pfade weiter ab dem Arbeitsordner
-zählen; `git checkout -f` ohne Pfad sowie `git checkout .`, `git restore .`,
+.loomux`, `gunzip -N a.gz`, das den Namen schreibt, den das Archiv
+mitführt); `git checkout -f` ohne Pfad sowie `git checkout .`, `git restore .`,
 `git checkout -- .loomux`, `git stash` und `git reset --hard`, die
 versionierte Dateien aus dem Index oder einem Commit überschreiben; einen
 PowerShell-Ausdruck in Klammern außer `(Join-Path …)` (`Remove-Item
