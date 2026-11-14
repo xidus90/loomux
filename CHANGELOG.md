@@ -7,6 +7,17 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.27.0] - 2026-11-14
+
+<https://github.com/xidus90/loomux/pull/163>
+
+### Added
+- `loomux ui` (with `--no-browser`, `stop`): a local web interface for settings, rules, agent proposals, project setup and a dashboard, behind a one-time login on the loopback.
+- Machine-wide `policy.paths.rules` and `policy.commands.rules` in the global configuration, applied in every project.
+- The guard reads more shell writes: archivers and compressors, links (`ln`, `mklink`, `fsutil hardlink`, `subst`, `New-PSDrive`), `git -C`/`--work-tree`/`--output`/`config --file`, PowerShell export cmdlets and downloads, and Bash `$'...'` quoting.
+### Security
+- Agents can no longer write, remove or replace the machine-wide configuration, the UI settings or the UI's state file, through the file tools or the shell.
+
 ## [1.26.2] - 2026-11-14
 
 <https://github.com/xidus90/loomux/pull/162>
