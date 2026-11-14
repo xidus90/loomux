@@ -1,0 +1,10 @@
+{{define "content"}}
+{{if .Data.Code}}
+<h1>Sign in</h1>
+<form method="post" action="/login"><input type="hidden" name="code" value="{{.Data.Code}}"><button type="submit">Sign in</button></form>
+{{else}}
+<h1>Signed out</h1>
+{{if .Data.Refused}}<p class="error">This login link is wrong, already used or expired.</p>{{end}}
+<p>Run <code>loomux ui</code> in a terminal to sign in.</p>
+{{end}}
+{{end}}
