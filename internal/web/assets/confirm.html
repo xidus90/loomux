@@ -1,0 +1,14 @@
+{{define "content"}}
+{{with .Data}}
+<h1>llm_config</h1>
+<p>The switch is {{if .On}}<strong>on</strong>{{else}}<strong>off</strong>{{end}}.</p>
+<p>{{.Opens}}.</p>
+<p>{{.Loosens}}</p>
+<form method="post" action="/settings/{{.ID}}/llm">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+{{if .On}}<button type="submit" name="on" value="false">Turn it off</button>
+{{else}}<button type="submit" name="on" value="true">I understand, turn it on</button>
+{{end}}</form>
+<p><a href="/settings/{{.ID}}">Back to the settings</a></p>
+{{end}}
+{{end}}

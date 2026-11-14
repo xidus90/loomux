@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>loomux</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body{{if not .CSRF}} class="signed-out"{{end}}>
+{{if .CSRF}}
+<aside>
+<a class="brand" href="/">loomux</a>
+<nav>
+<a href="/">Dashboard</a>
+<span class="label">Projects</span>
+{{range .Nav}}<a href="/settings/{{.ID}}">{{.Name}}</a>
+{{end}}<a class="add" href="/projects/new">Add project</a>
+<span class="label">Machine</span>
+<a href="/settings/global">Global</a>
+</nav>
+<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">Sign out</button></form>
+<footer>loomux {{.Version}}</footer>
+</aside>
+{{end}}
+<main>
+{{template "content" .}}
+</main>
+{{if not .CSRF}}<footer>loomux {{.Version}}</footer>{{end}}
+</body>
+</html>

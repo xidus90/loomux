@@ -1,0 +1,10 @@
+{{define "content"}}
+<h1>Add project</h1>
+<p>Step 1 of 4: the folder. Give the absolute path of the project's root; nothing is read beyond a look at what is there.</p>
+{{with .Data}}{{if .Error}}<p class="error">{{.Error}}</p>{{end}}{{end}}
+<form method="post" action="/projects/new/facts">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<p><label>Path <input type="text" name="path" size="60" value="{{with .Data}}{{.Path}}{{end}}" required></label></p>
+<button type="submit">Look at the folder</button>
+</form>
+{{end}}

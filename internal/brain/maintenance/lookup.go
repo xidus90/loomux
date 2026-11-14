@@ -106,3 +106,40 @@ func AreaManifest(areas []config.Area, lookup config.ArtifactLookup, scope strin
 	manifests, _ := Manifests(areas, lookup)
 	return manifests[scope]
 }
+
+// ListedCase is one case of the review queue and where it stands.
+type ListedCase struct {
+	// Address is the case's directory name, which is what addresses it.
+	Address   string
+	Directory string
+	Case      Case
+}
+
+// ListCases is every case in the review centre of the vault that stateDir
+// holds, in the order of CaseFiles, with the cases whose file does not read
+// named apart: a case that cannot be read still waits in the queue, and a list
+// that skipped it would hide it from the person who has to repair the file.
+//
+// A registry or a review centre that cannot be had is the error.
+func ListCases(stateDir string) ([]ListedCase, []string, error) {
+	areas, err := config.ReadRegistry(stateDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	root, err := ReviewRoot(areas, config.ArtifactLookup{Primary: stateDir})
+	if err != nil {
+		return nil, nil, err
+	}
+	var listed []ListedCase
+	var broken []string
+	for _, path := range CaseFiles(root) {
+		read, err := ReadCase(path)
+		if err != nil {
+			broken = append(broken, err.Error())
+			continue
+		}
+		directory := filepath.Dir(path)
+		listed = append(listed, ListedCase{Address: filepath.Base(directory), Directory: directory, Case: read})
+	}
+	return listed, broken, nil
+}
