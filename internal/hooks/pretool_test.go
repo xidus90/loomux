@@ -437,8 +437,8 @@ func TestAnUnreadableStdinRefuses(t *testing.T) {
 
 func TestAPanicInThePolicyStepRefuses(t *testing.T) {
 	root, state := world(t, "")
-	readPolicy = func(string) (config.Policy, error) { panic("boom") }
-	defer func() { readPolicy = config.ReadPolicy }()
+	readPolicy = func(string, string) (config.Policy, error) { panic("boom") }
+	defer func() { readPolicy = config.ReadEffectivePolicy }()
 	code, _, errOut := call(t, root, state, payload("Write", "file_path", filepath.Join(root, "main.go")))
 	if code != 2 || !strings.Contains(errOut, "boom") {
 		t.Fatalf("code %d, err %q", code, errOut)

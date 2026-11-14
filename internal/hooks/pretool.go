@@ -12,11 +12,12 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-var readPolicy = config.ReadPolicy
+var readPolicy = config.ReadEffectivePolicy
 
-// PreToolUse answers one PreToolUse hook with 0 or 2, never 1: the project's
-// policy first, then the global write barrier. Everything that goes wrong on
-// the way refuses, because a host reads 1 as "carry on".
+// PreToolUse answers one PreToolUse hook with 0 or 2, never 1: the effective
+// policy first (the rules of the machine-wide file in stateDir, then the
+// project's own), then the global write barrier. Everything that goes wrong
+// on the way refuses, because a host reads 1 as "carry on".
 func PreToolUse(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string) (code int) {
 	defer func() {
 		if broke := recover(); broke != nil {
@@ -90,7 +91,7 @@ func policyReasons(object map[string]any, root, stateDir string, open, here func
 	if tool == "" {
 		return []string{"loomux found no tool name in this call, so it cannot judge it and refuses"}, config.Policy{}, nil
 	}
-	policy, err := readPolicy(root)
+	policy, err := readPolicy(root, stateDir)
 	if err != nil {
 		return nil, config.Policy{}, err
 	}

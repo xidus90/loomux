@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // maxBraceVariants is how many words one brace expansion may unfold to
@@ -14,22 +16,41 @@ const maxBraceVariants = 64
 
 // spellings are the paths a shell makes of one target word, each relative to
 // root the way a rule spells a path: braces unfolded, a stream name cut off,
-// globs matched against the disk. PowerShell unfolds no braces, and bash none
-// inside quotes; reading them anyway only ever refuses more. An error is a
-// refusal the caller names.
-func spellings(root, word string) ([]string, error) {
+// globs matched against the disk, and PowerShell's provider prefix cut off.
+// PowerShell unfolds no braces, and bash none inside quotes; reading them
+// anyway only ever refuses more. A glob is matched in cwd, where the host
+// says the shell stands, as well as at the root. An error is a refusal the
+// caller names.
+func spellings(root, cwd, word string) ([]string, error) {
+	word = fileSystemProvider().ReplaceAllString(word, "")
 	words, ok := unfoldBraces(word)
 	if !ok {
 		return nil, fmt.Errorf("loomux does not unfold more than %d brace variants of %q, so it refuses", maxBraceVariants, word)
 	}
 	var out []string
 	for _, w := range words {
-		for _, p := range expandGlob(root, withoutStream(w)) {
+		w = withoutStream(w)
+		for _, p := range expandGlob(root, w) {
 			out = append(out, relativePath(p, root))
+		}
+		if cwd == "" || rooted(w) || !strings.ContainsAny(w, "*?[") {
+			continue
+		}
+		for _, p := range expandGlob(cwd, w) {
+			if filepath.IsAbs(p) {
+				out = append(out, relativePath(p, root))
+			}
 		}
 	}
 	return out, nil
 }
+
+// fileSystemProvider is the prefix with which PowerShell names its file
+// system provider in front of a path, FileSystem::C:\x, qualified by its
+// module or not.
+var fileSystemProvider = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`(?i)^(?:microsoft\.powershell\.core[\\/])?filesystem::`)
+})
 
 // unfoldBraces is bash's brace expansion of word: {a,b}, {1..3}, {01..03},
 // {1..9..2} and {a..c}, nested and in sequence, never a ${…}. A brace group
@@ -183,8 +204,11 @@ func withoutStream(p string) string {
 			break
 		}
 		colon += at
-		// PowerShell's $env:NAME is a variable, not a stream.
-		if before := strings.ToLower(p[:colon]); strings.HasSuffix(before, "$env") || strings.HasSuffix(before, "${env") {
+		// PowerShell's $env:NAME is a variable, not a stream, and the colon
+		// of bash's ${NAME:-x} is inside braces that are still open.
+		before := strings.ToLower(p[:colon])
+		open := strings.LastIndex(before, "${")
+		if strings.HasSuffix(before, "$env") || open >= 0 && !strings.Contains(before[open:], "}") {
 			at = colon + 1
 			continue
 		}

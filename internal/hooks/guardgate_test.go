@@ -62,17 +62,51 @@ func folderRemovals() []string {
 	}
 }
 
-// knownGaps are spellings that can disarm a lane and pass, before this rule
-// and after it: the armed lanes share them with the manifest, and this
-// change does not close them. They stand in the battery as recorded passes,
-// so that nobody takes them for closed and a later fix flips them on purpose.
+// knownGaps are spellings the guard passes and words cannot close. They stand
+// in the battery as recorded passes, so that nobody takes them for closed
+// and a later fix flips them on purpose. Three kinds, each named where a
+// reader looks for it:
+//   - The git rows can disarm a lane; the armed lanes share them with the
+//     manifest. They are named in the comment of armedReason and in the
+//     docs' limits of the default mode.
+//   - The loomux ui rows are no lane write at all; they are named in the
+//     docs' bullet "A loomux ui the line spells out of sight" (hooks.md and
+//     cli-reference.md, both languages).
+//   - The gunzip rows name the file by what the archive holds; they are
+//     named with the archives in the docs' limits of the default mode.
+//
+// The git rows:
 //   - git checkout <rev> -- <folder> and git restore -s <rev> <folder> bring
 //     back an older file through the folder above it; the guard judges a
 //     folder as a write target only for a removal.
 //   - git stash, git reset --hard and git switch rewrite the working tree
 //     without naming a path.
+//
+// The loomux ui rows:
+//   - loomux ui is no armed-lane write, yet some spellings of it pass because
+//     the program name is computed, the call stands in a file the line
+//     writes and runs, the line is decoded and fed to a shell, or the
+//     binary or its folder runs under another name a copy, a link or a
+//     build gave it (strict mode reads that name by its arguments); the
+//     words of the line never hold any of these.
+//
+// The gunzip rows:
+//   - gunzip -N and gzip -dN write the name the archive stores, which only the
+//     archive knows.
 func knownGaps() []string {
 	return []string{
+		`& ('loo'+'mux') ui`,
+		`& "loo$()mux" ui`,
+		`echo "loomux ui" > x.ps1; ./x.ps1`,
+		"echo bG9vbXV4IHVp | base64 -d | sh",
+		"cp bin/loomux.exe x.exe; ./x.exe ui",
+		"ln -s bin/loomux.exe x; ./x ui",
+		`New-Item -ItemType HardLink -Path x.exe -Target bin\loomux.exe; .\x.exe ui`,
+		"go build -o x.exe ./cmd/loomux; ./x.exe ui",
+		`New-Item -ItemType Junction -Path j -Target cmd\loomux; cd j; go run . ui`,
+		`cmd /c mklink /J j cmd\loomux & cd j & go run . ui`,
+		"gunzip -N notes.gz",
+		"gzip -dN notes.gz",
 		"git checkout HEAD~1 -- .loomux",
 		"git checkout HEAD~1 -- .",
 		"git restore -s HEAD~1 .",
@@ -233,8 +267,9 @@ func TestTheGuardOpensNothingItRefusedBefore(t *testing.T) {
 }
 
 // The gaps the rule names are gaps: each passed before and passes now. One
-// that is refused here was closed, and then it leaves knownGaps, the comment
-// of armedReason and the docs together.
+// that is refused here was closed, and then it leaves knownGaps and the place
+// that names it: the comment of armedReason and the docs for a git row, the
+// docs' bullet on a loomux ui spelled out of sight for a loomux ui row.
 func TestTheNamedGapsAreStillOpen(t *testing.T) {
 	before := readBattery(t)
 	root := t.TempDir()
