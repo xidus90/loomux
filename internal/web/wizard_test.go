@@ -30,6 +30,8 @@ type wizardWorld struct {
 	ran                 []string
 	// onRun lets a test make an action do more than be recorded.
 	onRun func(a setup.Action, scope string) error
+	// noBinary makes the binary the entries call missing when the run starts.
+	noBinary bool
 }
 
 // realGit runs git as setup.Gather asks: an exit 1 without output is an
@@ -64,7 +66,7 @@ func newWizardWorld(t *testing.T) *wizardWorld {
 		}
 		o.SetupDeps = func(root string, _ setup.Facts, scope string, stdout, _ io.Writer) setup.Deps {
 			return setup.Deps{
-				BinaryThere: func() bool { return true },
+				BinaryThere: func() bool { return !w.noBinary },
 				Run: func(a setup.Action) error {
 					w.mu.Lock()
 					defer w.mu.Unlock()
@@ -396,6 +398,40 @@ func TestAnMCPFileThatIsNoObjectIsAnErrorNamingTheFile(t *testing.T) {
 	}
 	if w.read(".mcp.json") != "[]" || w.read(".loomux/config.toml") != "" {
 		t.Fatal("a refused plan changed the folder")
+	}
+}
+
+// A file the plan cannot read is the server's trouble, not the form's.
+func TestAFileThePlanCannotReadIsAServerError(t *testing.T) {
+	w := newWizardWorld(t)
+	w.gitRepo()
+	if err := os.MkdirAll(filepath.Join(w.root, ".mcp.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status, body := w.plan(nil)
+	if status != http.StatusInternalServerError || !strings.Contains(body, ".mcp.json") || !strings.Contains(body, `class="error"`) {
+		t.Fatalf("%d: %s", status, body)
+	}
+}
+
+// Without the binary the entries call, the report says why they are missing,
+// as init does.
+func TestTheReportSaysWhatAMissingBinaryLeftOut(t *testing.T) {
+	w := newWizardWorld(t)
+	w.gitRepo()
+	w.noBinary = true
+	done := w.setUp()
+	if !strings.Contains(done, "no loomux binary where the entries call it; host entries") {
+		t.Fatalf("no hint: %s", done)
+	}
+}
+
+// With the binary there, the report has no such hint.
+func TestTheReportHasNoBinaryHintWhenTheBinaryIsThere(t *testing.T) {
+	w := newWizardWorld(t)
+	w.gitRepo()
+	if done := w.setUp(); strings.Contains(done, "no loomux binary") {
+		t.Fatalf("hint without cause: %s", done)
 	}
 }
 

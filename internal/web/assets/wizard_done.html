@@ -3,6 +3,7 @@
 <h1>Add project</h1>
 <p>Step 4 of 4: the report.</p>
 {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{if .NoBinary}}<p class="note">{{.NoBinary}}</p>{{end}}
 <ul>
 {{range .Report.Written}}<li>written: {{.}}</li>
 {{end}}{{range .Report.Skipped}}<li>skipped: {{.}}</li>

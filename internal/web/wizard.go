@@ -96,6 +96,8 @@ type doneView struct {
 	Report setup.Report
 	// Output is what the actions printed.
 	Output, Error, ID string
+	// NoBinary says what a missing binary left out, as init does.
+	NoBinary string
 }
 
 // existingDir is the directory a path names, or why it names none.
@@ -238,7 +240,7 @@ func (s *server) plan(w http.ResponseWriter, r *http.Request) (project, setup.Pl
 	}
 	plan, err := setup.Build(p.facts, p.choice, setup.ProjectReader(p.root))
 	if err != nil {
-		s.showFacts(w, r, http.StatusUnprocessableEntity, p, err.Error())
+		s.showFacts(w, r, failure(err), p, err.Error())
 		return p, plan, false
 	}
 	plan.Notes = append(plan.Notes, setup.Notes(p.facts, p.choice, plan)...)
@@ -302,6 +304,9 @@ func (s *server) wizardApply(w http.ResponseWriter, r *http.Request) {
 	// listed either way, so that it can be looked at and finished.
 	err = errors.Join(err, s.remember(p.root))
 	v := doneView{Report: report, Output: output.String(), ID: projectID(p.root)}
+	if len(report.Failed) > 0 && !deps.BinaryThere() {
+		v.NoBinary = setup.NoBinary(report.Failed)
+	}
 	if err != nil {
 		v.Error = err.Error()
 	}
