@@ -9,13 +9,13 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:285db9504d5d3a8018baecc4db93cdaebf4efc9bdc5f91c93c3c3c23d747ab6a"
-    revision: 48
+    content_hash: "sha256:1e1ce68a6f431871cb168cc2f54e9a69beb4367c0939010c9c473f126d1a7b37"
+    revision: 49
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
-    content_hash: "sha256:0ff6255014b9738a1e0a59380b432c30d86cdc6c344299daf443c8e2f34e215b"
-    revision: 19
+    content_hash: "sha256:e239ce2f0f5d56bb6b09e1206ebb9e1d13fc8ff48b2e9b072ed36d0d0d7c90a8"
+    revision: 20
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
@@ -27,7 +27,7 @@ sources:
 
 Der Pre-Tool-Wächter entscheidet vor jedem schreibenden Werkzeugaufruf,
 **wo** der Write landet. Zwei Stufen, in dieser Reihenfolge: erst die
-**Policy** des Projekts, dann die globale **Schreibschranke**
+**Policy** (eingebaut, maschinenweit, Projekt), dann die globale **Schreibschranke**
 (`internal/hooks/pretool.go`). Beide verweigern, statt zu raten: **Eine
 Schranke, die bei Unklarheit öffnet, ist keine.**
 
@@ -37,12 +37,35 @@ Die Tabelle `[policy]` in `.loomux/config.toml` trägt zwei Regellisten:
 Pfadregeln mit Globs gegen schreibende Werkzeuge und Befehlsregeln mit
 regulären Ausdrücken gegen `Bash` und `PowerShell`. Eingebaute Regeln gehen
 immer mit: Geheimnisse (`.env`, `*.pem`, `*.key` und andere) schreibt kein
-Agent; `loomux init`, `config`, `area add`, `merge-hook install|remove`,
-`gate arm|disarm`, `convert` und `fetch` führt ein Mensch aus,
+Agent; `loomux init`, `config`, `ui` (in jeder Form außer `--help`), `area add`,
+`merge-hook install|remove`, `gate arm|disarm`, `convert` und `fetch` führt ein Mensch aus,
 ebenso das `--answer` am Tor eines Flows; und einen Interpreter, der sein
 Programm von stdin liest (`python -`, ein Heredoc in den Interpreter),
-startet kein Agent. Eine
+startet kein Agent. Ebenso
+`config.toml`, `ui.toml`, `ui.json` und `registry.toml` im Zustandsverzeichnis:
+Der Wächter verweigert dort jedes Schreiben, das er erkennt, für die
+Schreibwerkzeuge wie für Shell-Zeilen, auch über `cwd` (samt Glob dort),
+Home-Ordner und Umgebungsvariablen (auch `${NAME:-x}` und `$($env:NAME)`),
+Laufwerks- und Freigabeschreibweisen, Punkt und Leerzeichen am Ende, den
+Provider-Präfix `FileSystem::` und einen Link, der in derselben Zeile
+entsteht (auch durch `cp -s` oder `cp -l`), auch auf einen Ordner über dem
+Zustandsverzeichnis, einen Entpacker ohne Ziel, solange die Shell in diesem
+Ordner steht, einen Dekomprimierer, der den Namen ohne Endung schreibt, und
+die `--output`-Datei und den Ordner von `-C` oder `--work-tree` bei git; ein Agent
+schlägt eine Änderung mit `loomux config set|unset … --global
+--propose` vor. Ein Programm, das die Datei selbst öffnet (`python -c`), und ein
+Pfad, den die Shell berechnet (`$(cygpath …)`, `($env:X + '…')`), kommen
+durch, der strikte Modus hält auch den zweiten nicht auf. Eine
 Regel, deren Glob sich nicht lesen lässt, verweigert.
+
+Dieselben zwei Regellisten darf die `config.toml` im Zustandsverzeichnis
+tragen. Sie gelten in jedem Projekt zusätzlich zu den eingebauten und den
+Regeln des Projekts, kein Projekt hebt eine auf; der Wächter liest sie vor
+denen des Projekts (`config.ReadEffectivePolicy`), und die Ablehnung nennt
+alle treffenden Gründe. Sie sperren das Schreiben, nicht das Lesen, und nur
+dort, wo der Hook läuft. Eine kaputte globale Datei verweigert jeden Aufruf und
+nennt ihren Pfad, nur ein reiner Graph-Hinweis läuft durch; ein `[guard]`
+darin ist ein Fehler, denn `mode` und `graph_hint` sind Sache des Projekts.
 
 ## Wie die Schranke entscheidet
 
@@ -204,6 +227,22 @@ Einschalten ([Architektur-Grundsätze](architektur-grundsaetze.md)).
   Schreibziel nennt, kommen durch.
 - **`llm_config`, Mensch von Hand:** Ein Mensch, der `config set` selbst
   ausführt, schreibt weiterhin durch ein verknüpftes `.loomux`.
+- **Ein Browser, den ein Agent steuert:** Der Wächter hindert einen Agenten
+  daran, `loomux ui` auszuführen, nicht daran, einen Browser zu benutzen, den
+  ein Mensch darauf geöffnet hat; die Sitzung gilt, bis der Prozess endet
+  (`loomux ui stop` beendet sie, aber nur, wenn `/health` die PID aus
+  `ui.json` nennt und der Prozess ein Binary namens `loomux` ausführt).
+- **Ein `loomux ui`, das die Zeile außer Sicht buchstabiert:** Der Wächter
+  verweigert die berechneten Formen, die er benennen kann (aufgelöstes erstes
+  Argument, `xargs`, Aufrufoperator auf `gcm loomux`, `Process.Start`,
+  Aufgabenplanung). Einige kommen durch: ein Programmname aus Teilen
+  (`& ('loo'+'mux') ui`), eine Skriptdatei, die die Zeile schreibt und
+  startet, eine dekodierte Zeile, die an eine Shell geht, und die Binärdatei
+  oder ihr Ordner unter einem anderen Namen (Kopie, Link, Build); die Tests
+  halten alle als festgehaltene Durchgänge. Ein Ordner namens loomux in einem
+  Pfad (`~/src/loomux/docs`) ist dagegen kein Start; `cmd/loomux/…` und ein
+  relativer Pfad, der bei `loomux/` beginnt (`./loomux/.` von innerhalb
+  `cmd`), zählen weiter als das Paket.
 - **`llm_config` unter Antigravity:** Antigravity schickt kein `cwd`; dort
   bleibt die Shell-Ausnahme zu, und nur das Dateiwerkzeug öffnet das
   Manifest.

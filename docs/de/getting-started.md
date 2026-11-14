@@ -24,6 +24,16 @@ Alle Teile, Flags und Exit-Codes stehen in der [CLI-Referenz](cli-reference.md#1
 > Mit dem Flag `--dry-run` siehst du vorab, welche Dateien berührt würden, ohne Änderungen vorzunehmen:
 > `loomux init --dry-run`
 
+### Der zweite Weg: der Browser
+
+`loomux ui` startet die lokale Weboberfläche ([CLI-Referenz](cli-reference.md)); ihre Seite **Add project** richtet ein Projekt in denselben Stufen wie `loomux init` und über denselben Code ein:
+1. Der Ordner: der absolute Pfad eines vorhandenen Verzeichnisses.
+2. Der Befund: erkannte Agenten, Sprachen, Git-Zustand und ob das Projekt schon registriert ist; dann die Auswahl, vorbelegt mit dem, was der Ordner schon sagt: jedes Modul und jeder Teil als Haken, dazu die Commit-Sprache und der Scope des Bereichs (`project/<Ordnername>`; er gilt, wenn der Teil `area` und das Modul brain an sind, wie bei der letzten Frage von `loomux init`, und ein Scope mit Leerzeichen wird abgelehnt).
+3. Der Plan: jede Datei als Diff mit einem Haken, jede Aktion mit einem, dazu die Hinweise. Ein Projekt, das schon eingerichtet ist, zeigt nur, was fehlt, oder „nothing to do“. Als Letztes kommt der Schalter `llm_config`, ein Haken auf der Planseite, nur dort angeboten, wo der Lauf einen registrierten Bereich hinterlässt; er ist aus, solange du ihn nicht ankreuzt, und wird nach dem Lauf eingeschaltet, sodass ein gescheiterter Lauf ihn in Ruhe lässt.
+4. Der Bericht: was geschrieben, übersprungen, abgelehnt wurde und was scheiterte, mit einem Link zur Einstellungsseite des Projekts.
+
+Geschrieben wird nur, was angehakt ist. Hat sich eine Datei zwischen dem Plan und dem Klick auf **Set up the project** geändert, läuft nichts, und der Plan erscheint neu, wie die Dateien jetzt sind. Das Projekt kommt in die Liste der Oberfläche und steht dort bei den anderen, auch wenn ein Schritt auf halbem Weg scheiterte und die Dateien des Laufs schon liegen. Eine lange Aktion (Installation des Binarys, das Modell, der Graph) läuft im Vordergrund; die Seite wartet.
+
 ---
 
 ## 2. Konfiguration prüfen

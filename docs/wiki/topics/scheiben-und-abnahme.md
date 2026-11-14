@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:36a31f8d8c47aea644099ac7faff111750de8e8706bcdaba041b21e3788aebb0"
-    revision: 50
+    content_hash: "sha256:ef612ecf8271f6d70ee53a169f4734b13920d7dd2bd74eb41d41863e2e471003"
+    revision: 53
 ---
 
 loomux baut in **Stufen**, und **jede Stufe endet grün und wird einzeln
@@ -76,7 +76,9 @@ Roadmap im README; der Stand beim Verdichten dieser Seite:
 Eine Teilstufe 4b gibt es nicht. `loomux migrate` fällt weg: den
 Maschinenzustand hat die Selbstnutzung seit 3a schon umgezogen, die Wirte
 richtet `init` neu ein. Flow und das Web-OS (W1–W5) sind Folgeprojekte mit
-eigener Spec.
+eigener Spec. Die Weboberfläche (`loomux ui`) ist inzwischen gebaut, als
+eigener Prozess und ohne React; was vom Web-OS bleibt, steht in der Roadmap
+der READMEs.
 
 ## Reihenfolge der offenen Stufen
 

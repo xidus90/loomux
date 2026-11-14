@@ -1375,6 +1375,33 @@ proxy is taken from the environment and no redirect is followed.
 
 An area's `[model]` may only narrow `enabled` and `roles`.
 
+#### Rules for every project: `[policy]`
+
+The same file takes the two rule lists of a project's `[policy.paths]` and
+`[policy.commands]`, in the same form:
+
+```toml
+[[policy.paths.rules]]
+match  = ["secrets/**"]
+reason = "Secrets are written by a human"
+
+[[policy.commands.rules]]
+regex  = '(^|\s)pip\s+install'
+reason = "uv, never pip"
+```
+
+They apply on top of the built-in rules and of the project's own, in every
+project on the machine, and no project can lift one: the guard reads the
+global rules first, then the project's. They bind where the hook runs, that is
+in a project that ran `loomux init` and for an agent of a host that calls it;
+a shell outside it is not held. They refuse writing, not reading. The checks
+are those of the project's rules: a malformed glob, a missing `reason` or a
+regex that does not compile is an error naming this file, and the guard
+refuses every tool call until it is fixed (a graph search still runs). A
+`[guard]` table is the project's setting and is an error here. Like every
+rule list, these are edited by hand or in the rules form of the web
+interface, and the file is a human's to write.
+
 `<scope>` is the scope flattened into one directory name: every run of
 characters other than `A-Z a-z 0-9 _ . -` becomes one `-`, and dashes at both
 ends come off, so `project/loomux` becomes `project-loomux`.

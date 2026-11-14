@@ -520,6 +520,8 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
     `config -h` und `config set …` oder `config unset …` mit befreiendem
     `--propose`;
   - `loomux area add`;
+  - `loomux ui` in jeder Form (`--no-browser`, `stop`, `--foreground`) außer
+    einem alleinstehenden `--help` oder `-h`;
   - `loomux merge-hook install` oder `remove` (`status` und `record` gehen
     durch);
   - `loomux gate arm` und `loomux gate disarm` (`gate status` geht durch); die
@@ -527,8 +529,9 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
     scheitern lassen, und dass `loomux gate status` sie zeigt;
   - `loomux convert` oder `loomux fetch`, außer allein mit `--help` oder `-h`.
 
-  Die Ablehnung lautet ``loomux init, config and
-  area add write the configuration the guard reads, merge-hook install and
+  Die Ablehnung lautet ``loomux init, config, ui and
+  area add write the configuration the guard reads (ui serves the interface
+  that writes it), merge-hook install and
   remove write executable hooks into repositories, convert and fetch write
   into an area's inbox, which the write barrier keeps from agents; a human
   runs them. An agent proposes a change with
@@ -633,13 +636,50 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
     verweigert), und dort befreit kein Flag. Eine Variable oder ein Alias,
     den die Zeile selbst setzt, wird eingesetzt (`M=loomux; $M init`, `alias
     l=loomux; l init`).
+  - **Als Text gelesen** — was der Schnitt in Wörter verliert, wird am Text
+    der Zeile beurteilt: ein Aufruf, bei dem loomux dort steht, wo ein
+    Programm steht, und dessen erstes Argument ein Zeichen enthält, das eine
+    Shell oder PowerShell auflöst (`loomux $(echo ui)`,
+    `` loomux `echo ui` ``, `loomux u?`, `loomux {ui,}`, `loomux ('u'+'i')`,
+    `loomux @a`), wird verweigert, was immer daraus würde; ebenso `xargs
+    loomux` ohne eigenen Unterbefehl, weil stdin ihn liefern kann; ein `go
+    run` des Hauptpakets in jeder Schreibweise, die `go` annimmt
+    (`./cmd/loomux/...`, `cmd/loomux/m*.go`, `-C cmd/loomux .`), auch als
+    `go run .` nach einem `cd` in `cmd/loomux` auf der Zeile oder aus einer
+    Shell, die dort steht; ein Punkt hinter dem Programmnamen
+    (`loomux.exe.`, den Windows weglässt); ein Glob, der das Programm
+    (`./bin/loo*.exe ui`) oder das Paket (`go run ./cmd/l* ui`) findet; die
+    Wörter, die GNU `parallel` anhängt (`parallel loomux ::: ui`); ein
+    Aufrufoperator oder der Punktoperator auf einer Klammer, die loomux
+    nennt (`& (gcm loomux) ui`, `. (gcm loomux) ui`); und jede Zeile, die
+    loomux zusammen mit einer Schnittstelle oder einem Werkzeug nennt, das
+    ein Programm aus Zeichenketten startet (`Process.Start`, WMI
+    `Win32_Process`, `wmic`, `schtasks`, geplante Aufgaben, `subprocess`
+    und `os.system` von Python, `child_process` von Node). Ein loomux, das
+    Operand eines anderen Programms ist (`grep loomux *.go`, `git commit -m
+    "loomux $x"`), ist kein Aufruf, ein Ordner namens loomux in einem
+    Pfad (`~/src/loomux/docs`) nennt kein Programm, während `cmd/loomux/…` und
+    ein relativer Pfad, der bei `loomux/` beginnt (`./loomux/.` von innerhalb
+    `cmd`), weiter das Paket nennen, und ein Starter, den nur ein lesendes Programm (`grep`, `rg`, `echo`,
+    `git commit`, `gh pr`, `gh issue`) nennt, ist kein Start, auch wenn
+    sein Muster in Anführungszeichen eine Pipe enthält (`grep -E
+    "loomux|subprocess" …`). Ein bloßer Platzhalter unter den Argumenten
+    eines anderen Programms (`taskset 0x1 * init`) ist kein loomux; wo ein
+    Programm steht, behält ein Glob die weitere Lesart.
   - **Bekannte Lücken** — die Regel liest Wörter, keine Shell, und lässt
     darum durch: einen Alias oder ein Programm in einer Variablen, die
     anderswo als in der Zeile gesetzt sind; eine Funktion, die die Zeile
     definiert; einen Befehl in `script -c …`; ein Programm, das ein
     bekanntes Werkzeug startet (`uv run loomux init`, `npx loomux init`,
-    `find … -exec loomux …`); `xargs loomux` mit seinen Argumenten von stdin;
-    `go run .` in `cmd/loomux`; und, nach einem früheren maskierten `\"` oder `\'` auf
+    `find … -exec loomux …`); einen Programmnamen, der aus Teilen gebaut
+    wird (`& ('loo'+'mux') ui`, `& "loo$()mux" ui`); einen Aufruf in einer
+    Skriptdatei, die die Zeile schreibt und dann startet (`echo "loomux ui" >
+    x.ps1; ./x.ps1`); eine Zeile, die dekodiert und an eine Shell gegeben
+    wird (`echo bG9v… | base64 -d | sh`); die Binärdatei oder ihren Ordner
+    unter einem anderen Namen, den eine Kopie, ein Link oder ein Build ihr
+    gab (`cp bin/loomux.exe x.exe; ./x.exe ui`, `ln -s`, `mklink /J j
+    cmd\loomux`, `go build -o x.exe`; der strenge Modus beurteilt einen
+    solchen Namen an seinen Argumenten); und, nach einem früheren maskierten `\"` oder `\'` auf
     derselben Zeile, einen Programmpfad in Anführungszeichen, dessen Teil
     hinter seinem letzten Trennzeichen (`(`, `)`, `&`, `;`, `|`) ein
     Leerzeichen enthält, etwa
@@ -1127,8 +1167,9 @@ Entscheidet einen Fall. Ohne Flagge wird der Vorschlag des Falls freigegeben; `-
 Der Dienst beantwortet zwölf Werkzeuge über Streamable HTTP — die fünf
 `brain_*`-Werkzeuge und die sieben `graph_*`-Werkzeuge der Stufen G3, G4a und G4b; die Brücke
 ist das, was ein MCP-Wirt startet, und sie reicht nur weiter. Beides ist in
-Stufe 1b-2 entstanden. Das Web OS der Stufe W1 gibt es noch nicht, die
-Upstream-Proxies ebenso wenig.
+Stufe 1b-2 entstanden. Die Weboberfläche gehört nicht zum Dienst: Sie ist
+ein eigener Prozess, `loomux ui` (unten). Die Upstream-Proxies gibt es noch
+nicht.
 
 **Der Kanal ist die Adresse, kein Feld der Anfrage.** `serve` bindet zwei
 Loopback-Listener, einen für `local` und einen für `cloud`, jeden mit eigenem
@@ -1223,6 +1264,84 @@ Erfolg ist still.
 
 - **Exit-Codes**: `0` beendet, und ebenso, wenn nichts lief; `1` der Stopp ist
   gescheitert; `2` ein unbekanntes Argument.
+
+### `loomux ui [--no-browser]`
+Startet die lokale Weboberfläche und öffnet den Browser darauf. Ein Mensch
+führt es aus; der Schreibwächter verweigert es einem Agenten in jeder Form
+außer `--help`.
+
+- **Was startet**: ein Prozess neben dem Aufrufer, abgelöst wie bei
+  `loomux serve`, der nur auf `127.0.0.1` lauscht. Er fragt nach Port 7411,
+  damit ein Lesezeichen einen Neustart überlebt, und nimmt einen freien, wenn
+  der belegt ist. `ui.json` im Zustandsverzeichnis hält PID und Port und sonst
+  nichts; das Log ist `<Zustandsverzeichnis>/logs/ui.log`. Der Befehl wartet
+  bis zu 10 Sekunden, dass das Kind, das er gestartet hat, auf diesem Port
+  antwortet: Eine `ui.json` einer anderen PID ist nicht das Kind, und der
+  Anmeldecode geht nur an das Kind.
+- **Läuft schon eine Oberfläche**, wird sie zuerst beendet, und mit ihr jede
+  Sitzung: Der Befehl startet die Oberfläche neu.
+- **Anmeldung**: Der Befehl würfelt einen Einmalcode (32 Byte Zufall) und
+  reicht ihn dem Kind über dessen Standardeingabe, sodass weder dessen
+  Kommandozeile noch eine Datei ihn enthält. Die Anmeldeadresse samt Code ist
+  die eine Stelle, an der er weiter lesbar ist: Die Kommandozeile des Browsers
+  trägt ihn, solange der Öffner läuft, und jeder Prozess desselben Nutzers kann
+  eine Kommandozeile lesen. Darum gilt der Code nur einmal und zwei Minuten. Der
+  Browser öffnet `/login?code=…`. Die Seite zeigt nur einen Knopf „Sign in“
+  und verbraucht nichts, denn ein Browser, der Adressen vorab lädt, oder eine
+  Linkvorschau ruft die Adresse vor dem Nutzer ab. Erst das Absenden des Knopfs
+  (`POST /login`) löst den Code ein, setzt den Cookie `loomux_ui_<Port>`
+  (`HttpOnly`, `SameSite=Strict`) und leitet auf `/` weiter. Browser senden einen Cookie an jeden Port des Hosts;
+  der Port im Namen hält darum nur zwei Oberflächen auf einem Host davon ab,
+  einander die Sitzung zu nehmen, nicht den Cookie von einem anderen Dienst auf
+  `127.0.0.1`. Der Code gilt einmal und zwei Minuten ab dem Start; ein zweiter
+  Gebrauch, ein falscher und ein verspäteter Code antworten je mit `403`. Eine
+  Sitzung lebt, bis der Prozess endet. Ohne Sitzung führt jede Seite zu einer
+  Seite, die sagt, `loomux ui` auszuführen.
+- **Anfragen**: Der `Host`-Header muss `127.0.0.1:<Port>` oder
+  `localhost:<Port>` sein, sonst `421`; eine Anfrage eines anderen Ursprungs
+  wird abgelehnt; jedes `POST` braucht das Formular-Token der Sitzung, sonst
+  `403`.
+- **Seiten**: Die Startseite ist ein Dashboard aus Kacheln: Projekte,
+  Config-Vorschläge, wartende Flow-Läufe, Prüffälle, Indexzustand und die
+  Version. Eine Kachel, die sich nicht lesen lässt, zeigt ihren Fehler in
+  ihrem eigenen Rahmen, und die anderen stehen. **Arrange tiles** zeigt,
+  verbirgt und verschiebt je Klick eine Kachel mit den Knöpfen **Show**,
+  **Hide**, **Up** und **Down**, ohne JavaScript; die Wahl steht in `ui.toml`
+  im Zustandsverzeichnis, neben den Projekten, die über die Oberfläche
+  hinzugekommen sind. Die Einstellungsseite eines Projekts listet jeden
+  Schlüssel mit Wert, Vorgabe und Herkunft; **Global** ist dasselbe für die
+  maschinenweite `config.toml`, deren `[policy]`-Regeln in jedem Projekt gelten
+  ([Konfiguration](configuration.md#regeln-für-jedes-projekt-policy)). Jedes
+  Schreiben (ein Schlüssel, eine Regel, ein Vorschlag, der Schalter
+  `llm_config`) zeigt zuerst seinen Diff und wird erst nach der Bestätigung
+  geschrieben, Schlüssel für Schlüssel. **Add project** ist der
+  Einrichtungsassistent ([Erste Schritte](getting-started.md#der-zweite-weg-der-browser)).
+- **`--no-browser`**: öffnet nichts und druckt stattdessen die
+  Anmeldeadresse, die einmal gilt. Ohne das Flag druckt der Befehl
+  `http://127.0.0.1:<Port>/` ohne den Code; öffnet sich der Browser nicht,
+  druckt er auch die Anmeldeadresse.
+- **`--foreground`**: was der abgelöste Start ausführt; es bedient in diesem
+  Prozess und liest den Anmeldecode aus der ersten Zeile der Standardeingabe.
+  Es ist nicht für ein Terminal.
+- **Exit-Codes**: `0` gestartet; `1` die alte Oberfläche ließ sich nicht
+  beenden, der Start scheiterte oder die Oberfläche antwortete nicht
+  rechtzeitig; `2` ein unbekanntes Argument.
+
+### `loomux ui stop`
+Beendet die laufende Oberfläche. Der Befehl liest `ui.json`, fragt `/health`
+auf deren Port und beendet den Prozess nur, wenn die Antwort dieselbe PID
+nennt und dieser Prozess ein Binary namens `loomux` ausführt; dazu zählen
+`loomux.old.exe` und `loomux.old.<n>.exe`, unter denen ein Binary
+weiterläuft, das ein Update oder ein Neubau ersetzt hat. Eine Datei,
+deren Port schweigt oder von einem anderen Dienst beantwortet wird, nennt
+nichts: Sie wird entfernt und nichts beendet. Antwortet der Port mit einer
+anderen PID als die Datei, oder trägt der Prozess einen anderen Namen oder
+lässt sich seine ausführbare Datei nicht lesen, ist das ein Fehler: Nichts wird
+beendet, und die Datei bleibt für einen Menschen zum Nachsehen.
+
+- **Exit-Codes**: `0` beendet (`loomux ui: stopped`), und ebenso, wenn nichts
+  lief (`loomux ui: not running`); `1` der Stopp ist gescheitert; `2` ein
+  unbekanntes Argument.
 
 ### `loomux upgrade [--beta | --stable | --version <x.y.z>]`
 
@@ -1650,8 +1769,9 @@ ergeben.
 
 ### `loomux config get <schlüssel>`
 Gibt den Wert des Schlüssels aus, die Vorgabe, wo keiner gesetzt ist. Für
-eine Liste von Tabellen gibt es je Eintrag eine Zeile aus, die Tabelle so,
-wie Go sie druckt (`map[reason:… regex:…]`), und eine leere Zeile, wenn es keinen gibt;
+eine Liste von Tabellen gibt es je Eintrag eine Zeile aus, die Tabelle
+inline wie in der Datei (`{ reason = "…", regex = "…" }`, Schlüssel nach Namen
+geordnet), und eine leere Zeile, wenn es keinen gibt;
 `list` zeigt die Zahl der Einträge (`list --json` als `count`).
 
 ### `loomux config set <schlüssel> <wert> [--yes]`

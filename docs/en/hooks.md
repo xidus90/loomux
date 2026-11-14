@@ -456,7 +456,9 @@ entry of another tool is not ours: init adds the whole loomux block beside it
 and leaves the other entry to you.
 
 **Every reason, not the first.** The built-in rules come first, then the
-project's in the order of the file, and each matching rule adds its reason; the
+machine-wide ones of `[policy]` in the `config.toml` of the state directory
+(see [Configuration](configuration.md#rules-for-every-project-policy)), then
+the project's in the order of the file, and each matching rule adds its reason; the
 refusal lists them all. Otherwise the agent would clear one reason, run into
 the next, and need a round per rule. A glob that cannot be evaluated is a
 refusal of its own.
@@ -482,10 +484,45 @@ The built-in rules (`internal/hooks/guard.go`):
 | Path | `**/.loomux/state/runs/**`, the journals and markers of [flow runs](flows.md#2-running-a-flow) | a flow's journal and marker are written by loomux, not by the party the gates ask |
 | Path | `.loomux/flows/<name>/` under any directory and everything in it, for every flow of this binary's catalog and every name in `[flow] overrides`; every `.loomux/flows` folder in a path counts, a nested one too; a flow under a name of its own stays free | a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `<name>` |
 | Path | seven lock files, among them `go.sum`, `package-lock.json` and `Cargo.lock` | lock files are written by their package manager, not by hand |
+| State files | `config.toml`, `ui.toml`, `ui.json` and `registry.toml` directly in the state directory (`LOOMUX_STATE_DIR`): a write, a removal (a folder above them too), a move out of them, a link made onto one; and for any write the state directory itself | loomux's machine-wide files are a human's to write; an agent proposes a change with `loomux config set\|unset … --global --propose` |
 | Command | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
 | Command | `loomux flow resume … --answer` in every spelling the rule for `loomux config` reads (a path to the binary, quotes, chained commands, `--answer text`, `--answer=text`), and any `Start-Process` of loomux, whose arguments the guard cannot see | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
 | Command | `loomux gate` with any subcommand but `status`, in the same spellings | loomux gate arm and disarm decide which lanes fail the gate; a human runs them, and an agent arms a lane only through a green `loomux check precommit --arm`. `loomux gate status` shows the lanes |
+| Command | `loomux ui` in every form but a lone `--help` or `-h` (`--no-browser`, `stop`, `--foreground`), in the same spellings, with `llm_config` on as well | loomux init, config, ui and area add write the configuration the guard reads (ui serves the interface that writes it), merge-hook install and remove write executable hooks into repositories, convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set\|unset … --propose`, which a human applies |
 | Command | an interpreter (`python`, `python3`, `python3.N`, `py`, `node`, `perl`, `ruby`, also behind `uv run` or `uvx`, and `uv run -` itself) that takes its program from stdin with nothing real on it: a lone `-` or no program, with neither a pipe from a command nor a `<` file; a heredoc or here-string into it, or piped into it, never counts | loomux refuses an interpreter that reads its program from stdin (`python -`, a bare `python`, `uv run -`, a heredoc or here-string into one): with nothing piped in it waits until it is stopped, and a shell may rewrite the backslashes of inline program text. Write the script to a file in the scratchpad with the host's file tool (Write, write_to_file) and run that file. |
+
+**The state files** are judged in every mode, for the writing tools and for shell
+lines, as written and as the file system resolves them (a link, a short name, a
+case the platform ignores). A shell line reaches them in more spellings than a
+path in the project, and the guard reads these: a relative name from the `cwd`
+the host reports (a shell standing in the state directory writes
+`echo x > config.toml`), the home folder and the variables the hook's own
+environment holds (`~/…`, `$HOME`, `${LOCALAPPDATA}`, `${HOME:-/tmp}` and the
+other operators of bash's `${…}`, PowerShell's `$env:NAME`, `${env:NAME}` and
+`$($env:NAME)`, cmd's `%NAME%`), a glob matched in that `cwd` as well as at the
+root (`rm -rf *` in the state directory), PowerShell's `FileSystem::` prefix,
+and on Windows Git Bash's `/c/…`, the administrative share `//localhost/c$/…`
+and `\\?\C:\…` or `\\?\UNC\localhost\c$\…`, the dots and blanks Win32 drops from
+the end of an element (`config.toml.`) and a writing tool's `::$DATA`. A link
+made onto a state file, onto the state directory or onto a folder above it
+(`ln`, `mklink`, `New-Item -ItemType SymbolicLink -Target`; a relative target
+counts from the folder of the link) is refused, since the link does not exist
+yet when a write through it is judged; and so is anything that writes below the state
+directory without naming a file, which only the folder tells: `tar -C`,
+`unzip -d`, `7z -o`, `cpio -D`, `Expand-Archive` (its destination named or
+positional), `cp` or `mv` onto it, and each of these extractors without a
+destination while the shell stands in the state directory (after a `cd`, or
+at the host's `cwd`). `cp -s`, `cp -l` and their long forms make a link as `ln`
+does. A decompressor (`gzip -d`, `gunzip`, `bunzip2`, `xz -d`, `zstd -d`) writes
+the name without its suffix, a compressor removes its file; git's `--output`
+file and the folder of `-C` or `--work-tree` count. A folder
+below it (`logs/`, `config/proposals/`) stays free. What it does not read: a
+variable the line sets itself (`D=…; echo x > $D/config.toml`), a path the shell
+computes (`"$(cygpath -u "$LOCALAPPDATA")/loomux/config.toml"`,
+`($env:LOCALAPPDATA + '/loomux/config.toml')`), which strict mode does not
+refuse either, and, in the default
+mode, a program that opens the file itself (`python -c "open(…)"`); strict mode
+refuses an unknown program that names a state file or the state directory.
 
 **Exception: the `llm_config` switch.** If the project's area has `llm_config = true`
 (`loomux config llm on`, by a human only), the manifest lock is lifted for exactly the
@@ -610,13 +647,20 @@ base name in any case, without `.exe`:
   source ending in `/.` and rsync's trailing slash (`cp -r /tmp/x/.loomux
   .`);
 - the target a flag names: `dd of=`, `tar -C`/`--directory` and, when it
-  creates, `-f`/`--file`; `unzip -d`, `Expand-Archive -DestinationPath`,
+  creates, `-f`/`--file`; `unzip -d`, `Expand-Archive -DestinationPath` (or
+  its second positional argument), `7z x -o`, `cpio -D`, git's `--output`,
+  `archive -o` and `format-patch -o`, a decompressor's unsuffixed name; an
+  extraction without a destination names the working folder itself;
   `robocopy`/`xcopy` (the second path, robocopy's file names under it,
   xcopy's source under its name in a folder, and the second path as removed
   with `/E`, `/S` or `/MIR`), `New-Item -Path`/`-Name`; downloads
   by `curl -o`/`--output`, `curl -O`, `--remote-name` or `--remote-name-all`
   (the URL's name under `--output-dir`), `wget -O`, `wget` without it (the
-  URL's name under `-P`), `-OutFile`;
+  URL's name under `-P`), `-OutFile`, `certutil -urlcache`/`-decode`/`-encode`
+  (the last word), `bitsadmin /transfer` and `/addfile` (the last word),
+  `fsutil file createnew`, `seteof` and `setzerodata`; a
+  `GIT_WORK_TREE=` in front of a git call (also behind `env`) counts as its
+  `--work-tree`;
 - `find` with `-delete`, or `-exec`, `-execdir`, `-ok`, `-okdir` running a
   removing verb, removes its start paths (the working folder without one),
   and with a name filter (`-name`, `-iname`, `-path`, `-ipath`) only what
@@ -748,7 +792,8 @@ within the limits below, each of them measured on 2026-10-12 against
   a protected path on the line
   (`python -c "open('.loomux/flows/example/flow.toml','w')"`), but a script
   that opens the file without the line naming it (`python tools/w.py`) passes
-  in every mode.
+  in every mode. The files of the state directory are no exception: `python -c
+  "open(r'<state>\config.toml','w')"` passes the default mode.
 - **A spelling the guard does not recognise.** A verb under another name, or a
   form the verbs above do not list, is read as no write. The command rules,
   those of `[policy.commands]` and the built-in one for `git push`, match the
@@ -772,12 +817,33 @@ within the limits below, each of them measured on 2026-10-12 against
   link the line does not name, pass.
 - **A shell line that writes outside every writable tree.** The write barrier
   decides only about the host's writing tools, so a shell line passes it
-  wherever it writes: `echo x >> registry.toml`, `echo x > open.toml` and
-  `Add-Content` on the registry in the state directory, `cp` onto the
-  installed `loomux.exe` there, `echo {} > ~/.claude/settings.json` and
+  wherever it writes: `echo x > open.toml` in the state directory (its
+  `registry.toml`, `config.toml`, `ui.toml` and `ui.json` are the policy's, see
+  the state files above), `cp` onto the installed `loomux.exe` there, `echo {} > ~/.claude/settings.json` and
   `Set-Content` on a file under `~/.gemini` pass in both modes, where `Write`
   on the same files is refused as lying outside every writable tree (unless a
   registered tree encloses them).
+- **A browser an agent drives.** The guard keeps an agent from running
+  `loomux ui`, not from using a browser a human opened on it. The session that
+  login opened stays valid until the process ends, and whatever controls that
+  browser (a remote-controlled or automated one) can write configuration
+  through the interface as the human would. Every write still shows its diff
+  and needs the form token, which the page itself hands to that browser. End
+  the interface with `loomux ui stop` when an agent has a browser.
+- **A `loomux ui` the line spells out of sight.** The guard reads the words of
+  a line and the text around them, and refuses the computed forms it can name
+  (an expanded first argument, `xargs`, a call operator on a looked-up
+  command, `Process.Start` and the task scheduler). Some pass: a program name
+  built from parts (`& ('loo'+'mux') ui`, `& "loo$()mux" ui`), a script
+  file the line writes and then runs (`echo "loomux ui" > x.ps1; ./x.ps1`),
+  a line decoded and fed to a shell (`echo bG9v… | base64 -d | sh`), and the
+  binary or its folder under another name that a copy, a link or a build gave
+  it (`cp bin/loomux.exe x.exe; ./x.exe ui`, `go build -o x.exe ./cmd/loomux`,
+  a junction onto `cmd\loomux`). Refusing them would mean refusing every call
+  operator on a computed name, every script and every renamed program an
+  agent runs, and a later call in another tool call never shows the copy. In
+  strict mode a program the guard does not know counts as loomux by its
+  arguments. The guard's tests hold all of them as recorded passes.
 - **The host's hook wiring.** `.claude/settings.json`,
   `.claude/settings.local.json` (`disableAllHooks`) and `.agents/hooks.json`
   are not protected, the user settings `~/.claude/settings.json` only against
@@ -794,10 +860,10 @@ loomux $args }; l config apply`); a program that opens the file itself
 (`python -c "open(…)"`, a script the agent wrote, a build tool); a verb
 under another name; a patch fed through a pipe (`cat p.diff | git
 apply`), and one that changes between the guard's reading and the run;
-`find … -exec loomux …` and `xargs loomux` with its arguments from stdin;
-an archive, whose content is unknown (`tar -x`
-without `-C`, `unzip a.zip -d .loomux`); `git -C <dir>`, whose paths still
-count from the working folder; `git checkout -f` without a path, and
+`find … -exec loomux …` (`xargs loomux` with no subcommand of its own is
+refused, since stdin may bring it); an archive, whose content is unknown
+(`tar -x` without `-C`, `unzip a.zip -d .loomux`, `gunzip -N a.gz`, which
+writes the name the archive stores); `git checkout -f` without a path, and
 `git checkout .`, `git restore .`, `git checkout -- .loomux`, `git stash` and
 `git reset --hard`, which overwrite tracked files from the index or a commit;
 a PowerShell expression in parentheses other than `(Join-Path …)`
