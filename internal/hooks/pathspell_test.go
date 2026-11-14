@@ -129,15 +129,15 @@ func TestExpandGlobMatchesTheDiskLikeBash(t *testing.T) {
 
 func TestSpellingsAreRelativeToTheRoot(t *testing.T) {
 	root := t.TempDir()
-	got, err := spellings(root, "./.loomux/flows/{example,zz}/x")
+	got, err := spellings(root, "", "./.loomux/flows/{example,zz}/x")
 	if err != nil || !slices.Equal(got, []string{".loomux/flows/example/x", ".loomux/flows/zz/x"}) {
 		t.Fatalf("braces: %q, %v", got, err)
 	}
-	got, err = spellings(root, filepath.Join(root, ".loomux", "config.toml")+":backup")
+	got, err = spellings(root, "", filepath.Join(root, ".loomux", "config.toml")+":backup")
 	if err != nil || !slices.Equal(got, []string{".loomux/config.toml"}) {
 		t.Fatalf("stream: %q, %v", got, err)
 	}
-	_, err = spellings(root, "x{1..65}")
+	_, err = spellings(root, "", "x{1..65}")
 	if err == nil || !strings.Contains(err.Error(), strconv.Itoa(maxBraceVariants)) {
 		t.Fatalf("past the limit: %v", err)
 	}

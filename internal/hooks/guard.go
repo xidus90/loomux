@@ -7,6 +7,7 @@ package hooks
 import (
 	"fmt"
 	"maps"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -220,7 +221,9 @@ func typedLines(name, value string) (lines []string, refusal string) {
 func relativePath(raw, root string) string {
 	raw = filepath.Clean(raw)
 	if !filepath.IsAbs(raw) {
-		return filepath.ToSlash(raw)
+		// Windows' Clean puts ./ before a first element that holds a colon
+		// ($env:NAME, a stream name); it is the same relative path.
+		return strings.TrimPrefix(filepath.ToSlash(raw), "./")
 	}
 	rel, err := filepath.Rel(root, raw)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -242,7 +245,10 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 // checkToolOpen is checkTool in a project whose llm_config switch open
 // answers, for a shell whose working directory here says is the root. Both
 // are asked only for a call on the project's own manifest or a line that
-// edits its config, because answering reads the registry.
+// edits its config, because answering reads the registry. stateDir is the
+// state directory whose machine-wide files (stateFiles) the call may not
+// write; empty, it names none and the state-file check judges nothing. cwd is
+// the host's working folder for the call, "" when it did not say.
 func checkToolOpen(root, stateDir, cwd, tool string, input map[string]any, policy config.Policy, open, here func() bool) []string {
 	var reasons []string
 	var targets []shellTarget
@@ -278,7 +284,7 @@ func checkToolOpen(root, stateDir, cwd, tool string, input map[string]any, polic
 				if policy.Strict {
 					reasons = append(reasons, j.strictReasons(found, unknown)...)
 				}
-				if writesConfiguration(line, policy.Strict) && !(editsOwnConfig(line) && j.here() && j.open()) {
+				if writesConfigurationAt(cwd, line, policy.Strict) && !(editsOwnConfig(line) && j.here() && j.open()) {
 					reasons = append(reasons, configurationReason)
 				}
 				if answersAGate(line, policy.Strict) {
@@ -331,7 +337,7 @@ func pathReasons(rules []config.PathRule, rel string, fold bool) []string {
 }
 
 // configurationReason refuses the loomux commands only a human runs.
-const configurationReason = "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies"
+const configurationReason = "loomux init, config, ui and area add write the configuration the guard reads (ui serves the interface that writes it), merge-hook install and remove write executable hooks into repositories, convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies"
 
 // editsOwnConfig says whether line is nothing but loomux config set or unset
 // of the project's own config, answered without asking (--yes). It is an
@@ -375,19 +381,29 @@ func editsOwnConfig(line string) bool {
 // what it guarantees and what passes in the default mode. With anyProgram, in
 // strict mode, every program knownProgram does not name counts as loomux.
 func writesConfiguration(line string, anyProgram bool) bool {
+	return writesConfigurationAt("", line, anyProgram)
+}
+
+// writesConfigurationAt is writesConfiguration for a shell that starts in
+// cwd, where "" is the project's root: a line it runs from a string starts
+// there as well.
+func writesConfigurationAt(cwd, line string, anyProgram bool) bool {
 	return anyRunLine(line, func(l string, nested bool) bool {
-		return lineWritesConfiguration(l, anyProgram, nested)
+		return lineWritesConfiguration(l, cwd, anyProgram, nested)
 	})
 }
 
 // lineWritesConfiguration is writesConfiguration for one line, without the
 // lines it runs from a string. A nested line is one of those: its words are
 // not the ones the guard read, so no flag in it exempts.
-func lineWritesConfiguration(line string, anyProgram, nested bool) bool {
+func lineWritesConfiguration(line, cwd string, anyProgram, nested bool) bool {
 	// Judged on the line as written, before any rewrite: a continuation or
 	// an escape the rewrites resolve is already no plain line.
+	if hidesLoomuxCall(line) {
+		return true
+	}
 	plain := !nested && plainLine(line)
-	for _, variant := range lineVariants(line) {
+	for _, variant := range configurationVariants(line, cwd) {
 		// The quote-blind cut also breaks inside a wrapper's quoted inner
 		// command and puts its loomux at the head of a segment, while the
 		// wrapper reads that string once more. Such a segment finds a call
@@ -498,20 +514,22 @@ func lineVariants(line string) []string {
 			out = append(out, s)
 		}
 	}
-	rewrites := []*strings.Replacer{
-		strings.NewReplacer("\\\r\n", "", "\\\n", "", "`\r\n", " ", "`\n", " "),
-		strings.NewReplacer("`", ""),
+	rewrites := []func(string) string{
+		// Bash's $'…' and $"…" quote a word; the shell reads the word.
+		dollarQuoted,
+		strings.NewReplacer("\\\r\n", "", "\\\n", "", "`\r\n", " ", "`\n", " ").Replace,
+		strings.NewReplacer("`", "").Replace,
 		// A caret escapes the next character for cmd (con^fig); dropping it
 		// adds the reading cmd runs, and never removes a refusal.
-		strings.NewReplacer("^", ""),
+		strings.NewReplacer("^", "").Replace,
 		// A brace glued to a word ({loomux init}, try{) still opens or
 		// closes a block; set apart, it becomes the lone word readingWrites
 		// looks behind.
-		strings.NewReplacer("{", " { ", "}", " } "),
+		strings.NewReplacer("{", " { ", "}", " } ").Replace,
 	}
 	for _, r := range rewrites {
 		for _, v := range out {
-			if w := r.Replace(v); !slices.Contains(out, w) {
+			if w := r(v); !slices.Contains(out, w) {
 				out = append(out, w)
 			}
 		}
@@ -541,7 +559,10 @@ func lineVariants(line string) []string {
 // segment of this line; the rules read it as a line of its own (anyRunLine),
 // and a variable or alias the line sets is put in (lineVariants). Not
 // guaranteed: an alias, or a program held in a variable, set elsewhere than
-// on the line, a command inside script -c ..., a program a known tool runs
+// on the line, a command inside script -c ..., a program name built from
+// parts, a script file the line writes and runs, a decoded line fed to a
+// shell, a copy, link or build of the binary under another name (strict mode
+// reads that by its arguments), a program a known tool runs
 // (uv run loomux init, npx loomux init, find -exec loomux), and, after any
 // earlier escaped \" or \' on the line, a quoted program
 // path whose part after its last break character ( ) & ; | holds a blank: the
@@ -623,6 +644,11 @@ func wordsWriteConfiguration(words []string, plain, anyProgram, scan bool) bool 
 	if len(read.program) == 0 {
 		return false
 	}
+	// xargs appends the words it reads to the call: when the call names no
+	// subcommand of its own, a pipe may bring it.
+	if args, ok := loomuxArgs(read.program); ok && read.viaXargs && (len(args) == 0 || args[0] == "" || args[0][0] < 'a' || args[0][0] > 'z') {
+		return true
+	}
 	if programWrites(read.program, plain && len(read.program) == head, anyProgram) {
 		return true
 	}
@@ -640,7 +666,7 @@ func behindUnknown(words []string, judge func([]string) bool) bool {
 		return false
 	}
 	for i := 1; i < len(words); i++ {
-		if _, ok := loomuxArgs(words[i:]); ok && judge(words[i:]) {
+		if _, ok := loomuxArgs(words[i:]); ok && (!isLoomux(words[i]) || namesLoomux(words[i])) && judge(words[i:]) {
 			return true
 		}
 	}
@@ -688,6 +714,11 @@ func programWrites(words []string, exempt, anyProgram bool) bool {
 			}
 		}
 		return len(args) != 2 || (args[1] != "--help" && args[1] != "-h")
+	case "ui":
+		// Every form starts, restarts or stops the local web interface, which
+		// writes configuration behind a login only the starting terminal
+		// knows; a lone --help or -h only reads.
+		return len(args) != 2 || (args[1] != "--help" && args[1] != "-h")
 	case "convert", "fetch":
 		// Both write into an area's inbox, which the write barrier keeps
 		// from agents; a lone --help or -h only reads.
@@ -714,7 +745,7 @@ func startsLoomux(words []string) bool {
 			if strings.HasPrefix(w, "-") {
 				w = w[strings.IndexByte(w, ':')+1:]
 			}
-			return isLoomux(strings.Trim(w, `"'`))
+			return namesLoomux(strings.Trim(w, `"'`))
 		})
 	}
 	return false
@@ -967,6 +998,8 @@ type prefixes struct {
 	// named are the words from each wrapper named by a path on: a file there
 	// may be any program, a copied loomux too, which strict mode judges.
 	named [][]string
+	// written are the files a wrapper's own flags write (outputFlags).
+	written []string
 }
 
 // note keeps words as a call of their own when the wrapper at their head is
@@ -981,8 +1014,9 @@ func (p *prefixes) note(words []string) {
 // the folder they set and whether the wrapper is a program of its own rather
 // than the shell's builtin, and says how many words they take.
 func (p *prefixes) wrapped(name string, words []string, builtin bool) int {
-	n, dir := wrapperFlags(name, words)
+	n, dir, files := wrapperFlags(name, words)
 	p.dir = followed(p.dir, dir)
+	p.written = append(p.written, files...)
 	p.spawns = p.spawns || !builtin
 	return n
 }
@@ -1134,17 +1168,21 @@ var spawnNoValueWrappers = []string{"winpty", "setsid", "chronic", "nohup"}
 // chdirFlags are the flags that set the folder a wrapper runs its program in.
 var chdirFlags = map[string][]string{"env": {"-C", "--chdir"}, "sudo": {"-D", "--chdir"}}
 
+// outputFlags are the flags that name a file the wrapper writes.
+var outputFlags = map[string][]string{"time": {"-o", "--output"}}
+
 // wrapperFlags is how many words at the head of words are the wrapper's
-// flags, a flag's separate value included (flagValue), and the folder a flag
-// of chdirFlags sets. A redirection among them counts as well, also between a
-// flag and its value: the shell takes it out of the words before the wrapper
-// reads them. -- ends them and counts; env's lone - is its -i.
-func wrapperFlags(wrapper string, words []string) (n int, dir string) {
+// flags, a flag's separate value included (flagValue), the folder a flag
+// of chdirFlags sets and the files those of outputFlags name. A redirection
+// among them counts as well, also between a flag and its value: the shell
+// takes it out of the words before the wrapper reads them. -- ends them and
+// counts; env's lone - is its -i.
+func wrapperFlags(wrapper string, words []string) (n int, dir string, files []string) {
 	n = pastRedirections(words, 0)
 	for n < len(words) {
 		w := words[n]
 		if w == "--" {
-			return n + 1, dir
+			return n + 1, dir, files
 		}
 		if (len(w) < 2 || w[0] != '-') && (wrapper != "env" || w != "-") {
 			break
@@ -1161,9 +1199,12 @@ func wrapperFlags(wrapper string, words []string) (n int, dir string) {
 		if slices.Contains(chdirFlags[wrapper], name) {
 			dir = value
 		}
+		if slices.Contains(outputFlags[wrapper], name) {
+			files = append(files, value)
+		}
 		n = pastRedirections(words, n)
 	}
-	return min(n, len(words)), dir
+	return min(n, len(words)), dir, files
 }
 
 // flagValue reads flag the way getopt reads the wrapper's flags: name is the
@@ -1236,31 +1277,54 @@ func baseName(w string) string {
 // isLoomux says whether w names the loomux program: by name or by a path
 // ending in loomux or loomux.exe.
 func isLoomux(w string) bool {
-	base := baseName(w)
-	return base == "loomux" || base == "loomux.exe"
+	// Windows drops trailing dots and blanks from a file name.
+	base := strings.TrimRight(baseName(w), ". ")
+	// A glob in the name (bin/loo*.exe) finds the file without spelling it.
+	for _, name := range []string{"loomux", "loomux.exe"} {
+		if ok, _ := path.Match(base, name); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// namesLoomux is isLoomux for a word among the arguments of another program:
+// a glob counts only when it spells a letter or a digit of the name, so that
+// a bare wildcard (`*`, `?`, `*.*`), which every file name matches, is none.
+// A word in the program's own place keeps the wider reading, since a shell
+// that runs a glob runs what it finds.
+func namesLoomux(w string) bool {
+	return isLoomux(w) && strings.ContainsFunc(baseName(w), func(r rune) bool {
+		return r >= 'a' && r <= 'z' || r >= '0' && r <= '9'
+	})
 }
 
 // loomuxArgs returns the arguments after the program when the program is
 // loomux, or go run of its main package.
 func loomuxArgs(words []string) ([]string, bool) {
 	if isLoomux(words[0]) {
-		return words[1:], true
+		return withoutParallelMarks(words[1:]), true
 	}
-	if verbOf(words[0]) != "go" || len(words) < 2 || words[1] != "run" {
-		return nil, false
-	}
-	rest := words[2:]
-	for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
-		flag := rest[0]
-		rest = rest[1:]
-		if !strings.Contains(flag, "=") && goFlagTakesValue(strings.TrimLeft(flag, "-")) && len(rest) > 0 {
-			rest = rest[1:]
-		}
-	}
-	if len(rest) > 0 && isLoomuxPackage(rest[0]) {
-		return rest[1:], true
+	if dir, pkg, ok := goRunCall(words); ok && pkg >= 0 && isLoomuxPackage(path.Join(dir, words[pkg])) {
+		return words[pkg+1:], true
 	}
 	return nil, false
+}
+
+// withoutParallelMarks is args as GNU parallel hands them to the program: it
+// appends the words after each ::: (parallel loomux ::: ui) or puts them where
+// a {} stands, so those marks are no arguments of their own.
+func withoutParallelMarks(args []string) []string {
+	if !slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, ":::") }) {
+		return args
+	}
+	var out []string
+	for _, a := range args {
+		if !strings.HasPrefix(a, ":::") && !(strings.HasPrefix(a, "{") && strings.HasSuffix(a, "}")) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // knownTools are programs whose subcommands share loomux's names (git
@@ -1307,21 +1371,9 @@ func goFlagTakesValue(name string) bool {
 	switch name {
 	case "C", "tags", "ldflags", "gcflags", "asmflags", "gccgoflags", "mod", "modfile",
 		"exec", "toolexec", "overlay", "pgo", "p", "pkgdir", "buildmode", "compiler",
-		"installsuffix", "coverpkg", "covermode", "o":
+		"installsuffix", "coverpkg", "covermode", "o",
+		"debug-trace", "debug-actiongraph", "debug-runtime-trace":
 		return true
 	}
 	return false
-}
-
-// isLoomuxPackage says whether a go run argument is loomux's main package:
-// cmd/loomux or its main.go, relative or under a module path, at any version.
-// It compares whole path elements, so mycmd/loomux is another package.
-func isLoomuxPackage(p string) bool {
-	p = strings.ToLower(p)
-	if at := strings.LastIndexByte(p, '@'); at >= 0 {
-		p = p[:at]
-	}
-	p = strings.TrimSuffix(strings.TrimSuffix(p, "/"), "/main.go")
-	p = strings.TrimPrefix(p, "./")
-	return p == "cmd/loomux" || strings.HasSuffix(p, "/cmd/loomux")
 }

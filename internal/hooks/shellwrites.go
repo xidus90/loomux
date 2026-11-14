@@ -35,7 +35,8 @@ type shellTarget struct {
 var (
 	// everyFileWrites write every file they name.
 	everyFileWrites = []string{"tee", "tee-object", "set-content", "add-content", "ac", "out-file",
-		"clear-content", "clc", "truncate", "touch"}
+		"clear-content", "clc", "truncate", "touch", "export-csv", "epcsv", "export-clixml", "export-alias",
+		"epal", "export-formatdata", "start-transcript"}
 	// everyFileRemoves remove every file or folder they name, a folder with all it holds.
 	everyFileRemoves = []string{"rm", "del", "erase", "remove-item", "ri", "rd", "rmdir", "unlink", "shred"}
 	// moveVerbs remove their sources and write their destination.
@@ -48,13 +49,20 @@ var (
 	readVerbs = []string{"cat", "type", "get-content", "gc", "less", "more", "head", "tail", "wc",
 		"stat", "file", "jq", "ls", "dir", "get-childitem", "gci", "grep", "rg", "select-string",
 		"sls", "diff", "echo", "printf", "write-output", "cd", "set-location", "sl", "pushd",
-		"popd", "test-path"}
+		"popd", "chdir", "push-location", "pop-location", "test-path"}
 	// otherWriteVerbs are the verbs verbWrites reads one by one, for
 	// knownProgram; git stands in knownTools.
-	otherWriteVerbs = []string{"dd", "tar", "unzip", "expand-archive", "robocopy", "xcopy", "new-item",
-		"ni", "mklink", "curl", "wget", "invoke-webrequest", "iwr", "find", "sed", "perl", "patch"}
+	otherWriteVerbs = slices.Concat([]string{"dd", "tar", "bsdtar", "gtar", "unzip", "7z", "7za", "7zr", "7zz", "cpio",
+		"expand-archive", "robocopy", "xcopy", "new-item", "ni", "mklink", "fsutil", "certutil", "bitsadmin", "subst", "new-psdrive", "ndr", "mount",
+		"curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm", "start-bitstransfer",
+		"find", "sed", "perl", "patch"}, unpackVerbs, packVerbs)
+	// unpackVerbs write each file they are given under its name without the
+	// suffix; packVerbs do so with -d, and otherwise replace the file by the
+	// packed one.
+	unpackVerbs = []string{"gunzip", "bunzip2", "unxz", "unlzma", "unzstd", "uncompress"}
+	packVerbs   = []string{"gzip", "bzip2", "xz", "lzma", "zstd", "compress"}
 	// changeDirectory move the place relative paths after them start from.
-	changeDirectory = []string{"cd", "set-location", "sl", "pushd"}
+	changeDirectory = []string{"cd", "chdir", "set-location", "sl", "pushd", "push-location"}
 )
 
 // unknownCall is a program the verb table does not know, with its
@@ -127,9 +135,12 @@ func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown
 					// that reads stdin its line.
 					for _, fed := range fedLines(prev, words, piped) {
 						if depth < maxInnerDepth {
-							f, calls := shellWritesAt(joinPlace(root, base), fed, depth+1)
-							targets = append(targets, under(base, f)...)
-							read.inner = append(read.inner, calls...)
+							place := followed(base, read.dir)
+							f, calls := shellWritesAt(joinPlace(root, place), fed, depth+1)
+							targets = append(targets, under(place, f)...)
+							for _, call := range calls {
+								read.inner = append(read.inner, unknownCall{followed(read.dir, call.base), call.args})
+							}
 						}
 					}
 					if piped && trusted {
@@ -378,19 +389,29 @@ func segmentWrites(dir string, words []string, depth int, grouped bool) segmentR
 			targets = append(targets, shellTarget{path: target, shell: true})
 		}
 	}
+	pre := readPrefixes(args)
+	targets = append(targets, under(filepath.ToSlash(pre.dir), targetsOf(pre.written, false))...)
 	line, after, ok := innerLine(args)
 	ran := ok && depth < maxInnerDepth
 	if ran {
-		found, calls := shellWritesAt(dir, line, depth+1)
-		targets, inner = append(targets, found...), calls
+		// The string runs where env -C, sudo -D or pwsh -WorkingDirectory
+		// start the shell; one the guard cannot tell from another is read
+		// from each place.
+		for _, start := range append([]string{""}, psWorkingDirectories(args)...) {
+			place := followed(pre.dir, start)
+			found, calls := shellWritesAt(joinPlace(dir, place), line, depth+1)
+			targets = append(targets, under(filepath.ToSlash(place), found)...)
+			for _, call := range calls {
+				inner = append(inner, unknownCall{followed(place, call.base), call.args})
+			}
+		}
 	}
-	pre := readPrefixes(args)
 	read := segmentRead{args: pre.program, known: true, inner: inner, dir: pre.dir, spawns: pre.spawns, viaXargs: pre.viaXargs, named: pre.named}
 	if len(read.args) == 0 {
 		read.targets = targets
 		return read
 	}
-	found, known := verbWrites(joinPlace(dir, pre.dir), read.args, input)
+	found, known := verbWrites(joinPlace(dir, pre.dir), withWorkTree(read.args, args[:len(args)-len(read.args)]), input)
 	if ran && slices.Contains(stringShells, verbOf(read.args[0])) {
 		known = true
 		// The words after the string reach the script as $0, $1, …, where
@@ -402,6 +423,36 @@ func segmentWrites(dir string, words []string, depth int, grouped bool) segmentR
 	read.known = known
 	read.targets = append(targets, under(filepath.ToSlash(pre.dir), found)...)
 	return read
+}
+
+// withWorkTree is a git call with the GIT_WORK_TREE among the words in front
+// of it (VAR=value, or after env) put in as the --work-tree it stands for;
+// any other call is as it was. The last assignment wins, as in a shell.
+func withWorkTree(call, before []string) []string {
+	if verbOf(call[0]) != "git" {
+		return call
+	}
+	for i := len(before) - 1; i >= 0; i-- {
+		// Windows ignores the case of a variable's name.
+		const name = "GIT_WORK_TREE="
+		if w := before[i]; len(w) >= len(name) && strings.EqualFold(w[:len(name)], name) {
+			return append([]string{call[0], "--work-tree=" + w[len(name):]}, call[1:]...)
+		}
+	}
+	return call
+}
+
+// psWorkingDirectories are the folders pwsh -WorkingDirectory (-wd) among
+// args starts in; the guard does not tell the flag from a word of the
+// command that has its spelling, so each counts.
+func psWorkingDirectories(args []string) []string {
+	out := psValues(args, "workingdirectory")
+	for i, a := range args {
+		if strings.EqualFold(a, "-wd") && i+1 < len(args) {
+			out = append(out, args[i+1])
+		}
+	}
+	return out
 }
 
 // redirectTarget reads w as a redirection: whether it is one, whether it
@@ -431,7 +482,10 @@ func redirectTarget(w string) (redirect, writes, bare bool, target string) {
 }
 
 // verbWrites is what a program does to its arguments, by the verb table;
-// input is the file a < redirection hands it, or "".
+// input is the file a < redirection hands it, or "". The archivers and
+// compressors with many output options (bsdtar, gtar, 7z, cpio, gzip and its
+// kin) give their targets but are not known: a write form the table does not
+// read must still reach strict mode's check of every path the line names.
 func verbWrites(dir string, args []string, input string) ([]shellTarget, bool) {
 	verb := verbOf(args[0])
 	rest := args[1:]
@@ -446,13 +500,65 @@ func verbWrites(dir string, args []string, input string) ([]shellTarget, bool) {
 		return renamed(rest), true
 	case verb == "ln":
 		return append(destination(dir, verb, rest), linkedTargets(positional(rest))...), true
+	case verb == "cp" && makesLinks(rest):
+		return append(destination(dir, verb, rest), linkedTargets(positional(rest))...), true
 	case slices.Contains(copyVerbs, verb):
 		return destination(dir, verb, rest), true
+	case slices.Contains(unpackVerbs, verb) || slices.Contains(packVerbs, verb):
+		return compressed(verb, rest), false
 	}
 	switch verb {
 	case "mklink":
 		words := positional(rest)
 		return append(targetsOf(words[:min(1, len(words))], false), linkedTargets(words)...), true
+	case "fsutil":
+		// fsutil hardlink create <new name> <existing file>, the NTFS sibling
+		// of mklink /H; its other subcommands are not read.
+		words := positional(rest)
+		if len(words) >= 3 && strings.EqualFold(words[0], "file") {
+			// fsutil file createnew <path> <size>, seteof <path> <size> and
+			// setzerodata offset=… length=… <path> write the file.
+			switch strings.ToLower(words[1]) {
+			case "createnew", "seteof":
+				return targetsOf(words[2:3], false), true
+			case "setzerodata":
+				return targetsOf(words[len(words)-1:], false), true
+			}
+		}
+		if len(words) < 3 || !strings.EqualFold(words[0], "hardlink") || !strings.EqualFold(words[1], "create") {
+			return nil, false
+		}
+		words = words[2:]
+		return append(targetsOf(words[:1], false), linkedTargets(words)...), true
+	case "certutil":
+		// -urlcache -f <url> <file>, -decode and -encode <in> <out>,
+		// -decodehex and -encodehex: the last word is the file written.
+		words := positional(rest)
+		if len(words) > 1 && slices.ContainsFunc(rest, func(a string) bool {
+			return slices.Contains([]string{"urlcache", "decode", "encode", "decodehex", "encodehex"}, strings.ToLower(strings.TrimLeft(a, "-/")))
+		}) {
+			return targetsOf(words[len(words)-1:], false), true
+		}
+		return nil, false
+	case "bitsadmin":
+		// /transfer <job> [flags] <url> <file> and /addfile <job> <url>
+		// <file>: the last word is the file written.
+		if len(rest) > 1 && slices.ContainsFunc(rest, func(a string) bool {
+			return slices.Contains([]string{"/transfer", "/addfile"}, strings.ToLower(a))
+		}) {
+			return targetsOf(rest[len(rest)-1:], false), true
+		}
+		return nil, false
+	case "subst", "new-psdrive", "ndr", "mount":
+		// A drive letter or a mount point is a second name for a folder: the
+		// write through it names a path that does not exist yet.
+		return linkedTargets(positional(rest)), true
+	case "start-bitstransfer":
+		dest := psValues(rest, "destination")
+		if words := positional(rest); len(dest) == 0 && len(words) > 1 {
+			dest = words[len(words)-1:]
+		}
+		return targetsOf(dest, false), true
 	case "dd":
 		var out []string
 		for _, a := range rest {
@@ -463,15 +569,21 @@ func verbWrites(dir string, args []string, input string) ([]shellTarget, bool) {
 		return targetsOf(out, false), true
 	case "tar":
 		return tarWrites(rest), true
+	case "bsdtar", "gtar":
+		return tarWrites(rest), false
 	case "unzip":
-		return targetsOf(posixValues(rest, "-d", ""), false), true
+		return unzipWrites(rest), true
+	case "7z", "7za", "7zr", "7zz":
+		return sevenZipWrites(rest), false
+	case "cpio":
+		return cpioWrites(rest), false
 	case "expand-archive":
-		return targetsOf(psValues(rest, "destinationpath"), false), true
+		return targetsOf(expandDestinations(rest), false), true
 	case "robocopy", "xcopy":
 		return mirrored(dir, verb, rest), true
 	case "new-item", "ni":
 		return newItem(rest), true
-	case "curl", "wget", "invoke-webrequest", "iwr":
+	case "curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm":
 		return downloads(verb, rest), true
 	case "find":
 		return findRemoves(rest), true
@@ -494,9 +606,22 @@ func verbOf(program string) string {
 }
 
 // linkedTargets are the paths a link command names, a new name and what it
-// points at alike.
+// points at alike. A relative target is resolved from the folder of the
+// link, which the guard cannot tell from the other path, so each relative
+// path is also named below the folder of each of the others.
 func linkedTargets(paths []string) []shellTarget {
 	out := targetsOf(paths, false)
+	for _, p := range paths {
+		if p == "" || rooted(p) {
+			continue
+		}
+		for _, other := range paths {
+			// A link in the working folder resolves it from there already.
+			if folder := path.Dir(strings.ReplaceAll(other, `\`, "/")); other != p && folder != "." {
+				out = append(out, shellTarget{path: folder + "/" + p, shell: true})
+			}
+		}
+	}
 	for i := range out {
 		out[i].linked = true
 	}
@@ -764,15 +889,20 @@ func mirrored(dir, verb string, args []string) []shellTarget {
 // --directory), and when it creates -- a c in a flag word or in its first,
 // dashless word, or --create -- the archive (-f, --file, an f ending a
 // bundle). What an archive holds is unknown, so an extraction into the
-// working folder without -C writes nothing the guard can name.
+// working folder without -C writes into that folder (intoFolder).
 func tarWrites(args []string) []shellTarget {
 	out := posixValues(args, "-C", "--directory")
 	creates := slices.Contains(args, "--create")
+	extracts := slices.Contains(args, "--extract") || slices.Contains(args, "--get")
 	for i, a := range args {
 		bundle, dashed := strings.CutPrefix(a, "-")
-		if !strings.HasPrefix(a, "--") && letters(bundle) && (dashed || i == 0) && strings.ContainsRune(bundle, 'c') {
-			creates = true
+		if !strings.HasPrefix(a, "--") && letters(bundle) && (dashed || i == 0) {
+			creates = creates || strings.ContainsRune(bundle, 'c')
+			extracts = extracts || strings.ContainsRune(bundle, 'x')
 		}
+	}
+	if extracts {
+		out = intoFolder(out)
 	}
 	if creates {
 		out = append(out, posixValues(args, "-f", "--file")...)
@@ -781,6 +911,129 @@ func tarWrites(args []string) []shellTarget {
 		}
 	}
 	return targetsOf(out, false)
+}
+
+// intoFolder is dirs, or the working folder when an extraction names none:
+// what an archive holds is unknown, so the folder it lands in counts for any
+// write.
+func intoFolder(dirs []string) []string {
+	if len(dirs) == 0 {
+		return []string{"."}
+	}
+	return dirs
+}
+
+// unzipWrites are where unzip extracts: -d, or the working folder. -l, -t,
+// -p, -v, -c, -z and -Z (zipinfo) only read.
+func unzipWrites(args []string) []shellTarget {
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		if len(a) > 1 && a[0] == '-' && letters(a[1:]) && strings.ContainsAny(a[1:], "ltpvczZ") {
+			return nil
+		}
+	}
+	return targetsOf(intoFolder(posixValues(args, "-d", "")), false)
+}
+
+// sevenZipWrites are where 7z writes: x and e extract into -o<dir> or the
+// working folder; a, u, d and rn change the archive named after them.
+func sevenZipWrites(args []string) []shellTarget {
+	words := positional(args)
+	if len(words) == 0 {
+		return nil
+	}
+	switch words[0] {
+	case "x", "e":
+		return targetsOf(intoFolder(posixValues(args, "-o", "")), false)
+	case "a", "u", "d", "rn":
+		return targetsOf(words[1:min(2, len(words))], false)
+	}
+	return nil
+}
+
+// cpioWrites are where cpio writes: -i, --extract into -D, --directory or
+// the working folder, and -p, --pass-through into its last argument.
+func cpioWrites(args []string) []shellTarget {
+	var extracts, passes bool
+	for _, a := range args {
+		bundle, dashed := strings.CutPrefix(a, "-")
+		long := strings.HasPrefix(a, "--")
+		extracts = extracts || a == "--extract" || dashed && !long && letters(bundle) && strings.ContainsRune(bundle, 'i')
+		passes = passes || a == "--pass-through" || dashed && !long && letters(bundle) && strings.ContainsRune(bundle, 'p')
+	}
+	switch words := positional(args); {
+	case passes && len(words) > 0:
+		return targetsOf(words[len(words)-1:], false)
+	case extracts:
+		return targetsOf(intoFolder(posixValues(args, "-D", "--directory")), false)
+	}
+	return nil
+}
+
+// expandDestinations are where Expand-Archive extracts: -DestinationPath, or
+// the second positional argument, the first one when -Path or -LiteralPath
+// brings the archive.
+func expandDestinations(args []string) []string {
+	if dest := psValues(args, "destinationpath"); len(dest) > 0 {
+		return dest
+	}
+	archives := append(psValues(args, "path"), psValues(args, "literalpath")...)
+	words := without(positional(args), archives)
+	if len(archives) == 0 && len(words) > 0 {
+		words = words[1:]
+	}
+	return words[:min(1, len(words))]
+}
+
+// makesLinks says whether cp links its sources instead of copying them: -s,
+// -l in a bundle, --symbolic-link, --link, or an abbreviation getopt takes.
+func makesLinks(args []string) bool {
+	return slices.ContainsFunc(args, func(a string) bool {
+		bundle, dashed := strings.CutPrefix(a, "-")
+		switch {
+		case a == "--" || !dashed:
+			return false
+		case strings.HasPrefix(a, "--"):
+			return len(a) >= 4 && strings.HasPrefix("--symbolic-link", a) || len(a) >= 3 && strings.HasPrefix("--link", a)
+		}
+		return letters(bundle) && strings.ContainsAny(bundle, "sl")
+	})
+}
+
+// compressed is what a compressor does to the files it is given: with -d (or
+// as gunzip and its kin) it writes each under its name without the suffix,
+// and otherwise it replaces each by the packed file, which removes it unless
+// -k keeps it. -c and --stdout write to the output instead; zstd's -o names
+// the output.
+func compressed(verb string, args []string) []shellTarget {
+	unpacks := slices.Contains(unpackVerbs, verb)
+	var keeps, stdout bool
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		short := len(a) > 1 && a[0] == '-' && a[1] != '-' && letters(a[1:])
+		unpacks = unpacks || a == "--decompress" || a == "--uncompress" || short && strings.ContainsRune(a, 'd')
+		stdout = stdout || a == "--stdout" || a == "--to-stdout" || short && strings.ContainsRune(a, 'c')
+		keeps = keeps || a == "--keep" || short && strings.ContainsRune(a, 'k')
+	}
+	outputs := posixValues(args, "-o", "--output")
+	out := targetsOf(outputs, false)
+	if stdout {
+		return out
+	}
+	for _, w := range without(positional(args), outputs) {
+		name := strings.ReplaceAll(w, `\`, "/")
+		switch {
+		case unpacks:
+			out = append(out, shellTarget{path: strings.TrimSuffix(name, path.Ext(name)), shell: true})
+		case !keeps:
+			out = append(out, shellTarget{path: w, removes: true, shell: true})
+		}
+	}
+	return out
 }
 
 // newItem is where New-Item creates: -Path, or every positional argument,
@@ -804,8 +1057,13 @@ func newItem(args []string) []shellTarget {
 	if len(paths) == 0 {
 		out = names
 	}
-	// -Target and -Value are what a link made by -ItemType points at.
-	return append(targetsOf(out, false), linkedTargets(append(psValues(args, "target"), psValues(args, "value")...))...)
+	// -Target and -Value are what a link made by -ItemType points at; the
+	// names are with them, for a target that is relative to the link.
+	links := append(psValues(args, "target"), psValues(args, "value")...)
+	if len(links) > 0 {
+		links = append(links, out...)
+	}
+	return append(targetsOf(out, false), linkedTargets(links)...)
 }
 
 // downloads are the files curl, wget and Invoke-WebRequest write: -OutFile,
@@ -1118,39 +1376,67 @@ func inPlace(args []string, scriptFlags string) []shellTarget {
 // them). diff, log, show, status, blame, add and commit read; every other
 // subcommand is unknown.
 func gitWrites(dir string, args []string, input string) ([]shellTarget, bool) {
-	sub, rest := gitSubcommand(args)
+	sub, rest, base := gitSubcommand(args)
+	dir = joinPlace(dir, base)
+	// The files of --output, -o of archive, the folder of format-patch's -o
+	// and the --file of config are written by any subcommand that takes them.
+	outputs := posixValues(rest, "", "--output")
+	switch sub {
+	case "config":
+		outputs = append(outputs, posixValues(rest, "-f", "--file")...)
+	case "archive":
+		outputs = append(outputs, posixValues(rest, "-o", "")...)
+	case "format-patch":
+		outputs = append(outputs, posixValues(rest, "-o", "--output-directory")...)
+	}
+	written, known := []shellTarget(nil), true
 	switch sub {
 	case "apply", "am":
-		return gitPatchWrites(dir, rest, input), true
+		written = gitPatchWrites(dir, rest, input)
 	case "mv":
-		return moved(dir, rest), true
+		written = moved(dir, rest)
 	case "rm":
-		return targetsOf(positional(rest), true), true
+		written = targetsOf(positional(rest), true)
 	case "checkout", "restore":
-		return checkedOut(dir, sub, rest), true
+		written = checkedOut(dir, sub, rest)
 	case "clean":
-		return cleaned(rest), true
-	case "diff", "log", "show", "status", "blame", "add", "commit":
-		return nil, true
+		written = cleaned(rest)
+	case "diff", "log", "show", "status", "blame", "add", "commit", "archive", "format-patch":
+	default:
+		known = false
 	}
-	return nil, false
+	return under(base, append(written, targetsOf(outputs, false)...)), known
 }
 
 // gitSubcommand skips git's global options -- with the next word as the
 // value of -C, -c, --git-dir, --work-tree and --namespace -- and answers the
-// subcommand and its arguments. Paths after -C count from the working
-// folder all the same: a named limit.
-func gitSubcommand(args []string) (string, []string) {
+// subcommand, its arguments and the folder the options move git to: each -C
+// from the one before, then --work-tree (as -C= or --work-tree=, too), "" for
+// the working folder.
+func gitSubcommand(args []string) (sub string, rest []string, base string) {
+	var tree string
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; {
-		case a == "-C" || a == "-c" || a == "--git-dir" || a == "--work-tree" || a == "--namespace":
+		case (a == "-C" || a == "--work-tree") && i+1 < len(args):
+			i++
+			if a == "-C" {
+				base = followed(base, args[i])
+			} else {
+				tree = args[i]
+			}
+		case strings.HasPrefix(a, "--work-tree="):
+			tree = a[len("--work-tree="):]
+		case a == "-c" || a == "--git-dir" || a == "--namespace":
 			i++
 		case strings.HasPrefix(a, "-"):
 		default:
-			return a, args[i+1:]
+			if base = path.Clean(followed(base, tree)); base == "." {
+				base = ""
+			}
+			return a, args[i+1:], base
 		}
 	}
-	return "", nil
+	return "", nil, ""
 }
 
 // checkedOut are the paths git checkout or restore overwrites: every word
@@ -1372,7 +1658,7 @@ func changedDirectory(base string, args []string) string {
 		return base
 	}
 	verb := verbOf(args[0])
-	if verb == "popd" {
+	if verb == "popd" || verb == "pop-location" {
 		return ""
 	}
 	if !slices.Contains(changeDirectory, verb) {

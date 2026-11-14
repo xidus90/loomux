@@ -60,7 +60,7 @@ func (j judge) reasons(targets []shellTarget) []string {
 			reasons = append(reasons, err.Error())
 			continue
 		}
-		reasons = append(reasons, j.stateReasons(named, target.removes)...)
+		reasons = append(reasons, j.stateReasons(named, target.removes, target.linked)...)
 		// A link is judged only for the machine-wide files it would hand
 		// a second name; the path itself is no write.
 		if target.linked {
@@ -91,7 +91,7 @@ func (j judge) reasons(targets []shellTarget) []string {
 // a refusal the caller names.
 func (j judge) named(target shellTarget) ([]string, error) {
 	if target.shell {
-		return spellings(j.root, target.path)
+		return spellings(j.root, j.cwd, target.path)
 	}
 	return []string{relativePath(target.path, j.root)}, nil
 }
@@ -400,7 +400,7 @@ func (j judge) unknownReaches(base, word string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(j.stateReasons(named, false)) > 0 {
+	if len(j.stateReasons(named, false, false)) > 0 {
 		return true, nil
 	}
 	rels, err := j.rels(named)
