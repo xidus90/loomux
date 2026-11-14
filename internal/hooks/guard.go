@@ -236,17 +236,18 @@ func relativePath(raw, root string) string {
 // shell line is also read by the command rules and for loomux's own commands.
 func checkTool(root, tool string, input map[string]any, policy config.Policy) []string {
 	shut := func() bool { return false }
-	return checkToolOpen(root, tool, input, policy, shut, shut)
+	return checkToolOpen(root, "", "", tool, input, policy, shut, shut)
 }
 
 // checkToolOpen is checkTool in a project whose llm_config switch open
 // answers, for a shell whose working directory here says is the root. Both
 // are asked only for a call on the project's own manifest or a line that
 // edits its config, because answering reads the registry.
-func checkToolOpen(root, tool string, input map[string]any, policy config.Policy, open, here func() bool) []string {
+func checkToolOpen(root, stateDir, cwd, tool string, input map[string]any, policy config.Policy, open, here func() bool) []string {
 	var reasons []string
 	var targets []shellTarget
 	j := newJudge(root, policy, open, here)
+	j.stateDir, j.cwd = stateDir, cwd
 	if guard.IsWritingTool(tool) {
 		for _, target := range guard.WriteTargets(input) {
 			targets = append(targets, shellTarget{path: target})

@@ -25,6 +25,10 @@ type shellTarget struct {
 	// refusal, when set, is the reason the guard cannot tell what the call
 	// writes; the target names no path.
 	refusal string
+	// linked marks a path a link is made onto, in this line or for a later
+	// one: the new name does not exist yet when the guard resolves paths.
+	// Only the machine-wide files judge it.
+	linked bool
 }
 
 // The verb table, by base name in lower case without .exe (verbOf).
@@ -48,7 +52,7 @@ var (
 	// otherWriteVerbs are the verbs verbWrites reads one by one, for
 	// knownProgram; git stands in knownTools.
 	otherWriteVerbs = []string{"dd", "tar", "unzip", "expand-archive", "robocopy", "xcopy", "new-item",
-		"ni", "curl", "wget", "invoke-webrequest", "iwr", "find", "sed", "perl", "patch"}
+		"ni", "mklink", "curl", "wget", "invoke-webrequest", "iwr", "find", "sed", "perl", "patch"}
 	// changeDirectory move the place relative paths after them start from.
 	changeDirectory = []string{"cd", "set-location", "sl", "pushd"}
 )
@@ -440,10 +444,15 @@ func verbWrites(dir string, args []string, input string) ([]shellTarget, bool) {
 		return moved(dir, rest), true
 	case slices.Contains(renameVerbs, verb):
 		return renamed(rest), true
+	case verb == "ln":
+		return append(destination(dir, verb, rest), linkedTargets(positional(rest))...), true
 	case slices.Contains(copyVerbs, verb):
 		return destination(dir, verb, rest), true
 	}
 	switch verb {
+	case "mklink":
+		words := positional(rest)
+		return append(targetsOf(words[:min(1, len(words))], false), linkedTargets(words)...), true
 	case "dd":
 		var out []string
 		for _, a := range rest {
@@ -482,6 +491,16 @@ func verbWrites(dir string, args []string, input string) ([]shellTarget, bool) {
 // lower case, without .exe.
 func verbOf(program string) string {
 	return strings.TrimSuffix(baseName(program), ".exe")
+}
+
+// linkedTargets are the paths a link command names, a new name and what it
+// points at alike.
+func linkedTargets(paths []string) []shellTarget {
+	out := targetsOf(paths, false)
+	for i := range out {
+		out[i].linked = true
+	}
+	return out
 }
 
 // targetsOf makes shell targets of paths, skipping empty words.
@@ -785,7 +804,8 @@ func newItem(args []string) []shellTarget {
 	if len(paths) == 0 {
 		out = names
 	}
-	return targetsOf(out, false)
+	// -Target and -Value are what a link made by -ItemType points at.
+	return append(targetsOf(out, false), linkedTargets(append(psValues(args, "target"), psValues(args, "value")...))...)
 }
 
 // downloads are the files curl, wget and Invoke-WebRequest write: -OutFile,

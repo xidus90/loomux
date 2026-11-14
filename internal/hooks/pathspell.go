@@ -177,8 +177,18 @@ func withoutStream(p string) string {
 		start += 2
 	}
 	start = max(start, len(filepath.VolumeName(p)))
-	if colon := strings.IndexByte(p[start:], ':'); colon >= 0 {
-		return p[:start+colon]
+	for at := start; at < len(p); {
+		colon := strings.IndexByte(p[at:], ':')
+		if colon < 0 {
+			break
+		}
+		colon += at
+		// PowerShell's $env:NAME is a variable, not a stream.
+		if before := strings.ToLower(p[:colon]); strings.HasSuffix(before, "$env") || strings.HasSuffix(before, "${env") {
+			at = colon + 1
+			continue
+		}
+		return p[:colon]
 	}
 	return p
 }

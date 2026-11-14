@@ -457,7 +457,7 @@ func TestBelowFindsTheFolderAboveAKeptPath(t *testing.T) {
 func TestRemovingLoomuxStaysRefused(t *testing.T) {
 	root := t.TempDir()
 	for tool, line := range map[string]string{"Bash": "rm -rf .loomux", "PowerShell": "Remove-Item .loomux -Recurse"} {
-		if got := checkToolOpen(root, tool, map[string]any{"command": line}, config.Policy{}, switchOn, atRoot); len(got) == 0 {
+		if got := checkToolOpen(root, "", "", tool, map[string]any{"command": line}, config.Policy{}, switchOn, atRoot); len(got) == 0 {
 			t.Errorf("%s: passes with the switch on", line)
 		}
 	}
@@ -520,7 +520,7 @@ func TestConfigSetPassesOnlyWhenTheSwitchIsOn(t *testing.T) {
 		if got := shellReasonsOpen(t, root, line, switchOn, atRoot); len(got) != 0 {
 			t.Errorf("%q, switch on: reasons %q, want none", line, got)
 		}
-		if got := checkToolOpen(root, "Bash", input, config.Policy{}, switchOff, atRoot); !slices.Equal(got, []string{configurationReason}) {
+		if got := checkToolOpen(root, "", "", "Bash", input, config.Policy{}, switchOff, atRoot); !slices.Equal(got, []string{configurationReason}) {
 			t.Errorf("%q, switch off: reasons %q, want the configuration's", line, got)
 		}
 		if got := shellReasonsOpen(t, root, line, switchOn, elsewhere); !slices.Equal(got, []string{configurationReason}) {
@@ -550,8 +550,8 @@ func TestARelativeManifestWriteNeedsTheShellAtTheRoot(t *testing.T) {
 // whose working directory here says is the root or not.
 func shellReasonsOpen(t *testing.T, root, line string, open, here func() bool) []string {
 	t.Helper()
-	bash := checkToolOpen(root, "Bash", map[string]any{"command": line}, config.Policy{}, open, here)
-	if power := checkToolOpen(root, "PowerShell", map[string]any{"command": line}, config.Policy{}, open, here); !slices.Equal(bash, power) {
+	bash := checkToolOpen(root, "", "", "Bash", map[string]any{"command": line}, config.Policy{}, open, here)
+	if power := checkToolOpen(root, "", "", "PowerShell", map[string]any{"command": line}, config.Policy{}, open, here); !slices.Equal(bash, power) {
 		t.Errorf("%q: Bash %q, PowerShell %q", line, bash, power)
 	}
 	return bash
