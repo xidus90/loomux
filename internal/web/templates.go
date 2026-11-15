@@ -15,7 +15,7 @@ var assets embed.FS
 // pageNames are the pages, each a file under assets/ that defines "content"
 // for the layout.
 var pageNames = []string{"login", "dashboard", "dashboard_edit", "settings", "preview", "raw", "confirm",
-	"wizard_path", "wizard_facts", "wizard_plan", "wizard_done"}
+	"wizard_path", "wizard_facts", "wizard_plan", "wizard_done", "graph"}
 
 // pages parses the pages on first use, so that starting the process, or any
 // other command of the binary, costs none of it. Each page is the layout and
@@ -78,5 +78,23 @@ func style(w http.ResponseWriter, _ *http.Request) {
 	// The file is embedded, so reading it cannot fail.
 	data, _ := assets.ReadFile("assets/style.css")
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	w.Write(data)
+}
+
+// forceGraph serves the graph library that the binary carries, so that no
+// page loads a script from the network.
+func forceGraph(w http.ResponseWriter, _ *http.Request) {
+	// The file is embedded, so reading it cannot fail.
+	data, _ := assets.ReadFile("assets/vendor/force-graph.min.js")
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Write(data)
+}
+
+// graphScript serves the graph page's script, which the page links because
+// the content security policy allows no inline script.
+func graphScript(w http.ResponseWriter, _ *http.Request) {
+	// The file is embedded, so reading it cannot fail.
+	data, _ := assets.ReadFile("assets/graph.js")
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	w.Write(data)
 }

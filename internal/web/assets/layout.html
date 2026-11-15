@@ -14,7 +14,7 @@
 <nav>
 <a href="/">Dashboard</a>
 <span class="label">Projects</span>
-{{range .Nav}}<a href="/settings/{{.ID}}">{{.Name}}</a>
+{{range .Nav}}<a href="/settings/{{.ID}}">{{.Name}}</a> <a aria-label="Graph of {{.Name}}" href="/graph/{{.ID}}">Graph</a>
 {{end}}<a class="add" href="/projects/new">Add project</a>
 <span class="label">Machine</span>
 <a href="/settings/global">Global</a>

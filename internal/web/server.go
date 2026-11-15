@@ -60,6 +60,8 @@ type server struct {
 	sessions *sessions
 	options  Options
 	now      func() time.Time
+	// codes holds the decoded code graphs the graph pages draw.
+	codes *codeCache
 }
 
 // newServer is the state of a run on a port. The login code goes to the
@@ -68,7 +70,7 @@ type server struct {
 func newServer(port int, o Options, now func() time.Time) *server {
 	sessions := newSessions(o.Code, now)
 	o.Code = ""
-	return &server{port: port, version: o.Version, sessions: sessions, options: o, now: now}
+	return &server{port: port, version: o.Version, sessions: sessions, options: o, now: now, codes: &codeCache{}}
 }
 
 // listenLoopback is the default Listen. Loopback, never a wildcard: the
@@ -146,6 +148,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("GET /assets/style.css", style)
+	mux.HandleFunc("GET /assets/vendor/force-graph.min.js", forceGraph)
+	mux.HandleFunc("GET /assets/graph.js", graphScript)
 	mux.HandleFunc("GET /{$}", s.dashboard)
 	mux.HandleFunc("GET /dashboard/edit", s.dashboardEdit)
 	mux.HandleFunc("POST /dashboard/edit", s.dashboardChange)
@@ -159,6 +163,9 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /settings/{id}/proposals/{pid}/reject", s.rejectProposal)
 	mux.HandleFunc("GET /settings/{id}/llm", s.llmPage)
 	mux.HandleFunc("POST /settings/{id}/llm", s.llmSet)
+	mux.HandleFunc("GET /graph/{id}", s.graphPage)
+	mux.HandleFunc("GET /graph/{id}/data", s.graphView)
+	mux.HandleFunc("GET /graph/{id}/search", s.graphSearch)
 	mux.HandleFunc("GET /projects/new", s.wizardPath)
 	mux.HandleFunc("POST /projects/new/facts", s.wizardFacts)
 	mux.HandleFunc("POST /projects/new/plan", s.wizardPlan)

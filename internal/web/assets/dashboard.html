@@ -93,7 +93,7 @@
 <h3>Code graph</h3>
 {{if .Rows}}
 <ul>
-{{range .Rows}}<li><a href="/settings/{{.ID}}">{{.Name}}</a>: {{if .Problem}}<span class="error">{{.Problem}}</span>{{else}}{{.State}}{{end}}</li>
+{{range .Rows}}<li><a href="/graph/{{.ID}}">{{.Name}}</a>: {{if .Problem}}<span class="error">{{.Problem}}</span>{{else}}{{.State}}{{end}}</li>
 {{end}}
 </ul>
 {{else}}

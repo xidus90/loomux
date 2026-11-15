@@ -9,6 +9,7 @@
 <button type="submit">Filter</button>
 </form>
 {{if .Notice}}<p class="error">{{.Notice}}</p>{{end}}
+{{if .Root}}<p><a href="/graph/{{.ID}}">Graph</a></p>{{end}}
 {{if .Error}}
 <p class="error">{{.Error}}</p>
 <p><a href="/settings/{{.ID}}/raw">Open the raw text</a> to repair the file.</p>

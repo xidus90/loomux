@@ -1,9 +1,9 @@
 // Package notices writes NOTICE.md: the license of every third-party piece
 // the loomux binary links -- Go's standard library, each module, each
-// tree-sitter grammar whose package is imported --, of the code ported from
-// other projects, and the notice of the embedded word frequencies. A test
-// holds the committed file to what this renders, so a new dependency cannot
-// ship without its notice.
+// tree-sitter grammar whose package is imported --, of the script the web
+// interface embeds, of the code ported from other projects, and the notice of
+// the embedded word frequencies. A test holds the committed file to what this
+// renders, so a new dependency cannot ship without its notice.
 package notices
 
 import (
@@ -57,6 +57,10 @@ var licenseFile = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompi
 //
 //go:embed ported.md
 var portedNotice string
+
+// scriptLicenses is the licenses of the script the web interface embeds,
+// relative to the repository root.
+const scriptLicenses = "internal/web/assets/vendor/LICENSES.md"
 
 // readFile is the seam a test replaces to see a listed license file that
 // does not read; neither chmod nor a missing file makes one under Windows.
@@ -145,6 +149,11 @@ func Render(root string, run Runner) (string, error) {
 			return "", err
 		}
 	}
+	script, err := readFile(filepath.Join(root, filepath.FromSlash(scriptLicenses)))
+	if err != nil {
+		return "", err
+	}
+	b.WriteString("\n" + clean(script) + "\n")
 	b.WriteString("\n" + clean([]byte(portedNotice)) + "\n")
 	b.WriteString("\n" + model.ZipfNotice())
 	return b.String(), nil

@@ -58,6 +58,10 @@ internal/brain/apply/testdata/frontmatter/** -text
 # sha256. A fold of any kind would send the model a different prompt.
 internal/brain/model/prompts/** -text
 
+# The vendored scripts are the upstream release files byte for byte, and a
+# test holds each one's sha256. A fold of any kind would break the checksum.
+internal/web/assets/vendor/*.min.js -text
+
 # The local model's cases are the same kind of evidence as stage 3a's: whole
 # file worlds held byte for byte, a proposal the model's answer wrote included.
 testdata/cases/4c1/** -text

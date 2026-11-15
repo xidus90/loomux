@@ -463,3 +463,96 @@ body.signed-out > footer {
     padding: 1.25rem 1rem 2rem;
   }
 }
+
+/* What force-graph would insert as a <style> element, which the content
+   security policy refuses; copied from its 1.52.0 bundle. */
+
+.force-graph-container canvas {
+  display: block;
+  user-select: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.force-graph-container .clickable {
+  cursor: pointer;
+}
+
+.force-graph-container .grabbable {
+  cursor: move;
+  cursor: grab;
+  cursor: -moz-grab;
+  cursor: -webkit-grab;
+}
+
+.force-graph-container .grabbable:active {
+  cursor: grabbing;
+  cursor: -moz-grabbing;
+  cursor: -webkit-grabbing;
+}
+
+.float-tooltip-kap {
+  position: absolute;
+  width: max-content; /* prevent shrinking near right edge */
+  max-width: max(50%, 150px);
+  padding: 3px 5px;
+  border-radius: 3px;
+  font: 12px sans-serif;
+  color: #eee;
+  background: rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+
+/* The graph page */
+
+#graph-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  gap: 1rem;
+  align-items: start;
+}
+
+#graph-canvas {
+  height: 70vh;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+#graph-side fieldset {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+#graph-side label {
+  display: flex;
+}
+
+#graph-info {
+  overflow-wrap: anywhere;
+}
+
+#graph-hits {
+  list-style: none;
+  padding: 0;
+}
+
+#graph-path {
+  margin: 0.5rem 0;
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+}
+
+@media (max-width: 48rem) {
+  #graph-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
