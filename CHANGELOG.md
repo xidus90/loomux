@@ -7,6 +7,15 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.28.0] - 2026-11-15
+
+<https://github.com/xidus90/loomux/pull/166>
+
+### Added
+- `loomux ui`: a graph page per project shows the code graph and the wiki together, with edges from wiki pages to the code they name, search, filters and drill-down by double-click.
+- `loomux reindex`: `graph.json` lists in `code_refs` the code paths each document names in backticks or Markdown links, when the path exists in the repository.
+- The binary embeds force-graph 1.52.0 for the graph page; its licenses and those of its bundled packages are in the notices.
+
 ## [1.27.1] - 2026-11-15
 
 <https://github.com/xidus90/loomux/pull/164>
