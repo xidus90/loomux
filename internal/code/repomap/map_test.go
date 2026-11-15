@@ -225,6 +225,17 @@ func TestBuildNamesCSharpByItsLanguage(t *testing.T) {
 	}
 }
 
+// A .rs file counts as rust, not as a language named after its extension.
+func TestBuildNamesRustByItsLanguage(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "src/lib.rs", Path: "src/lib.rs", Name: "lib.rs", Kind: model.KindFile},
+	}}
+	m := repomap.Build(g, nil, repomap.Options{})
+	if !slices.Contains(m.Totals.Languages, "rust") || slices.Contains(m.Totals.Languages, "rs") {
+		t.Errorf("languages = %v, want rust and no rs", m.Totals.Languages)
+	}
+}
+
 // Every C++ extension counts as cpp, not as a language named after it.
 func TestBuildNamesCppByItsLanguage(t *testing.T) {
 	var nodes []model.Node

@@ -23,8 +23,8 @@ import (
 //     being captured by a symbol named go.
 //
 // Within the stage that matches, a symbol named in the query's exact case ranks
-// before a case-insensitive one, and within each a symbol outside the test
-// files (IsTestPath) before one inside; ties keep the graph's order. Callers
+// before a case-insensitive one, and within each a symbol outside test code
+// (IsTestNode) before one inside; ties keep the graph's order. Callers
 // take the first hit, so Build finds an exported Build before a test helper build.
 //
 // An empty or unindexed in prefix produces an error (assertPrefixIndexed).
@@ -139,7 +139,7 @@ func rank(hits []*model.Node, cleanQ string) []*model.Node {
 		if stripOrdinals(n.Name) != sym {
 			s += 2
 		}
-		if IsTestPath(n.Path) {
+		if IsTestNode(n) {
 			s++
 		}
 		return s

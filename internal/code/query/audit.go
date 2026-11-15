@@ -57,7 +57,7 @@ func Audit(root string, opts AuditOptions) (AuditAnswer, []string, error) {
 		for _, s := range a.Seeds {
 			n := s.InDegree
 			if x != nil {
-				n = x.InDegreeWhere(s.Node.ID, func(m *model.Node) bool { return m != nil && !blast.IsTestPath(m.Path) })
+				n = x.InDegreeWhere(s.Node.ID, func(m *model.Node) bool { return m != nil && !blast.IsTestNode(m) })
 			}
 			if n >= opts.Threshold {
 				f.Seeds = append(f.Seeds, blast.Seed{Node: s.Node, InDegree: n})

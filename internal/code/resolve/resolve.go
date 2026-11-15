@@ -165,9 +165,9 @@ func languagesOf(files []extract.Result) []string {
 // edgesOf resolves the raw edges of one family's files against an index of
 // those files alone: Go's here, Python's in resolvePython, Godot's in
 // resolveGDScript, C#'s in resolveCSharp, C++'s in resolveCPP, Java's in
-// resolveJava, PHP's in resolvePHP, JavaScript's and TypeScript's in
-// resolveECMAScript, HTML's in resolveHTML, CSS's and SCSS's in
-// resolveStylesheet. Every index holds its own family's files alone; paths
+// resolveJava, PHP's in resolvePHP, Rust's in resolveRust, JavaScript's and
+// TypeScript's in resolveECMAScript, HTML's in resolveHTML, CSS's and SCSS's
+// in resolveStylesheet. Every index holds its own family's files alone; paths
 // is every file of the build, which a Godot path, a page's link and a
 // stylesheet's import may name, and w, what the HTML pages load and link,
 // scopes the web handovers of pages and scripts.
@@ -197,6 +197,8 @@ func edgesOf(family string, files []extract.Result, mods []Module, paths map[str
 		return resolveJava(files)
 	case "php":
 		return resolvePHP(files)
+	case "rust":
+		return resolveRust(files, mods)
 	}
 	var out []model.Edge
 	if family != "go" {

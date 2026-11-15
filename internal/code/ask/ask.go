@@ -125,7 +125,7 @@ func Run(g *model.Graph, ix *lexicon.Index, query string, opts Options) Answer {
 			// names no node has no path and no span, so nothing to open.
 			continue
 		}
-		score := lexical(q, d, w, ix.AvgBodyLen) * factor(n.Path)
+		score := lexical(q, d, w, ix.AvgBodyLen) * factor(n)
 		if score <= 0 {
 			continue
 		}
@@ -162,7 +162,7 @@ func Run(g *model.Graph, ix *lexicon.Index, query string, opts Options) Answer {
 		graph := prByID[id]
 		hits = append(hits, Hit{
 			ID: id, Path: n.Path, Span: n.Span, Signature: n.Signature,
-			Score:   (lexNorm + graphWeight*graph) * factor(n.Path),
+			Score:   (lexNorm + graphWeight*graph) * factor(n),
 			Lexical: lexNorm, Graph: graph,
 		})
 	}
@@ -231,14 +231,14 @@ func admission(in string, keep func(string) bool) func(string) bool {
 	return func(path string) bool { return lexicon.UnderPrefix(path, in) && keep(path) }
 }
 
-// testFactor is the de-ranking multiplier for a path, or 1 throughout when the
+// testFactor is the de-ranking multiplier for a node, or 1 throughout when the
 // query itself asks about tests.
-func testFactor(query string) func(path string) float64 {
+func testFactor(query string) func(n model.Node) float64 {
 	if testSeeking.MatchString(query) {
-		return func(string) float64 { return 1 }
+		return func(model.Node) float64 { return 1 }
 	}
-	return func(path string) float64 {
-		if isTestPath(path) {
+	return func(n model.Node) float64 {
+		if n.Test || isTestPath(n.Path) {
 			return testRankPenalty
 		}
 		return 1

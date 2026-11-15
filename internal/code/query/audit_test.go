@@ -206,3 +206,25 @@ func TestAuditFindsAnUntestedSCSSFunction(t *testing.T) {
 		t.Fatalf("finding = %+v", f)
 	}
 }
+
+// A caller the extractor marked as a test does not count when test callers are
+// skipped, although its file is no test file.
+func TestAuditSkipsAMarkedTestNodeAsCaller(t *testing.T) {
+	root := stagedAdd(t)
+	g, err := store.Read(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range g.Nodes {
+		if g.Nodes[i].Name == "main" {
+			g.Nodes[i].Test = true
+		}
+	}
+	if err := store.Write(root, g); err != nil {
+		t.Fatal(err)
+	}
+	a, _, err := Audit(root, AuditOptions{Cached: true, Threshold: 1, SkipTestCallers: true})
+	if err != nil || len(a.Findings) != 0 {
+		t.Fatalf("answer = %+v, err %v", a, err)
+	}
+}

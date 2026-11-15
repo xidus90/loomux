@@ -88,8 +88,10 @@ func Radius(g *model.Graph, x *Index, changed []diff.File, withheld []string, de
 		}
 	}
 	inDiff := map[string]bool{}
+	hunks := map[string][]diff.Hunk{}
 	for _, f := range changed {
 		inDiff[f.Path] = true
+		hunks[f.Path] = f.Hunks
 	}
 	for _, p := range withheld {
 		inDiff[p] = true
@@ -123,7 +125,7 @@ func Radius(g *model.Graph, x *Index, changed []diff.File, withheld []string, de
 			ids[i] = s.ID
 			area.Seeds = append(area.Seeds, Seed{Node: s, InDegree: x.InDegree(s.ID)})
 		}
-		area.Signal, area.Tests = signal(x, f.Path, seeds, inDiff)
+		area.Signal, area.Tests = signal(x, f.Path, seeds, inDiff, hunks)
 		rep.Areas = append(rep.Areas, area)
 		for _, h := range x.Reach(ids, In, depth) {
 			if h.Node == nil {
@@ -169,12 +171,19 @@ func seedsOf(spans []model.SymbolSpan, hunks []diff.Hunk) []*model.Node {
 // signal says whether a test covers the area and changed with it. The walk
 // to the tests is always the closure: a test that reaches through a helper
 // still reaches.
-func signal(x *Index, path string, seeds []*model.Node, inDiff map[string]bool) (Signal, []string) {
+//
+// A test file counts as changed when its path is in the diff. A test node in a
+// production file counts only when a hunk of that file touches its span; a path
+// without hunks (withheld, or listed with none) counts whole.
+func signal(x *Index, path string, seeds []*model.Node, inDiff map[string]bool, hunks map[string][]diff.Hunk) (Signal, []string) {
 	if IsTestPath(path) {
 		return SignalNA, nil
 	}
 	var ids []model.NodeID
 	for _, s := range seeds {
+		if s.Test {
+			continue
+		}
 		// Behaviour is a function or a method; a Go type has no test that
 		// calls it. A Python class seed falls under the same rule, and that
 		// is an open gap rather than a choice: a constructor call reaches a
@@ -188,20 +197,40 @@ func signal(x *Index, path string, seeds []*model.Node, inDiff map[string]bool) 
 		return SignalNA, nil
 	}
 	set := map[string]bool{}
+	touched := false
 	for _, h := range x.Reach(ids, In, All) {
-		if h.Node != nil && IsTestPath(h.Node.Path) {
-			set[h.Node.Path] = true
+		if !IsTestNode(h.Node) {
+			continue
 		}
+		set[h.Node.Path] = true
+		touched = touched || testChanged(h.Node, inDiff, hunks[h.Node.Path])
 	}
-	tests := slices.Sorted(maps.Keys(set))
-	switch {
+	switch tests := slices.Sorted(maps.Keys(set)); {
 	case len(tests) == 0:
 		return SignalNone, nil
-	case slices.ContainsFunc(tests, func(t string) bool { return inDiff[t] }):
+	case touched:
 		return SignalChanged, tests
+	default:
+		return SignalStale, tests
 	}
-	return SignalStale, tests
 }
+
+// testChanged says whether the diff changed the test node n: a node of a test
+// file with the file, an inline one only where a hunk touches its span.
+func testChanged(n *model.Node, inDiff map[string]bool, hunks []diff.Hunk) bool {
+	if !inDiff[n.Path] {
+		return false
+	}
+	from, to, ok := n.Span.Lines()
+	if IsTestPath(n.Path) || len(hunks) == 0 || !ok {
+		return true
+	}
+	return slices.ContainsFunc(hunks, func(h diff.Hunk) bool { return h.To >= from && h.From <= to })
+}
+
+// IsTestNode reports whether n is test code: its file is a test file, or the
+// extractor marked the node itself.
+func IsTestNode(n *model.Node) bool { return n != nil && (n.Test || IsTestPath(n.Path)) }
 
 type evidenceSeed struct {
 	node  *model.Node
@@ -251,9 +280,15 @@ func evidence(seeds []evidenceSeed) ([]Evidence, int) {
 // runs), case as written, and every file under a directory tests/ or test/,
 // in any case. JavaScript and TypeScript: *.test.* and *.spec.* (what Jest
 // and Vitest run), and every file under a directory __tests__/, test/ or
-// tests/, case as written.
+// tests/, case as written. Rust: every file under a directory tests/ or
+// benches/ (Cargo's integration test and benchmark targets), and a file named
+// tests.rs or test.rs (the out-of-line `mod tests;`); unit tests inside a
+// production file are marked on the node instead (model.Node.Test).
 func IsTestPath(p string) bool {
 	switch path.Ext(p) {
+	case ".rs":
+		base := path.Base(p)
+		return base == "tests.rs" || base == "test.rs" || underDir(p, "tests") || underDir(p, "benches")
 	case ".go":
 		return strings.HasSuffix(p, "_test.go")
 	case ".py":

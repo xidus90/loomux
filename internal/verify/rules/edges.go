@@ -29,7 +29,7 @@ func (f Finding) String() string {
 	return f.Path + ":" + strconv.Itoa(f.Line) + " " + f.Text
 }
 
-// modules are the go.mod modules and tsconfig aliases among files.
+// modules are the go.mod and Cargo.toml modules and tsconfig aliases among files.
 func modules(files []File) []resolve.Module {
 	bodies := map[string]string{}
 	for _, f := range files {
