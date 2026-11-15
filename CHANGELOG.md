@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.27.1] - 2026-11-15
+
+<https://github.com/xidus90/loomux/pull/164>
+
+### Fixed
+- `loomux ui`: the plan step of "Add project" no longer reports a file it could not read as a mistake in the form.
+- `loomux ui`: the report of "Add project" now says when host entries and git hooks were left out because no loomux binary stands where they call it.
+
 ## [1.27.0] - 2026-11-14
 
 <https://github.com/xidus90/loomux/pull/163>
