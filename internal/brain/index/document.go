@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/xidus90/loomux/internal/brain/graph"
 )
 
 // frontmatterRegex matches YAML frontmatter delineated by leading and trailing triple-dashes.
@@ -22,8 +24,9 @@ var (
 	wikiLinkRegex     = regexp.MustCompile(`(!)?\[\[([^\]|#]+)`)
 )
 
-// Document represents a reduced markdown document holding only the metadata
-// and link graph edges needed by cataloging, search, and indexing.
+// Document represents a reduced markdown document holding only the metadata,
+// link graph edges and code references needed by cataloging, search, and
+// indexing.
 type Document struct {
 	Relative    string
 	Title       string
@@ -31,6 +34,7 @@ type Document struct {
 	DocType     string
 	Tags        []string
 	Links       []string
+	CodeRefs    []graph.CodeRef
 }
 
 // ParseFrontmatter parses the YAML block at the beginning of a document.
@@ -67,7 +71,8 @@ func ParseFrontmatter(text string, strict bool) (map[string]any, error) {
 }
 
 // ReadDocument reads a markdown file from disk, extracting its relative path,
-// frontmatter metadata (or filename stem fallback), and outbound links.
+// frontmatter metadata (or filename stem fallback), outbound links, and the
+// code references whose path exists under rootDir.
 func ReadDocument(filePath, rootDir string) (*Document, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -128,12 +133,21 @@ func ReadDocument(filePath, rootDir string) (*Document, error) {
 	}
 	sort.Strings(links)
 
+	docRel := filepath.ToSlash(rel)
+	var codeRefs []graph.CodeRef
+	for _, ref := range graph.CandidateRefs(docRel, text) {
+		if graph.ExistsExact(rootDir, ref.Path) {
+			codeRefs = append(codeRefs, ref)
+		}
+	}
+
 	return &Document{
-		Relative:    filepath.ToSlash(rel),
+		Relative:    docRel,
 		Title:       title,
 		Description: desc,
 		DocType:     docType,
 		Tags:        tags,
 		Links:       links,
+		CodeRefs:    codeRefs,
 	}, nil
 }

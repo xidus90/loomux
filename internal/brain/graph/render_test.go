@@ -220,3 +220,63 @@ func TestResolveTargetKeepsADotDotNamedFileInside(t *testing.T) {
 		t.Errorf("a link to a ..-named page dropped as %q", *r)
 	}
 }
+
+func TestRenderGraph_WritesCodeRefsSortedAndOnce(t *testing.T) {
+	docs := []graph.Document{
+		{Relative: "b.md", CodeRefs: []graph.CodeRef{
+			{From: "b.md", Path: "internal/x.go"},
+			{From: "b.md", Path: "internal/x.go"},
+		}},
+		{Relative: "a.md", CodeRefs: []graph.CodeRef{
+			{From: "a.md", Path: "internal/y.go", Line: 3},
+		}},
+	}
+
+	data, err := graph.RenderGraph("project/test", docs, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var parsed graph.Graph
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	want := []graph.CodeRef{
+		{From: "a.md", Path: "internal/y.go", Line: 3},
+		{From: "b.md", Path: "internal/x.go"},
+	}
+	if !reflect.DeepEqual(parsed.CodeRefs, want) {
+		t.Errorf("got code refs %+v, want %+v", parsed.CodeRefs, want)
+	}
+}
+
+// Refs of one path that differ only in their range keep line, then end, order.
+func TestRenderGraph_OrdersCodeRefsOfOnePathByLineThenEnd(t *testing.T) {
+	docs := []graph.Document{{Relative: "a.md", CodeRefs: []graph.CodeRef{
+		{From: "a.md", Path: "z.go", Line: 9, End: 12},
+		{From: "a.md", Path: "z.go", Line: 9, End: 10},
+		{From: "a.md", Path: "z.go", Line: 2},
+		{From: "a.md", Path: "y.go", Line: 40},
+	}}}
+
+	data, _ := graph.RenderGraph("project/test", docs, nil)
+	var parsed graph.Graph
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	want := []graph.CodeRef{
+		{From: "a.md", Path: "y.go", Line: 40},
+		{From: "a.md", Path: "z.go", Line: 2},
+		{From: "a.md", Path: "z.go", Line: 9, End: 10},
+		{From: "a.md", Path: "z.go", Line: 9, End: 12},
+	}
+	if !reflect.DeepEqual(parsed.CodeRefs, want) {
+		t.Errorf("got code refs %+v, want %+v", parsed.CodeRefs, want)
+	}
+}
+
+func TestRenderGraph_NoRefsIsAnEmptyList(t *testing.T) {
+	data, _ := graph.RenderGraph("project/test", []graph.Document{{Relative: "a.md"}}, nil)
+	if !strings.Contains(string(data), `"code_refs": []`) {
+		t.Errorf("graph.json lacks an empty code_refs list:\n%s", data)
+	}
+}

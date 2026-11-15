@@ -65,6 +65,7 @@ func toGraphDocs(documents []Document) []graph.Document {
 			Title:    d.Title,
 			Tags:     d.Tags,
 			Links:    d.Links,
+			CodeRefs: d.CodeRefs,
 		}
 	}
 	return res

@@ -44,6 +44,10 @@ type Graph struct {
 	Nodes []Node    `json:"nodes"`
 	Edges []Edge    `json:"edges"`
 	Links LinksInfo `json:"links"`
+
+	// CodeRefs is absent from a graph.json written before it existed, which
+	// reads as a graph naming no code.
+	CodeRefs []CodeRef `json:"code_refs"`
 }
 
 // Document is an input document for graph rendering.
@@ -52,4 +56,5 @@ type Document struct {
 	Title    string
 	Tags     []string
 	Links    []string
+	CodeRefs []CodeRef
 }

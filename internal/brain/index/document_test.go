@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/brain/graph"
 )
 
 func TestParseFrontmatterValid(t *testing.T) {
@@ -203,5 +205,21 @@ func TestReadDocumentRelError(t *testing.T) {
 	_, err := ReadDocument(filePath, "Z:\\different\\drive")
 	if err == nil {
 		t.Fatal("expected error making path relative to different drive")
+	}
+}
+
+func TestReadDocument_KeepsOnlyRefsThatExist(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "internal", "a.go"), "package a\n")
+	doc := filepath.Join(root, "wiki", "n.md")
+	writeFile(t, doc, "See `internal/a.go` and `internal/gone.go`.\n")
+
+	got, err := ReadDocument(doc, root)
+	if err != nil {
+		t.Fatalf("ReadDocument: %v", err)
+	}
+	want := []graph.CodeRef{{From: "wiki/n.md", Path: "internal/a.go"}}
+	if !reflect.DeepEqual(got.CodeRefs, want) {
+		t.Errorf("CodeRefs = %+v, want %+v", got.CodeRefs, want)
 	}
 }
