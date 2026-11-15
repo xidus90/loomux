@@ -97,7 +97,15 @@ func writeStock(
 	// RenderGraph's error is the JSON encoder's over a value this package
 	// built, which cannot fail; the write is where a run really breaks, and
 	// unlike the reference this reports it rather than dropping it.
-	graphBytes, _ := graph.RenderGraph(area.Scope, toGraphDocs(documents), OwnWikiPrefix(area))
+	graphDocs := toGraphDocs(documents)
+	if area.ReadOnly {
+		// What a read-only area's document names is looked up in the area's own
+		// tree, which is not one the reader of this stock can open.
+		for i := range graphDocs {
+			graphDocs[i].CodeRefs = nil
+		}
+	}
+	graphBytes, _ := graph.RenderGraph(area.Scope, graphDocs, OwnWikiPrefix(area))
 	if err := writeIfChanged(filepath.Join(dir, graphName), string(graphBytes)); err != nil {
 		return err
 	}

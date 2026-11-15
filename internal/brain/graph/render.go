@@ -153,10 +153,40 @@ func RenderGraph(scope string, docs []Document, wikiPrefix *string) ([]byte, err
 			Resolved: resolved,
 			Dropped:  counts,
 		},
+		CodeRefs: sortedUniqueRefs(sortedDocs),
 	}
 
 	data, _ := json.MarshalIndent(g, "", "  ")
 	return append(data, '\n'), nil
+}
+
+// sortedUniqueRefs gathers every document's code refs, ordered by From, Path,
+// Line, End and with equal ones kept once. Never nil, so the JSON is a list.
+func sortedUniqueRefs(docs []Document) []CodeRef {
+	refs := []CodeRef{}
+	for _, doc := range docs {
+		refs = append(refs, doc.CodeRefs...)
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		a, b := refs[i], refs[j]
+		if a.From != b.From {
+			return a.From < b.From
+		}
+		if a.Path != b.Path {
+			return a.Path < b.Path
+		}
+		if a.Line != b.Line {
+			return a.Line < b.Line
+		}
+		return a.End < b.End
+	})
+	unique := refs[:0]
+	for i, ref := range refs {
+		if i == 0 || ref != refs[i-1] {
+			unique = append(unique, ref)
+		}
+	}
+	return unique
 }
 
 func stringPtr(s string) *string {

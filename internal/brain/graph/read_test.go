@@ -226,3 +226,13 @@ func TestReadGraph_ReadError(t *testing.T) {
 		t.Fatal("expected error reading directory as file, got nil")
 	}
 }
+
+func TestParseGraph_WithoutCodeRefsReadsAsBefore(t *testing.T) {
+	g, err := graph.ParseGraph([]byte(`{"scope":"s","nodes":[],"edges":[],"links":{"total":0,"resolved":0,"dropped":{}}}`), "graph.json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(g.CodeRefs) != 0 {
+		t.Errorf("got code refs %+v, want none", g.CodeRefs)
+	}
+}

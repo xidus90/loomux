@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/brain/graph"
 	"github.com/xidus90/loomux/internal/brain/identity"
 	"github.com/xidus90/loomux/internal/brain/search"
 	"github.com/xidus90/loomux/internal/config"
@@ -354,5 +355,37 @@ func TestPublishReplacesTheStockInsteadOfMergingIntoIt(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(target, ".loomux", "config.toml")); err != nil {
 		t.Errorf("the declaration did not come along: %v", err)
+	}
+}
+
+// A read-only area's graph.json carries no code refs, a writable one's does:
+// the refs name files of a checkout, which the stock of a read-only area is
+// kept apart from.
+func TestWriteStockWritesCodeRefsOnlyForAWritableArea(t *testing.T) {
+	docs := []Document{{
+		Relative: "n.md",
+		CodeRefs: []graph.CodeRef{{From: "n.md", Path: "internal/a.go"}},
+	}}
+	for _, tc := range []struct {
+		area config.Area
+		want string
+	}{
+		{config.Area{Scope: "w", ReadOnly: false}, `"path": "internal/a.go"`},
+		{config.Area{Scope: "r", ReadOnly: true}, `"code_refs": []`},
+	} {
+		dir := t.TempDir()
+		if err := writeStock(tc.area, docs, map[string]identity.Identity{}, dir); err != nil {
+			t.Fatalf("writeStock(%s): %v", tc.area.Scope, err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, graphName))
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		if !strings.Contains(string(data), tc.want) {
+			t.Errorf("area %s: graph.json lacks %s:\n%s", tc.area.Scope, tc.want, data)
+		}
+	}
+	if len(docs[0].CodeRefs) != 1 {
+		t.Error("writeStock cleared the caller's documents")
 	}
 }

@@ -263,6 +263,13 @@ func decoded(t *testing.T, name string, data []byte) any {
 	if err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}
+	// code_refs is a key the reference never writes; an empty list says
+	// nothing, a filled one stays and fails the comparison.
+	if graph, ok := value.(map[string]any); ok {
+		if refs, ok := graph["code_refs"].([]any); ok && len(refs) == 0 {
+			delete(graph, "code_refs")
+		}
+	}
 	return value
 }
 
