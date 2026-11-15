@@ -77,6 +77,7 @@ func world(t *testing.T) *fakeGo {
 	write("mod/README.md", "not a license\n")
 	write("mod/copyright_test.go", "package a // not a license either\n")
 	write("modb/COPYING", "B license\n")
+	write(filepath.FromSlash(scriptLicenses), "## Embedded script test-lib 1.0.0\r\n\r\nScript license\r\n")
 	write("ts/LICENSE", "TS license\n")
 	write("ts/licenses/texts/MIT.txt", "MIT text\n")
 	write("ts/licenses/notices/python-NOTICE.txt", "Python grammar notice\n")
@@ -91,7 +92,8 @@ func world(t *testing.T) *fakeGo {
 }
 
 func TestRenderNamesEveryLinkedPieceOnce(t *testing.T) {
-	text, err := Render("repo", world(t).run)
+	f := world(t)
+	text, err := Render(f.root, f.run)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,9 +118,11 @@ func TestRenderNamesEveryLinkedPieceOnce(t *testing.T) {
 }
 
 // The notice reads the same on every run: Go first, the modules and then the
-// grammars each by name, the ported sources, the word frequencies last.
+// grammars each by name, the embedded script, the ported sources, the word
+// frequencies last.
 func TestRenderOrdersTheSections(t *testing.T) {
-	text, err := Render("repo", world(t).run)
+	f := world(t)
+	text, err := Render(f.root, f.run)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,6 +134,7 @@ func TestRenderOrdersTheSections(t *testing.T) {
 		"## github.com/odvcencio/gotreesitter v0.55.0\n",
 		"## tree-sitter grammar c\n",
 		"## tree-sitter grammar python\n",
+		"## Embedded script test-lib 1.0.0\n",
 		"## Ported sources\n",
 		"# Third-party notice: German word frequencies",
 	} {
@@ -147,7 +152,7 @@ func TestRenderRefusesALinkedCopyleftGrammar(t *testing.T) {
  {"name": "c", "spdx": "MIT", "copyleft": false},
  {"name": "python", "spdx": "GPL-3.0", "copyleft": true}
 ]}`), 0o644))
-	_, err := Render("repo", f.run)
+	_, err := Render(f.root, f.run)
 	if err == nil || err.Error() != "grammar python: GPL-3.0 is copyleft and would bind the whole binary" {
 		t.Fatal(err)
 	}
@@ -159,7 +164,7 @@ func TestRenderRefusesALinkedCopyleftGrammar(t *testing.T) {
 func TestRenderRefusesGotreesittersGrammarRegistry(t *testing.T) {
 	f := world(t)
 	f.extra = `{"ImportPath": "github.com/odvcencio/gotreesitter/grammars", ` + f.tsModule() + "}\n"
-	_, err := Render("repo", f.run)
+	_, err := Render(f.root, f.run)
 	if err == nil || !strings.HasPrefix(err.Error(), "github.com/odvcencio/gotreesitter/grammars links every grammar in gotreesitter's registry, copyleft ones included") {
 		t.Fatal(err)
 	}
@@ -201,10 +206,28 @@ func TestRenderRefusesWhatItCannotRead(t *testing.T) {
 	} {
 		f := world(t)
 		c.spoil(t, f)
-		_, err := Render("repo", f.run)
+		_, err := Render(f.root, f.run)
 		if err == nil || !strings.Contains(err.Error(), c.want) || (c.is != nil && !errors.Is(err, c.is)) {
 			t.Errorf("%s: %v, want %q", name, err, c.want)
 		}
+	}
+}
+
+// The licenses of the embedded script come from the file next to it, verbatim
+// but for line endings; without that file the notice would ship the script
+// unattributed.
+func TestRenderIncludesBundledScriptLicenses(t *testing.T) {
+	f := world(t)
+	text, err := Render(f.root, f.run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "## Embedded script test-lib 1.0.0\n\nScript license\n"; !strings.Contains(text, want) {
+		t.Errorf("missing %q", want)
+	}
+	must(t, os.Remove(filepath.Join(f.root, filepath.FromSlash(scriptLicenses))))
+	if _, err := Render(f.root, f.run); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("a missing LICENSES.md must fail the notice: %v", err)
 	}
 }
 
@@ -219,7 +242,8 @@ func TestRenderRefusesALicenseFileItCannotRead(t *testing.T) {
 		}
 		return saved(path)
 	}
-	if _, err := Render("repo", world(t).run); !errors.Is(err, os.ErrPermission) {
+	f := world(t)
+	if _, err := Render(f.root, f.run); !errors.Is(err, os.ErrPermission) {
 		t.Fatal(err)
 	}
 }

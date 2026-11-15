@@ -1,0 +1,24 @@
+{{define "content"}}
+{{with .Data}}
+<h1>{{.Name}}</h1>
+<p><a href="/settings/{{.ID}}">Settings</a></p>
+<div id="graph" data-project="{{.ID}}">
+<form id="graph-search" role="search">
+<input type="search" name="q" placeholder="Search directories, files, symbols and documents" aria-label="Search the graph">
+</form>
+<ul id="graph-hits"></ul>
+<div id="graph-problems"></div>
+<div id="graph-path"></div>
+<div id="graph-body">
+<div id="graph-canvas"></div>
+<div id="graph-side">
+<fieldset id="graph-filters"><legend>Filters</legend></fieldset>
+<fieldset id="graph-legend"><legend>Legend</legend></fieldset>
+<div id="graph-info"><p class="note">Click a node for details; double-click a directory or file to open it.</p></div>
+</div>
+</div>
+</div>
+<script src="/assets/vendor/force-graph.min.js"></script>
+<script src="/assets/graph.js"></script>
+{{end}}
+{{end}}

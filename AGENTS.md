@@ -24,6 +24,14 @@ release `archive/parity-recordings`.
   Moving to a newer upstream means redoing both patches; verify the first by copying
   upstream's `*_test.go` files and `internal/tag` into a scratch copy, calling
   the zone accessors there, and running `go test ./...` inside it.
+- `internal/web/assets/vendor/force-graph.min.js` is force-graph 1.52.0,
+  SHA-256 `f59db59ba92ff5a76ed93d7a4d77a703b176260e5d9cd29f4f8eb4f6c369a629`,
+  from `https://cdn.jsdelivr.net/npm/force-graph@1.52.0/dist/force-graph.min.js`.
+  It is a UMD bundle, so `vendor/LICENSES.md` quotes the license of force-graph
+  and of every package inside it, and the two rules it injects as `<style>`
+  (the CSP refuses that) are copied into `style.css`. Updating is by hand: fetch
+  the new file, repin `forceGraphSHA256` in `internal/web/vendor_test.go`,
+  redo `LICENSES.md` and the CSS from the new bundle, run `loomux dev notices`.
 - `internal/release` holds the release rules (next version, pull request
   body, changelog, cross build) behind `loomux dev release`. `ci/` holds the
   gate and the smoke test every forge runs. `.github/` holds only what is
