@@ -49,7 +49,7 @@ func Activate(t *Tree, reports []string, ps []Profile) ([]Active, []Finding, []s
 		vals, file, f, n := readSettings(t.Root, p)
 		finds, notes = append(finds, f...), append(notes, n...)
 		byReport := slices.ContainsFunc(p.Reports, func(r string) bool {
-			return slices.ContainsFunc(reports, func(got string) bool { return got == r || strings.HasSuffix(got, "/"+r) })
+			return slices.ContainsFunc(reports, func(got string) bool { return claims(r, got) && !outclaimed(ps, r, got) })
 		})
 		if file == "" && !byReport {
 			continue
@@ -59,6 +59,19 @@ func Activate(t *Tree, reports []string, ps []Profile) ([]Active, []Finding, []s
 		act = append(act, a)
 	}
 	return act, finds, notes
+}
+
+// claims says whether a report at path got is the one location r names, at
+// the root or below any directory.
+func claims(r, got string) bool { return got == r || strings.HasSuffix(got, "/"+r) }
+
+// outclaimed says whether another profile names a longer location that got
+// ends in too: "coverage/lcov.info" is vitest's, not every tool's that
+// writes an "lcov.info".
+func outclaimed(ps []Profile, r, got string) bool {
+	return slices.ContainsFunc(ps, func(q Profile) bool {
+		return slices.ContainsFunc(q.Reports, func(r2 string) bool { return len(r2) > len(r) && claims(r2, got) })
+	})
 }
 
 // readSettings follows the profile's lookup order; the first file holding

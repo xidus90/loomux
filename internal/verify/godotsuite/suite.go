@@ -137,6 +137,14 @@ func Run(o Options) (res Result, err error) {
 		res.Findings = []string{"no gdUnit4 test suite under " + o.Root}
 		return res, nil
 	}
+	// The suites load the extension, so it is built before the first engine
+	// start, which is the disk instrumentation when coverage needs one.
+	notes, buildErr := buildExtensions(o.start, o.Root)
+	res.Notes = append(res.Notes, notes...)
+	if buildErr != nil {
+		res.Findings = []string{buildErr.Error()}
+		return res, nil
+	}
 
 	body := func() error { return o.shards(&res, suites) }
 	if o.Coverage != "" {

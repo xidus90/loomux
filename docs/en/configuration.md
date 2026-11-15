@@ -399,7 +399,7 @@ shapes no kind, such as `maven`, wins them all.
 | php | `php vendor/bin/phpcs {phpcs-standard} {phpcs-files}`; for an edit also `php -l {file}` | `php vendor/bin/phpstan analyse --no-progress {phpstan-defaults}` | `php vendor/bin/phpunit` | `{loomux} check linecov --report {coverdata}`, measured by `php -d xdebug.mode=coverage vendor/bin/phpunit --coverage-cobertura {coverdata}` |
 | shell | only `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
-| rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
+| rust | `cargo clippy --workspace --all-targets --config 'build.warnings="deny"'`, `cargo fmt --all --check` | `cargo check --workspace --all-targets` | `cargo test --workspace` (where a `.rs` file holds `#[test]` or a directory `tests/` exists) | `{loomux} check linecov --report {coverprofile}`, measured by `cargo-llvm-cov llvm-cov --workspace --lcov --output-path {coverprofile}` |
 
 - The Python lanes bring their tools with `uv run --with`: a project that
   does not declare mypy, pytest or coverage as dependencies still runs them,
@@ -422,7 +422,7 @@ shapes no kind, such as `maven`, wins them all.
   `excluded_directories` in `.gdlintrc` (gdtoolkit 3.2.8 and later) and in
   `.gdformatrc` (4.3.0 and later). Both files are YAML; a directory is matched
   by name at any depth, and only `.git` is excluded by default.
-- Go, Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS and HTML carry a `rules` lane, the same in each:
+- Go, Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS, HTML and Rust carry a `rules` lane, the same in each:
   `{loomux} check rules --cached` (the commit and the turn end read the index)
   and, for an edit, `{loomux} check rules` (the working tree). See
   [`[rules]`](#rules-the-layer-map).
@@ -467,7 +467,8 @@ shapes no kind, such as `maven`, wins them all.
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
   css `{stylelint} {stylelint-config} {file}`, html
   `{html-validate} --preset standard {file}` (htmlhint: `{htmlhint} {file}`), shell
-  `shellcheck {file}`, sql `sqlfluff lint {file}`.
+  `shellcheck {file}`, sql `sqlfluff lint {file}`, rust `cargo fmt --check -- {file}`
+  (cargo checks the crate or workspace; `{file}` does not narrow it).
 - The cpp `lint`, `types`, `test` and `coverage` carry `needs =
   ["build/CMakeCache.txt"]`: until the build tree is configured they are
   `unready` with `build/CMakeCache.txt is missing: configure the build first`.
@@ -480,6 +481,24 @@ shapes no kind, such as `maven`, wins them all.
   `run-clang-tidy`, since `clang-tidy` lints only the files it is named and
   the compile commands name them all; `test` runs `after = "types"`, since
   ctest runs what the build built.
+- The rust lanes run Cargo. `lint` turns the lints of the local crates into
+  errors with `--config 'build.warnings="deny"'` (a Cargo setting, respected
+  from Cargo 1.97 on) instead of `-- -D warnings`, which discards Cargo's
+  build cache; the quotes are part of the value, which Cargo reads as TOML.
+  No lane takes a `lock`: Cargo locks `target/` itself. `clippy`, `check`,
+  `test` and the measuring run take `--workspace`, and `cargo fmt` takes
+  `--all`, so a root package with members checks its members too. The test
+  lane measures through `cargo-llvm-cov llvm-cov` (the form `cargo llvm-cov`
+  expands to), which runs the suite itself and needs the `cargo-llvm-cov` tool
+  and rustup's `llvm-tools-preview`; the binary is looked up by its own name,
+  so without it the lane is `missing-tool` and `coverage` behind it `blocked`.
+  A `Cargo.toml` in the root makes the root the only `rust` area: its
+  workspace builds its members, which checked on their own would build them a
+  second time. Tests are found by `#[test]`, by an attribute path ending in
+  `::test` (`#[tokio::test]`, also `#[async_std::test]` and `#[sqlx::test]`)
+  and by a `tests/` directory; a plain call `foo::test(x)` counts too, which
+  is harmless since `cargo test` then runs zero tests, and `#[rstest]` alone
+  is not matched.
 - The java lanes run Maven; the `gradle` variant (a `build.gradle`,
   `settings.gradle`, or their `.kts` forms where a `.java` file lies below)
   runs Gradle through `{gradle}`. With `pom.xml` and a Gradle build side by
@@ -593,7 +612,7 @@ shapes no kind, such as `maven`, wins them all.
 #### The `graph` kind
 
 The fifth kind checks what a commit's change reaches in the code graph. Go,
-Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS and HTML have a preset for it, with the same commands:
+Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS, HTML and Rust have a preset for it, with the same commands:
 
 ```toml
 [stack.go.graph]
@@ -627,7 +646,7 @@ The commands run one after the other, and `blast-audit` runs even after a red
   one rebuild per area, and of several stacks with a graph command only the
   highest-ranked runs it: in a repository with Go and Python, `graph/go`
   runs and `graph/python` is `not-applicable` ("graph covered by graph/go"),
-  which leaves the verdict green. The rank is `go`, then `python`, `gdscript`, `csharp`, `cpp`, `java`, `php`, `typescript`, `css` and `html`; a stack outside that list follows them in byte order. In a
+  which leaves the verdict green. The rank is `go`, then `python`, `gdscript`, `csharp`, `cpp`, `java`, `php`, `typescript`, `css`, `html` and `rust`; a stack outside that list follows them in byte order. In a
   repository with a Godot project beside Go or Python, their lane carries
   and `graph/gdscript` is `not-applicable` ("graph covered by graph/go" or "graph/python");
   `graph/gdscript` carries in a project with neither. The lanes stay listed
@@ -677,7 +696,7 @@ The commands run one after the other, and `blast-audit` runs even after a red
   of `HEAD` by the turn end and is never audited.
 - **Changing the threshold** means replacing `commands` in the table of the
   stack that carries the lane, the highest-ranked (`go`, then `python`, `gdscript`, `csharp`,
-  `cpp`, `java`, `php`, `typescript`, `css` and `html`): `[verify.go.graph]` in a Go repository, even one with a Godot
+  `cpp`, `java`, `php`, `typescript`, `css`, `html` and `rust`): `[verify.go.graph]` in a Go repository, even one with a Godot
   project, `[verify.python.graph]` in a Python one without Go, and
   `[verify.gdscript.graph]` only in a Godot project with neither (and so on down the rank). An
   override under a stack that stands aside is never read. Replace
@@ -718,6 +737,7 @@ profile never walks the tree.
 | cpp | `enable_testing(` in `CMakeLists.txt` |
 | java | a file `*Test.java`, `*Tests.java`, `Test*.java` or `*TestCase.java` |
 | php | a file `*Test.php` |
+| rust | a file `*.rs` holding `#[test]` or an attribute path ending in `::test` (`#[tokio::test]`, with or without arguments), or a directory `tests/` |
 | typescript | a file `*.test.*` or `*.spec.*`, or a directory `__tests__/` (what vitest and Jest find by default; a runner with no test to run fails). Which runner runs is the lane guard's matter: vitest needs `vitest` in a `package.json` of the area or of a directory above it up to the root (the root of a workspace declares its members' dependencies), Jest its variant |
 
 - No tests: `test` and `coverage` are `unavailable`.
@@ -936,7 +956,7 @@ and a human reviews it with `loomux config proposals` and applies it with
 Like `graph` it belongs to the repository root: at most one job per run,
 carried by the highest-ranked active stack with a `rules` command, in the
 rank of `graph` (`go`, then `python`, `gdscript`, `csharp`, `cpp`, `java`,
-`php`, `typescript`, `css` and `html`). The presets of those stacks are the same:
+`php`, `typescript`, `css`, `html` and `rust`). The presets of those stacks are the same:
 
 ```toml
 [stack.go.rules]

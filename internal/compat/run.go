@@ -1,10 +1,12 @@
 package compat
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
@@ -134,7 +136,7 @@ func runCopy(e Entry, o RunOptions, dir string, kinds []string, b *Break) ([]str
 	}
 	var lines []string
 	if e.Stack == "gdscript" {
-		if err := o.Rescan(dir); err != nil {
+		if err := o.Rescan(godotProject(dir)); err != nil {
 			lines = append(lines, "rescan: "+err.Error())
 		}
 	}
@@ -169,7 +171,7 @@ func prepare(e Entry, o RunOptions, dir string, b *Break) error {
 		if !ok {
 			return fmt.Errorf("addon %s: no folder known under addons/", a.Name)
 		}
-		dst := filepath.Join(dir, "addons", sub)
+		dst := filepath.Join(godotProject(dir), "addons", sub)
 		if err := errors.Join(os.RemoveAll(dst), os.CopyFS(dst, os.DirFS(filepath.Join(o.Addons, a.Name)))); err != nil {
 			return fmt.Errorf("addon %s: %w", a.Name, err)
 		}
@@ -177,7 +179,7 @@ func prepare(e Entry, o RunOptions, dir string, b *Break) error {
 	// verify.Line matches the engine by major.minor, and one Godot 4 fixture
 	// serves several versions; Godot 3 projects carry no features line.
 	if e.Stack == "gdscript" {
-		project := filepath.Join(dir, "project.godot")
+		project := filepath.Join(godotProject(dir), "project.godot")
 		data, err := os.ReadFile(project)
 		if err != nil {
 			return err
@@ -185,7 +187,75 @@ func prepare(e Entry, o RunOptions, dir string, b *Break) error {
 		// The read just succeeded; a failed write leaves the lanes to say so.
 		os.WriteFile(project, featuresRe.ReplaceAll(data, []byte("${1}"+e.Version)), 0o644)
 	}
-	return errors.Join(pinPython(dir, e), pinTools(dir, e), targetDotnet(dir, e), pinDotnet(dir, e), targetJava(dir, e), applyBreak(dir, b))
+	return errors.Join(pinPython(dir, e), pinTools(dir, e), targetDotnet(dir, e), pinDotnet(dir, e), pinRust(e), pinCrates(dir, e), targetJava(dir, e), applyBreak(dir, b))
+}
+
+// godotProject is the directory holding project.godot: the root of the copy,
+// or the folder below it that a layout like the godot-rust template's godot/
+// keeps the project in.
+func godotProject(dir string) string {
+	if _, err := os.Stat(filepath.Join(dir, "project.godot")); err == nil {
+		return dir
+	}
+	subs, _ := os.ReadDir(dir) // an unreadable dir leaves the root, and its reads say why
+	for _, d := range subs {
+		if _, err := os.Stat(filepath.Join(dir, d.Name(), "project.godot")); err == nil {
+			return filepath.Join(dir, d.Name())
+		}
+	}
+	return dir
+}
+
+// pinCrates has the Cargo.toml of the work copy pin each crate of the entry
+// to its version, wherever the fixture pins it (`name = { version = "=X" }`
+// or `name = "=X"`). A Cargo.lock beside a changed pin goes: it names the old
+// version, and cargo resolves the crate and its own dependencies anew on the
+// next build.
+func pinCrates(dir string, e Entry) error {
+	var errs []error
+	for _, name := range slices.Sorted(maps.Keys(e.Crates)) {
+		re := regexp.MustCompile(`(?m)^(` + regexp.QuoteMeta(name) + `\s*=\s*(?:\{[^}]*\bversion\s*=\s*)?")=[^"]*"`)
+		pinned := false
+		// Unreadable entries of a copy just made are left to the build.
+		filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || d.Name() != "Cargo.toml" {
+				return nil
+			}
+			data, _ := os.ReadFile(path)
+			if !re.Match(data) {
+				return nil
+			}
+			pinned = true
+			if next := re.ReplaceAll(data, []byte("${1}="+e.Crates[name]+`"`)); !bytes.Equal(next, data) {
+				errs = append(errs, os.WriteFile(path, next, 0o644))
+				os.Remove(filepath.Join(filepath.Dir(path), "Cargo.lock")) // none is the same as a stale one
+			}
+			return nil
+		})
+		if !pinned {
+			errs = append(errs, fmt.Errorf("crate %s: no Cargo.toml pins it", name))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// rustToolchain is what rustup calls the toolchain of e: its version, or the
+// beta channel for a probe of a beta, which has no toolchain of its own yet.
+func rustToolchain(e Entry) string {
+	if e.Pre != "" {
+		return "beta"
+	}
+	return e.Version
+}
+
+// pinRust has the lanes of a Rust entry run on the toolchain of its version:
+// rustup answers with its default one otherwise, whatever the entry says. It
+// takes major.minor as it is, and resolves it to the newest patch release.
+func pinRust(e Entry) error {
+	if e.Runtime != "rust" {
+		return nil
+	}
+	return os.Setenv("RUSTUP_TOOLCHAIN", rustToolchain(e))
 }
 
 var javaLevelRe = regexp.MustCompile(`(<maven\.compiler\.(?:release|source|target)>|JavaLanguageVersion\.of\()\d+`)
@@ -504,6 +574,9 @@ func Describe(key string) (Description, error) {
 // DescribeEntry names the runtime and addon sources of e.
 func DescribeEntry(e Entry) (Description, error) {
 	d := Description{Stack: e.Stack, Runtime: e.Runtime, Version: e.Version, Install: cmp.Or(e.Pre, e.Version), Addons: []AddonSource{}}
+	if e.Runtime == "rust" {
+		d.Install = rustToolchain(e)
+	}
 	if e.Runtime == "go" && e.Pre != "" {
 		// actions/setup-go takes a native Go pre-release only with its prefix.
 		d.Install = "go" + e.Pre

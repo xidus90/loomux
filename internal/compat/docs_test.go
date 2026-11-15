@@ -28,6 +28,10 @@ func rowOf(e Entry) string {
 	for name, v := range e.Tools {
 		tools = append(tools, name+" "+v)
 	}
+	// A crate is a pin like a tool, the table's column for both.
+	for name, v := range e.Crates {
+		tools = append(tools, name+" "+v+" (crate)")
+	}
 	slices.Sort(tools)
 	return fmt.Sprintf("| %s | %s | %s | %s | %s | %s | %s |",
 		e.Stack, e.Runtime, e.Version, e.Fixture, cell(addons), cell(tools), cell(e.Kinds))

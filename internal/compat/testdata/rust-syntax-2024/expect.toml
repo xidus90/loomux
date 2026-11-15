@@ -1,0 +1,12 @@
+stacks = ["rust"]
+# The 2024 forms leave their items: let chains, a raw gen identifier, a
+# precise-capturing return type, an async closure, #[unsafe(no_mangle)]. The
+# safe item of the unsafe extern block is a parse error in the grammar
+# (docs/en/support.md), but the items around it arrive, and so does the call
+# of its function.
+edges = [
+  ["src/lib.rs#load", "calls", "src/lib.rs#Square.area"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

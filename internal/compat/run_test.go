@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/BurntSushi/toml"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/query"
 )
@@ -677,15 +678,17 @@ func judgeWithoutStack(results []LaneResult, kinds []string, b *Break) []string 
 	return lines
 }
 
-// Every fixture but web-site names no stack in its breaks: each entry runs
-// all of them, and judge decides on them as it did before.
+// Every fixture but web-site and godot4-rust names no stack in its breaks:
+// each entry runs all of them, and judge decides on them as it did before.
+// The two are shared by entries of several stacks, which run the breaks of
+// their own.
 func TestBreakStackLeavesEveryVerdict(t *testing.T) {
 	list, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, e := range list {
-		if e.Fixture == "web-site" {
+		if e.Fixture == "web-site" || e.Fixture == "godot4-rust" {
 			continue
 		}
 		want, err := LoadExpect(e.Fixture)
@@ -721,6 +724,204 @@ func TestBreakStackLeavesEveryVerdict(t *testing.T) {
 					t.Errorf("%s, break %s, %s: judge %q, before %q", e.Key(), b.Kind, name, got, old)
 				}
 			}
+		}
+	}
+}
+
+// rustup answers with its default toolchain unless the environment names
+// one, and takes major.minor as the newest patch release of it.
+func TestARustEntryRunsOnItsToolchain(t *testing.T) {
+	t.Setenv("RUSTUP_TOOLCHAIN", "")
+	rep, _ := runEntryKey(t, "rust/rust-1.100/rust-cargo", fakeCheck(func(run, kind string) (string, string) {
+		// Code that does not compile fails clippy and the tests as well.
+		if run == "types" && (kind == "lint" || kind == "test") {
+			return "failed", "boom"
+		}
+		return honest(run, kind)
+	}))
+	if !rep.Green {
+		t.Fatalf("report %+v", rep)
+	}
+	if got := os.Getenv("RUSTUP_TOOLCHAIN"); got != "1.100" {
+		t.Errorf("RUSTUP_TOOLCHAIN = %q, want 1.100", got)
+	}
+}
+
+// A probe of a beta has no toolchain named after its version yet: the beta
+// channel is the one rustup knows.
+func TestARustProbeOfABetaRunsOnTheBetaChannel(t *testing.T) {
+	t.Setenv("RUSTUP_TOOLCHAIN", "")
+	if err := pinRust(Entry{Runtime: "rust", Version: "1.101", Pre: "1.101.0-beta.2"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := os.Getenv("RUSTUP_TOOLCHAIN"); got != "beta" {
+		t.Errorf("RUSTUP_TOOLCHAIN = %q, want beta", got)
+	}
+}
+
+func TestAnEntryOfAnotherRuntimeLeavesTheToolchainAlone(t *testing.T) {
+	t.Setenv("RUSTUP_TOOLCHAIN", "stable")
+	runEntryKey(t, pyKey, fakeCheck(honest))
+	if got := os.Getenv("RUSTUP_TOOLCHAIN"); got != "stable" {
+		t.Errorf("RUSTUP_TOOLCHAIN = %q, want stable", got)
+	}
+}
+
+// godot4-rust keeps its Godot project in godot/, beside the crate: the
+// addons, the engine version and the rescan belong to that directory.
+func TestAGodotProjectBelowTheRootGetsItsAddonsVersionAndRescan(t *testing.T) {
+	work := t.TempDir()
+	var rescanned []string
+	check := func(root string, kinds []string) ([]LaneResult, error) {
+		state := "ok"
+		if strings.HasPrefix(filepath.Base(root), "break-") {
+			state = "failed"
+		}
+		var out []LaneResult
+		for _, k := range kinds {
+			out = append(out, LaneResult{Lane: k + "/gdscript", State: state})
+		}
+		return out, nil
+	}
+	rep, err := Run(RunOptions{Key: "gdscript/godot-4.7/godot4-rust", Work: work, Addons: addonsDir(t), Check: check,
+		Rescan: func(root string) error { rescanned = append(rescanned, root); return nil }})
+	if err != nil || !rep.Green {
+		t.Fatalf("report %+v, err %v", rep, err)
+	}
+	want := []string{filepath.Join(work, "entry", "godot"), filepath.Join(work, "break-1-test", "godot")}
+	if !slices.Equal(rescanned, want) {
+		t.Errorf("rescanned %v, want %v", rescanned, want)
+	}
+	if got, _ := os.ReadFile(filepath.Join(work, "entry", "godot", "addons", "gdUnit4", "plugin.cfg")); string(got) != "real gdUnit4" {
+		t.Errorf("plugin.cfg = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(work, "entry", "addons")); err == nil {
+		t.Error("addons landed beside the project, not in it")
+	}
+
+	dir := filepath.Join(t.TempDir(), "w")
+	e := Entry{Stack: "gdscript", Runtime: "godot", Version: "4.5", Fixture: "godot4-rust"}
+	if err := prepare(e, RunOptions{}, dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "godot", "project.godot")); !strings.Contains(string(got), `PackedStringArray("4.5")`) {
+		t.Errorf("project.godot:\n%s", got)
+	}
+}
+
+// The Rust entry of the same fixture proves the graph alone: no lane, no
+// rescan, and the break of the GDScript entry stays unrun.
+func TestTheRustEntryOfGodot4RustRunsOnlyTheGraph(t *testing.T) {
+	t.Setenv("RUSTUP_TOOLCHAIN", "")
+	work := t.TempDir()
+	rep, err := Run(RunOptions{Key: "rust/rust-1.100/godot4-rust", Work: work,
+		Check:  func(string, []string) ([]LaneResult, error) { return nil, errors.New("no lane expected") },
+		Rescan: func(string) error { return errors.New("no rescan expected") }})
+	if err != nil || !rep.Green {
+		t.Fatalf("report %+v, err %v", rep, err)
+	}
+	if _, err := os.Stat(filepath.Join(work, "break-1-test")); err == nil {
+		t.Error("the break of the GDScript entry ran")
+	}
+}
+
+func TestGodotProjectIsTheDirectoryHoldingProjectGodot(t *testing.T) {
+	root := t.TempDir()
+	if got := godotProject(root); got != root {
+		t.Errorf("no project: %q, want the root", got)
+	}
+	sub := filepath.Join(root, "godot")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(sub, "project.godot"), nil, 0o644)
+	if got := godotProject(root); got != sub {
+		t.Errorf("project below: %q, want %q", got, sub)
+	}
+	os.WriteFile(filepath.Join(root, "project.godot"), nil, 0o644)
+	if got := godotProject(root); got != root {
+		t.Errorf("project at the root: %q, want the root", got)
+	}
+}
+
+// An entry names the version of a crate its fixture pins: the work copy
+// builds with it, and the lock beside the pin, which names the old one,
+// goes, so that cargo resolves the crate and its own dependencies anew. The
+// committed fixture keeps its pin and its lock.
+func TestACrateTakesTheVersionOfTheEntryAndItsLockIsRegenerated(t *testing.T) {
+	e := godotCrateEntry(t)
+	e.Addons = nil
+	cargo := func(dir string) string {
+		data, err := os.ReadFile(filepath.Join(dir, "rust", "Cargo.toml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	lock := func(dir string) bool {
+		_, err := os.Stat(filepath.Join(dir, "rust", "Cargo.lock"))
+		return err == nil
+	}
+
+	dir := filepath.Join(t.TempDir(), "w")
+	e.Crates = map[string]string{"godot": "0.6.0"}
+	if err := prepare(e, RunOptions{}, dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := cargo(dir); !strings.Contains(got, `godot = { version = "=0.6.0", features = ["api-4-7"] }`) {
+		t.Errorf("Cargo.toml:\n%s", got)
+	}
+	if lock(dir) {
+		t.Error("the lock of the old version stayed")
+	}
+
+	// The version the fixture pins already leaves both as they are.
+	e.Crates = map[string]string{"godot": "0.5.5"}
+	if err := prepare(e, RunOptions{}, dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := cargo(dir); !strings.Contains(got, `version = "=0.5.5"`) || !lock(dir) {
+		t.Errorf("the pinned version changed something; lock %v:\n%s", lock(dir), got)
+	}
+
+	e.Crates = map[string]string{"nowhere": "1.0.0"}
+	if err := prepare(e, RunOptions{}, dir, nil); err == nil || !strings.Contains(err.Error(), "crate nowhere") {
+		t.Errorf("a crate no Cargo.toml pins: %v", err)
+	}
+}
+
+// A plain `name = "=1.2.3"` pin is rewritten like a table with a version.
+func TestACrateWrittenAsAStringIsPinnedToo(t *testing.T) {
+	dir := t.TempDir()
+	cargo := filepath.Join(dir, "Cargo.toml")
+	os.WriteFile(cargo, []byte("[dependencies]\nserde = \"=1.0.1\"\nserde_json = \"=2.0.0\"\n"), 0o644)
+	if err := pinCrates(dir, Entry{Crates: map[string]string{"serde": "1.0.2"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(cargo); string(got) != "[dependencies]\nserde = \"=1.0.2\"\nserde_json = \"=2.0.0\"\n" {
+		t.Errorf("Cargo.toml:\n%s", got)
+	}
+}
+
+// rustup reads rust-toolchain.toml in the crate's directory, and CI installs
+// the channel it names for the GDScript job of godot4-rust. A GDScript entry
+// has no Rust version of its own, so the file holds the one of the Rust
+// entries, which move together.
+func TestTheToolchainFileOfGodot4RustHoldsTheVersionOfTheRustEntries(t *testing.T) {
+	data, err := fixtures.ReadFile("testdata/godot4-rust/rust/rust-toolchain.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Toolchain struct{ Channel string }
+	}
+	if _, err := toml.Decode(string(data), &file); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := Load()
+	for _, e := range list {
+		if e.Runtime == "rust" && e.Version != file.Toolchain.Channel {
+			t.Errorf("%s is at %s, rust-toolchain.toml of godot4-rust names %q: move it with the entries", e.Key(), e.Version, file.Toolchain.Channel)
 		}
 	}
 }

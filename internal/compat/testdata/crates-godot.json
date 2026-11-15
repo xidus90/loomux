@@ -1,0 +1,146 @@
+{
+ "crate": {
+  "id": "godot",
+  "name": "godot",
+  "max_version": "0.5.5",
+  "max_stable_version": "0.5.5",
+  "newest_version": "0.5.5"
+ },
+ "versions": [
+  {
+   "crate": "godot",
+   "num": "0.5.5",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.5.4",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.5.3",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.5.2",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.5.1",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.5.0",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.4.5",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.4.4",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.4.3",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.4.2",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.4.1",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.4.0",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.3.5",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.3.4",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.3.3",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.3.2",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.3.1",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.3.0",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.2.4",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.2.3",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.2.2",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.2.1",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.2.0",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.1.3",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.1.2",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.1.1",
+   "yanked": false
+  },
+  {
+   "crate": "godot",
+   "num": "0.1.0",
+   "yanked": true
+  }
+ ]
+}

@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://hud.gd" id="1"]
+
+[node name="Main" type="Player"]
+
+[node name="HUD" type="Control" parent="."]
+script = ExtResource("1")
+
+[connection signal="hit" from="." to="HUD" method="on_hit"]
+[connection signal="done" from="HUD" to="." method="do_move"]

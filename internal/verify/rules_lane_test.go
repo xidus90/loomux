@@ -7,6 +7,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/extract/cpp"
 	"github.com/xidus90/loomux/internal/code/extract/ecmascript"
+	"github.com/xidus90/loomux/internal/code/extract/rust"
 )
 
 const withRules = "[rules]\n"
@@ -89,7 +90,7 @@ func TestRulesOnEdit(t *testing.T) {
 		{"another toml", withRules, "x/config.toml", []string{"go"}, ""},
 		{"no [rules]", "", "a.go", []string{"go"}, ""},
 		{"switched off", withRules + "[verify.go]\nrules = false\n", "a.go", []string{"go", "gdscript"}, ""},
-		{"no stack with a rules command", withRules, "a.go", []string{"rust"}, ""},
+		{"no stack with a rules command", withRules, "a.go", []string{"shell"}, ""},
 		{"no stack", withRules, ".loomux/config.toml", nil, ""},
 	} {
 		if got := edit(c.src, c.file, c.stacks...); got != c.want {
@@ -226,4 +227,13 @@ func TestRulesJobSitsOutWhenNoIndexIsReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantRulesJobs(t, jobs, [3]string{"rules/go", "", ""})
+}
+
+// The rules read what the Rust extractor reads.
+func TestIsSourceCoversTheRustExtractor(t *testing.T) {
+	for _, ext := range (rust.Language{}).Extensions() {
+		if !IsSource("src/lib" + ext) {
+			t.Errorf("%s is no source", ext)
+		}
+	}
 }

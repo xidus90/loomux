@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/extract"
+	"github.com/xidus90/loomux/internal/code/extract/rust"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/detect"
@@ -127,6 +129,11 @@ func TestEveryEntryPassesLayerOne(t *testing.T) {
 			for _, b := range want.Breaks {
 				if b.Stack != "" && !slices.Contains(want.Stacks, b.Stack) {
 					t.Errorf("break of %s: stack %q is none of %v", b.Kind, b.Stack, want.Stacks)
+				}
+				// A fixture shared by entries of several stacks lets each run the
+				// breaks of its own: the Rust entry of godot4-rust proves no lane.
+				if !b.ranBy(e) {
+					continue
 				}
 				// The break changes one file, so its stack's kind must be one
 				// lane, not one per area.
@@ -397,5 +404,39 @@ func TestCopyFixtureRenamesTheModuleFile(t *testing.T) {
 func TestAMalformedExpectIsRefused(t *testing.T) {
 	if _, err := decodeExpect("x", []byte("stacks = ")); err == nil || !strings.Contains(err.Error(), "x/expect.toml") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// The grammar rejects a safe item inside unsafe extern (tree-sitter-rust
+// #250, docs/en/support.md): the block is a parse error, but every item
+// around it arrives, the call of its safe function among them. A grammar
+// that learns the form parses the file clean and fails here, and the support
+// page is to follow.
+func TestTheRust2024GapLeavesTheRestOfTheFile(t *testing.T) {
+	src, err := fs.ReadFile(Fixtures(), "rust-syntax-2024/src/lib.rs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := rust.File("src/lib.rs", string(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.ParseErrors == 0 {
+		t.Error("the file parses clean: the grammar reads safe items now")
+	}
+	var got []string
+	for _, n := range r.Nodes {
+		got = append(got, string(n.ID))
+	}
+	slices.Sort(got)
+	want := []string{"src/lib.rs", "src/lib.rs#Square", "src/lib.rs#Square.area", "src/lib.rs#chars",
+		"src/lib.rs#exported", "src/lib.rs#first_even", "src/lib.rs#load", "src/lib.rs#magnitude", "src/lib.rs#r#gen"}
+	if !slices.Equal(got, want) {
+		t.Errorf("nodes %v, want %v", got, want)
+	}
+	if !slices.ContainsFunc(r.Edges, func(e extract.RawEdge) bool {
+		return e.Source == "src/lib.rs#magnitude" && e.Relation == model.RelationCalls && e.Name == "abs"
+	}) {
+		t.Errorf("magnitude leaves no call of abs: %+v", r.Edges)
 	}
 }

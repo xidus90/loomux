@@ -517,5 +517,42 @@ on_file = ["shellcheck {file}"]
 commands = ["sqlfluff lint ."]
 on_file = ["sqlfluff lint {file}"]
 
+# The tests_when entries: #[test], an attribute path ending in ::test
+# (tokio::test, with or without arguments), a tests/ directory.
+[stack.rust]
+tests_when = ["*.rs:#[test]", "*.rs:::test]", "*.rs:::test(", "tests/"]
+
+# build.warnings turns the lints of the local crates into errors without
+# changing RUSTFLAGS, so the build cache of clippy, check and test stays
+# valid; `-- -D warnings` would discard it. TOML wants the value quoted, and
+# the command splitter removes quotes, hence the single quotes around it.
+# No lane locks: cargo takes its own lock on target/, and the coverage lane
+# only waits for the test lane that writes its report.
 [stack.rust.lint]
-commands = ["cargo clippy -- -D warnings", "cargo fmt --check"]
+commands = ["cargo clippy --workspace --all-targets --config 'build.warnings=\"deny\"'", "cargo fmt --all --check"]
+on_file = ["cargo fmt --check -- {file}"]
+
+[stack.rust.types]
+commands = ["cargo check --workspace --all-targets"]
+
+# cargo-llvm-cov runs the suite itself, so the measuring form replaces the
+# plain test when coverage is asked for as well. It is called by its own name,
+# which cargo accepts as `cargo-llvm-cov llvm-cov`: a machine without the tool
+# is missing-tool, where `cargo llvm-cov` would run and fail. The report goes
+# to {coverprofile}: cargo-llvm-cov creates no directory, and the .data
+# directory of {coverdata} does not exist before a lane writes it.
+[stack.rust.test]
+commands = ["cargo test --workspace"]
+measuring = "cargo-llvm-cov llvm-cov --workspace --lcov --output-path {coverprofile}"
+
+[stack.rust.coverage]
+commands = ["{loomux} check linecov --report {coverprofile}"]
+measure = "cargo-llvm-cov llvm-cov --workspace --lcov --output-path {coverprofile}"
+after = "test"
+
+[stack.rust.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.rust.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]

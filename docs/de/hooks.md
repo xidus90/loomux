@@ -224,7 +224,7 @@ Datei, relativ zu ihrem Bereich):
 | HTML | `.html`, `.htm` | html-validate auf `{file}` mit `--preset standard`, das des Projekts oder 11.21.1 über `npx --yes`; stattdessen htmlhint (das des Projekts oder 1.9.2), wo `.htmlhintrc` liegt | — |
 | Shell | `.sh`, `.bash`, `.zsh` | `shellcheck {file}` | — |
 | SQL | `.sql` | `sqlfluff lint {file}` | — |
-| Rust | `.rs` | `cargo clippy -- -D warnings`, `cargo fmt --check` | — |
+| Rust | `.rs` | `cargo fmt --check -- {file}` (prüft das ganze Crate oder den Workspace, nicht nur `{file}`) | `cargo check --workspace --all-targets` |
 | Wiki | `.md` im Bündel | die Prüfung von `loomux lint <datei>`, im Prozess des Hooks selbst | — |
 | — | `.md` außerhalb des Bündels; `.txt`, `.json`, `.yaml`, `.yml`, `.toml`, `.svg`, `.png`, `.jpg`, `.jpeg`, `.import`, `.lock` | keine; der Hook endet sofort mit 0 | |
 

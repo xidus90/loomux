@@ -8,13 +8,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:d75c995eb2af5df759fc9a06ba0e5695a94a99dbcf736283133b0c3e62ac4210"
-    revision: 9
+    content_hash: "sha256:70612a3be33cedafe25245fa8d4d5ac4e50bbfd995e2808bf21b58321b285865"
+    revision: 10
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:9f10a23fed23d03a8901e702abb20aaa1c08bbd188a92acdcbd2b3edb71a30d4"
-    revision: 56
+    content_hash: "sha256:34ebb8a7e729133aeff474390b954a59d52ceca8d7f010976d00dfee5d0661cf"
+    revision: 57
 ---
 
 ## Wofür
@@ -237,6 +237,106 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   `composer.json` hat darum nie die Pakete im Graphen
   (`docs/.superpowers/specs/2026-11-11-php-design.md`).
 
+- **Rust** liest er auf demselben Kern (`internal/code/extract/rust`, Endung
+  `.rs`): Dateien, Funktionen, Structs, Enums, Unions, Traits, Typaliase und
+  `macro_rules!`-Definitionen auf Modulebene sowie die Methoden eines `impl`
+  oder Traits. Ein `impl` hat keinen Knoten; seine Methoden gehören über
+  `Node.Owner` dem Typ, den es nennt, und hängen nur dann an dessen Knoten,
+  wenn der Typ in derselben Datei steht, denn er kann in jeder Datei der Crate
+  deklariert sein. Ein Inline-Modul ist kein Knoten; sein Pfad qualifiziert die
+  Kennungen darin (`rel#tests::adds`), ein Modul in einer eigenen Datei ist
+  diese Datei. Tests stehen in Rust in der Datei des getesteten Codes und
+  tragen darum die Marke am Knoten (siehe „Tests am Knoten“): `#[test]`, jedes
+  Attribut, dessen Pfad auf `test` endet, und alles unter `#[cfg(test)]`. Die
+  Registrierungen von godot-rust (gdext) liest er als Text aus den Attributen
+  vor einem Item: ein Struct mit `derive(GodotClass)` wird als Godot-Klasse
+  angeboten, `#[func]`, `#[rpc]` und `#[signal]` in einem `#[godot_api]`-`impl`
+  hinterlassen eine rohe `references`-Kante, auch mit umbenanntem Namen. `use`,
+  `mod x;`, Aufrufe, Makroaufrufe, `impl Trait for` und Supertraits liest der
+  Extraktor als Rohkanten. Der Resolver (`internal/code/resolve/rust.go`)
+  baut je Crate-Wurzel den Modulbaum: `mod x;` führt auf `x.rs` oder
+  `x/mod.rs` im Verzeichnis des deklarierenden Moduls (aus `a.rs` nach `a/`,
+  aus einem Inline-Modul in dessen Verzeichnis), und `#[path]` geht vor.
+  Innerhalb eines Pakets zieht die Bibliothek (`[lib] path`, sonst
+  `src/lib.rs`) zuerst, die Pakete in der Reihenfolge ihrer `Cargo.toml`;
+  eine Datei, die zwei Bäume erreichen, gehört dem ersten. Die Wurzeln, die
+  Cargo nach ihrem Ort findet (`src/bin/`, `tests/`, `benches/`,
+  `examples/`), nimmt er aus den Dateien selbst, denn `ModulesFrom` sieht
+  kein Verzeichnis. Eine Datei, die kein Baum erreicht, ist eine eigene
+  Wurzel: `self::` meint sie selbst, `super::` und `crate::` führen ins
+  Leere, und ihre `mod x;` sucht sie, wo ihr Name sie hinlegt (aus `a.rs` in
+  `a/`, aus `mod.rs`, `lib.rs` und `main.rs` daneben), denn meist hat sie ein
+  Makro deklariert. Ein Pfad beginnt mit `crate::`, `self::`, `super::`,
+  `::name` oder einem Namen. Gelesen wird er gegen Modultabellen, die der
+  Resolver einmal vor allen Aufrufen festlegt: je Modul und Namensraum (Typen
+  und Module, Werte, Makros), von innen und von außen gesehen, Name auf
+  Kandidaten, in dieser Rangfolge: Definition im selben Modul, `use` (mit
+  Alias), Glob-`use`. Welche Stufe einen Namen beantwortet, steht im
+  Quelltext: Ein `use` bindet für die ganze Datei, wo immer es steht, und
+  verdeckt die Globs für seinen Namen auch dann, wenn es nichts im Repository
+  nennt (`use std::fmt::Display`). Sein eigener Pfad liest an ihm vorbei, und
+  nennt er den eigenen Namen der Datei zurück, auch an allen anderen, die
+  das tun: Mehrere `mod tests { use super::X; }` in einer Datei nennen so das
+  X der Globs. Der
+  Crate-Name (eine Pfadabhängigkeit oder die eigene Bibliothek) zählt als
+  erstes Segment, wenn weder eine Definition noch ein `use` den Namen
+  bindet; bietet ihn auch ein Glob an, ist er mehrdeutig. Die Tabellen sind
+  der kleinste Fixpunkt über Kandidatenmengen: Ein Pfadsegment steht für
+  alle seine Kandidaten, ein Glob öffnet jedes Modul, das sein Pfad nennt,
+  und ab leeren Tabellen fügt jeder Durchlauf nur hinzu, bis einer nichts
+  mehr ändert. Das endet in Polynomialzeit, auch in einem dichten Kreis von
+  Globs, und hängt weder von der Reihenfolge der Dateien noch von den Namen
+  der Module ab. Über Mehrdeutigkeit entscheidet erst der fertige Fixpunkt:
+  Eine Kante gibt es nur für genau einen Kandidaten, zu dem kein Segment mit
+  mehr als einem Kandidaten führt, und ein Glob durch ein solches Segment
+  macht jeden Namen mehrdeutig, den er anbietet. Ein privates Item
+  zählt nur im eigenen Modul und darunter. `Typ::f()` trifft die Methode `f`
+  eines `impl Typ` irgendwo in der Crate, `self.f()` und `Self::f()` die des
+  eigenen `impl`-Typs, sonst den Default einer Trait, die er implementiert,
+  oder ihrer Supertraits, Stufe für Stufe; der Methodenindex je Crate geht
+  über `Owner`, und zwei Typen gleichen Namens in einer Crate oder zwei
+  Methoden gleichen Namens eines Typs (`fmt` aus `Display` und `Debug`)
+  geben keine Kante statt einer falschen. Ein Tupel-Struct (`Pt(1)`) und
+  eine Enum-Variante (`Kind::A(1)`) treffen den Typ. Ein `impl Trait for
+  Typ` startet am Typ, auch wenn er in einer anderen Datei steht, und
+  `implements` und `extends` stehen ohne Ziel (eine Trait der
+  Standardbibliothek) unter `Unresolved`. `mod x;` und ein `use` ergeben
+  `imports` auf die Datei des Moduls oder der Definition, das `use` ohne
+  Zeile, weil `extract.Import` keine trägt. Was über Pfad, `use` oder
+  `impl`-Typ aufgelöst ist, ist `extracted`; `inferred` sind `x.f()` (die
+  einzige Methode `f` der Crate), ein Makro, das das Modul nicht sieht (das
+  einzige `macro_rules!` dieses Namens), und jeder Aufruf aus den Argumenten
+  eines Makros. Probelauf am 2026-11-15 über alle `.rs`-Dateien des
+  Checkouts (`graph build` lässt in gdext einige aus): ripgrep löst 29,6 %
+  der rohen Aufrufe auf (6661 von 22 473), davon 49,3 % `inferred`; tokio
+  12,8 % (7610 von 59 230), davon 37,2 %; gdext 24,4 % (7530 von 30 800),
+  davon 32,2 %. Ein großer Teil der rohen Aufrufe zielt auf die
+  Standardbibliothek und fremde Crates, und tokio deklariert die meisten
+  Module in `cfg_*! { mod x; }`, die der Extraktor nicht sieht. `graph build`
+  selbst deckt sich mit dem Probelauf an den aufgelösten Aufrufkanten, außer in
+  gdext: ripgrep 6661 (3287 `inferred`, 49,3 %), tokio 7610 (2833, 37,2 %),
+  gdext 7112 (2212, 31,1 %) statt 7530 (32,2 %) des Probelaufs; es liest 363
+  der 384 `.rs`-Dateien, sieben Parse-Fehler in `virtual_definitions.rs`. Zeit
+  eines Neubaus ohne Cache: ripgrep 1,2 s (55 500 Zeilen), tokio 3,4 s
+  (191 000), gdext 1,9 s (117 000): 48 000 bis 63 000 Zeilen je Sekunde für
+  Rust. Zum Vergleich braucht dieses Repo mit allen seinen Sprachen 3,4 s für
+  298 000 Zeilen, etwa 86 500 je Sekunde; Rust liegt im Rahmen. In den `demo-projects` von godot-rust (Szenen ohne
+  GDScript) führt `graph callers` von `Hud` auf `Hud.tscn`, in gdext von
+  `ArrayTest` auf `InheritTests.gd` (`extends ArrayTest`). Eine
+  Definition, die der Parser um verworfenen Text herum neu aufgebaut hat,
+  bekommt keinen Knoten. `corpus.pruneDirs` kennt `target` schon
+  (`docs/.superpowers/specs/2026-11-14-rust-design.md`). Der Build reicht
+  jede `Cargo.toml` wie `go.mod` als `resolve.Module` herein
+  (`Module.Cargo`): Paketname, Name der Bibliothek (`[lib] name`, sonst der
+  Paketname mit `_`) und ihre Wurzel (`[lib] path`, sonst `src/lib.rs`),
+  Crate-Wurzeln (`src/lib.rs`, `src/main.rs`, `src/bin/`, `tests/`,
+  `benches/`, `examples/` und jeder `path`) und Pfadabhängigkeiten, auch über
+  `workspace = true`. Die Workspace-Mitglieder liest er nicht: Jedes
+  Mitglied ist eine eigene `Cargo.toml` und damit ein eigenes Modul. Was nur
+  das Dateisystem entscheidet (Globs der Crate-Wurzeln), liest
+  `resolve.Modules`; `ModulesFrom` kennt nur den Text. Eine `Cargo.toml` mit
+  Syntaxfehler gibt kein Modul und keinen Fehler.
+
 - **JavaScript und TypeScript** liest er auf demselben Kern, mit einem
   Extraktor für zwei Sprachen (`internal/code/extract/ecmascript`):
   `javascript` für `.js`, `.mjs`, `.cjs` und `.jsx`, `typescript` für `.ts`,
@@ -387,6 +487,17 @@ Code nennt ihn aber, und ohne die Brücke bliebe er ohne Ziel. C++ bietet
 `.new()` und der Knotentyp einer Szene (`[node … type="GDExample"]`, eine
 `references`-Kante von der Szene auf die Klasse) treffen so die C++-Klasse,
 auch wenn die Quellen außerhalb des Projekts liegen (`src/` neben `project/`).
+Rust (godot-rust) teilt es ebenso auf: Der Extraktor bietet jedes Struct mit
+`derive(GodotClass)` als `godot.class` an, unter `#[class(rename = X)]` oder
+seinem eigenen Namen, und der Resolver jede `#[func]`/`#[rpc]` als
+`godot.method` (unter `rename =`, sonst dem Methodennamen) und jedes
+`#[signal]` als `godot.signal`, beide auf den Methodenknoten. Die Klasse ist
+der Godot-Name des `impl`-Typs: Der Resolver sucht den einen Typ dieses
+Namens in der Crate (Struct, Enum, Union, Trait oder Typalias; zwei davon
+ergeben kein Angebot), auch wenn er in einer anderen Datei steht als das
+`#[godot_api] impl`, und nimmt dessen `godot.class`; ohne Godot-Klasse
+entsteht kein Angebot. Eine Crate neben dem Projekt (`rust/` neben `godot/`)
+gilt in jedem (`docs/.superpowers/specs/2026-11-14-rust-design.md`).
 Ein eingebauter Typ (`Sprite2D`) findet kein Angebot und bleibt ohne Kante. Eine
 Verbindung auf einen Knoten ohne Skript, aber mit Typ, hat keine Datei, in der
 sie sucht: Dafür trägt ein Export wie eine Brücke eine **Klasse**
@@ -463,6 +574,19 @@ diese Kette.
 `out` (wovon hänge ich ab?), transitiv per Breitensuche mit Tiefengrenze.
 `loomux graph blast` führt einen git-Diff auf die Symbole, die seine Hunks
 berühren, und auf das, was sie erreicht.
+
+**Tests am Knoten:** Ein Test muss nicht in einer Testdatei liegen: Rust
+schreibt sie meist als Modul in die Produktivdatei. Ein Knoten trägt darum
+`test` (`model.Node.Test`; im JSON nur, wenn gesetzt, sodass bestehende Graphen
+byte-gleich bleiben), und `blast.IsTestNode` fragt Knotenmarke und Pfadregel
+zusammen. Blast-Signal, `blast-audit` (Aufrufer aus Tests zählen nicht), die
+Auflösung von Namen und das Ranking von `graph ask` urteilen über den Knoten;
+wo nur ein Pfad vorliegt (die Namespace-Zuordnung von C# und Java), bleibt es
+bei `blast.IsTestPath`. Beim Signal zählt ein Test aus einer Testdatei als
+geändert, wenn die Datei im Diff liegt; ein markierter Test in einer
+Produktivdatei nur, wenn ein Hunk seinen Span schneidet, sonst gälte er bei
+jeder Änderung der Datei als mitgeändert. Ein Pfad ohne Hunks (zurückgehalten
+oder ohne Hunk gelistet) zählt ganz, ein markierter Knoten als Saat gibt `na`.
 
 **Geratene Kanten:** Jede Kante trägt eine Konfidenz. `inferred` heißt: Der
 Resolver hat einen Aufruf nur über einen Namen zugeordnet, der im ganzen Repo
@@ -588,9 +712,9 @@ stehen in `docs/de/cli-reference.md` unter `loomux ui` und `loomux reindex`.
   Bereich mit genug Aufrufern keinen geänderten Test hat. Die Lane-Namen der
   Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go, Python,
   GDScript, C#, C++, Java, PHP, TypeScript (der auch reine JavaScript-Projekte
-  prüft), CSS und HTML; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
+  prüft), CSS, HTML und Rust; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
   ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp, cpp, java, php,
-  typescript, css, html; ein Stack ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
+  typescript, css, html, rust; ein Stack ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
   für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
   `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter
   `tests/` oder `test/`, für GDScript `*_test.gd` und alles unter `test/`
@@ -601,7 +725,10 @@ stehen in `docs/de/cli-reference.md` unter `loomux ui` und `loomux reindex`.
   nicht), für PHP ein Dateiname `*Test.php` (`Contest.php` zählt nicht) und alles unter einem
   Verzeichnis `test` oder `tests` in jeder Schreibung, für JavaScript und
   TypeScript `*.test.*`, `*.spec.*` und alles unter einem Verzeichnis
-  `__tests__`, `test` oder `tests` (so geschrieben); Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
+  `__tests__`, `test` oder `tests` (so geschrieben), für Rust alles unter
+  einem Verzeichnis `tests` oder `benches` und eine Datei `tests.rs` oder
+  `test.rs` (`src/tests_util.rs` zählt nicht); Szenen und Ressourcen
+  (`.tscn`, `.tres`) zählen nur dort,
   `project.godot` nie. Für die Web-Brücken entscheidet eine bestehende
   Regel: `blast.signal` prüft nur Saaten der Art `function` oder `method`,
   denn nur sie sind Verhalten. Regeln, Elemente und Mixins geben darum das
@@ -690,6 +817,34 @@ das Binary kommt über die üblichen Wege.
     Stacks brauchen die Werkzeuge in `vendor/bin`; fehlen sie, sind nur
     diese Lanes `unavailable`, nicht rot. Die Lanes von Graph und Regeln laufen
     weiter, und ein Edit führt trotzdem `php -l` aus.
+- **Lücken von Rust:**
+  - Makros sind nicht expandiert: Was eines erzeugt, fehlt, auch ein
+    `mod x;` in einem Makro (tokios `cfg_*!`), dessen Datei dann eine eigene
+    Wurzel ist. Aufrufe in den Argumenten eines Makros sind geraten
+    (`inferred`).
+  - Kein Trait-Dispatch, keine Typinferenz: `x.f()` trifft nur die einzige
+    Methode `f` der Crate (`inferred`), auch wenn `x` ein Typ der
+    Standardbibliothek ist, und mehrere ergeben keine Kante.
+  - Ein `use` in einem Inline-Modul bindet für die ganze Datei, und ein
+    `pub use` darin bietet seinen Namen unter dem Dateimodul an, nicht unter dem
+    Inline-Modul. `use`-Importe tragen keine Zeile. Das gilt auch für ein `use`
+    im Rumpf einer Funktion: Es bindet für die ganze Datei. Mit
+    `use crate::prelude::*;` auf Dateiebene ergibt `fn a() { use
+    crate::other::spawn; spawn(); } fn b() { spawn(); }` für `b` die Kante
+    `other::spawn` (`extracted`), wo Rust `prelude::spawn` auflöst.
+  - Nur ein `use`, dessen Pfad aus Schlüsselwörtern und Kindmodulen auf die
+    eigene Datei führt, liest an den anderen solchen vorbei. Erreicht ein
+    zweites `use` die Datei über einen Alias (`use crate as me; use
+    me::f;`), lesen beide einander und bleiben leer, und der Glob-Name
+    darunter geht verloren: keine Kante statt einer falschen.
+  - Eine Datei, die zwei Bäume erreichen (Bibliothek und Binary deklarieren
+    beide `mod x;`), löst ihre Pfade nur im ersten auf.
+  - Ein Signal oder eine Methode aus einer Basisklasse wird von einer
+    Szenen-Verbindung nicht gefunden (wie bei C++).
+  - `#[var]`- und `#[export]`-Eigenschaften ergeben keine Kante.
+  - Methoden in `#[godot_api] impl INode for X` (`ready`, `process`) ruft die
+    Engine; sie haben im Graphen keinen Aufrufer.
+  - `[target.*.dependencies]` liest der Cargo-Leser nicht.
 - **Lücken von JavaScript und TypeScript:**
   - Typen kennt der Graph nicht: `obj.m()` auf einer Variablen ergibt keine
     Kante, ebenso ein statisches `C.s()` und `N.f()` in einen
@@ -698,9 +853,10 @@ das Binary kommt über die üblichen Wege.
     JavaScript-Grammatik: Die Definition, die es enthält, bekommt keinen
     Knoten, und der Rest der Datei wird nur ab Deklarationen in Spalte 0 neu
     gelesen. `.jsx` liest es mit der tsx-Grammatik.
-  - Eine geänderte `tsconfig.json` oder `jsconfig.json` macht den Graphen für
-    `graph-fresh` nicht veraltet, wie bei `go.mod`: die Frischeprobe sieht nur
-    Quelldateien. Ein Alias greift erst mit dem nächsten Neubau.
+  - Eine geänderte `tsconfig.json`, `jsconfig.json` oder `Cargo.toml` macht den
+    Graphen für `graph-fresh` nicht veraltet, wie bei `go.mod`: die
+    Frischeprobe sieht nur Quelldateien. Ein Alias greift erst mit dem
+    nächsten Neubau.
   - Paketnamen, Workspace-Pakete und die `extends`-Kette einer
     `tsconfig.json` liest der Resolver nicht, ebenso wenig Subpath-Importe
     (`#types/…`) aus dem Feld `imports` einer `package.json`; vites

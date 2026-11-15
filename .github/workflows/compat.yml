@@ -101,6 +101,15 @@ jobs:
       matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).cpp) }}
       linux: ${{ needs.pick.outputs.linux }}
       windows: ${{ needs.pick.outputs.windows }}
+  rust:
+    needs: [pick, plan]
+    if: toJSON(fromJSON(needs.plan.outputs.matrix).rust.include) != '[]'
+    uses: ./.github/workflows/compat-run.yml
+    with:
+      stack: rust
+      matrix: ${{ toJSON(fromJSON(needs.plan.outputs.matrix).rust) }}
+      linux: ${{ needs.pick.outputs.linux }}
+      windows: ${{ needs.pick.outputs.windows }}
   java:
     needs: [pick, plan]
     if: toJSON(fromJSON(needs.plan.outputs.matrix).java.include) != '[]'
@@ -149,7 +158,7 @@ jobs:
   # The required check: green when the plan passed and no stack failed or
   # was cancelled; a skipped stack had nothing to run.
   compat:
-    needs: [plan, go, python, gdscript, csharp, cpp, java, php, typescript, html, css]
+    needs: [plan, go, python, gdscript, csharp, cpp, rust, java, php, typescript, html, css]
     if: always()
     runs-on: ubuntu-24.04
     steps:

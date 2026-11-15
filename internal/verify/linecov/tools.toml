@@ -77,8 +77,11 @@ marker_keys = [
 
 [tool.rust]
 extensions = [".rs"]
+reports = ["lcov.info"]
 markers = [
   { label = "coverage(off)", pattern = '#!?\[\s*(?:cfg_attr\s*\([^,]*,\s*)?coverage\s*\(\s*off\s*\)\s*\)?\s*\]' },
+  { label = "LCOV_EXCL_START", pattern = '\bLCOV_EXCL_START\b', block = "start" },
+  { label = "LCOV_EXCL_STOP", pattern = '\bLCOV_EXCL_STOP\b', block = "stop", no_reason = true },
 ]
 
 [tool.phpunit]

@@ -1,0 +1,192 @@
+stacks = ["rust"]
+# The bin crate calls the lib crate; the inline test module and tests/it.rs
+# each reach twice.
+edges = [
+  ["crates/app/src/main.rs#main", "calls", "crates/calc/src/lib.rs#twice"],
+  ["crates/calc/src/lib.rs#twice", "calls", "crates/calc/src/lib.rs#Child.new"],
+  ["crates/calc/src/lib.rs#tests::twice_doubles_a_value", "calls", "crates/calc/src/lib.rs#twice"],
+  ["crates/calc/tests/it.rs#twice_of_zero_is_zero", "calls", "crates/calc/src/lib.rs#twice"],
+]
+
+[lanes]
+lint = "cargo clippy"
+types = "cargo check"
+test = "cargo-llvm-cov llvm-cov"
+coverage = "{loomux} check linecov"
+graph = "{loomux} check graph-fresh"
+
+# Each break leaves the other kinds green. The lint break is a needless
+# return, which clippy denies and cargo accepts; the types break fails in
+# every lane that compiles the crate, so clippy and the tests go red with it,
+# and coverage waits behind the tests.
+[[break]]
+kind = "lint"
+file = "crates/calc/src/lib.rs"
+content = '''
+pub struct Base;
+
+impl Base {
+    pub fn f(&self) -> i32 {
+        1
+    }
+}
+
+pub struct Child {
+    base: Base,
+}
+
+impl Child {
+    pub fn new() -> Self {
+        Child { base: Base }
+    }
+
+    pub fn f(&self) -> i32 {
+        self.base.f() + 1
+    }
+}
+
+impl Default for Child {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn twice(value: i32) -> i32 {
+    return Child::new().f() * value;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn child_adds_one_to_the_base() {
+        assert_eq!(Child::default().f(), 2);
+    }
+
+    #[test]
+    fn twice_doubles_a_value() {
+        assert_eq!(twice(2), 4);
+    }
+}
+'''
+
+[[break]]
+kind = "types"
+also = ["lint", "test"]
+file = "crates/calc/src/lib.rs"
+content = '''
+pub struct Base;
+
+impl Base {
+    pub fn f(&self) -> i32 {
+        1
+    }
+}
+
+pub struct Child {
+    base: Base,
+}
+
+impl Child {
+    pub fn new() -> Self {
+        Child { base: Base }
+    }
+
+    pub fn f(&self) -> i32 {
+        self.base.f() + 1
+    }
+}
+
+impl Default for Child {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn twice(value: i32) -> i32 {
+    let wrong: &str = Child::new().f() * value;
+    wrong
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn child_adds_one_to_the_base() {
+        assert_eq!(Child::default().f(), 2);
+    }
+
+    #[test]
+    fn twice_doubles_a_value() {
+        assert_eq!(twice(2), 4);
+    }
+}
+'''
+
+[[break]]
+kind = "test"
+file = "crates/calc/tests/it.rs"
+content = '''
+#[test]
+fn twice_of_zero_is_zero() {
+    assert_eq!(calc::twice(0), 1);
+}
+'''
+
+[[break]]
+kind = "coverage"
+file = "crates/calc/src/lib.rs"
+content = '''
+pub struct Base;
+
+impl Base {
+    pub fn f(&self) -> i32 {
+        1
+    }
+}
+
+pub struct Child {
+    base: Base,
+}
+
+impl Child {
+    pub fn new() -> Self {
+        Child { base: Base }
+    }
+
+    pub fn f(&self) -> i32 {
+        self.base.f() + 1
+    }
+}
+
+impl Default for Child {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn twice(value: i32) -> i32 {
+    Child::new().f() * value
+}
+
+pub fn untested() -> i32 {
+    3
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn child_adds_one_to_the_base() {
+        assert_eq!(Child::default().f(), 2);
+    }
+
+    #[test]
+    fn twice_doubles_a_value() {
+        assert_eq!(twice(2), 4);
+    }
+}
+'''

@@ -14,6 +14,7 @@ func TestByStackGroupsJobsUnderEveryStack(t *testing.T) {
 		{Entry: "php/php-8.2/php-syntax-8.2", OS: "linux"},
 		{Entry: "go/go-1.27/go-module", OS: "linux"},
 		{Entry: "php/php-8.2/php-syntax-8.2", OS: "windows"},
+		{Entry: "rust/rust-1.100/rust-cargo", OS: "linux"},
 	}
 	by := ByStack(jobs)
 	if len(by) != len(runtimeOf) {
@@ -27,6 +28,9 @@ func TestByStackGroupsJobsUnderEveryStack(t *testing.T) {
 		t.Errorf("go = %v", by["go"])
 	}
 	// An empty stack must encode as [], which the workflow tests for.
+	if !reflect.DeepEqual(by["rust"], jobs[3:4]) {
+		t.Errorf("rust = %v", by["rust"])
+	}
 	if by["java"] == nil || len(by["java"]) != 0 {
 		t.Errorf("java = %#v, want an empty non-nil list", by["java"])
 	}

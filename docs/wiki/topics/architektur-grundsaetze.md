@@ -8,8 +8,8 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:d75c995eb2af5df759fc9a06ba0e5695a94a99dbcf736283133b0c3e62ac4210"
-    revision: 9
+    content_hash: "sha256:70612a3be33cedafe25245fa8d4d5ac4e50bbfd995e2808bf21b58321b285865"
+    revision: 10
 ---
 
 ## Sechs Grundsätze

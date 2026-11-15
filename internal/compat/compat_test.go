@@ -159,7 +159,7 @@ func TestTheListRefuses(t *testing.T) {
 	cases := []struct{ name, doc, want string }{
 		{"syntax", "[[entry", "compat.toml"},
 		{"unknown key", good + "colour = 1\n", `compat.toml:8: unknown key "colour"`},
-		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are cpp, csharp, css, gdscript, go, html, java, php, python, typescript`},
+		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are cpp, csharp, css, gdscript, go, html, java, php, python, rust, typescript`},
 		{"wrong runtime", strings.Replace(good, `runtime = "python"`, `runtime = "godot"`, 1), `compat.toml:1: runtime "godot"`},
 		{"bad version", strings.Replace(good, `"3.12"`, `"3.12.1"`, 1), `compat.toml:1: version "3.12.1" is not MAJOR or MAJOR.MINOR`},
 		{"unknown kind", strings.Replace(good, `"types"`, `"magic"`, 1), `compat.toml:1: kind "magic"`},
@@ -233,5 +233,22 @@ func TestAProbeMayCarryAPreReleaseOfItsVersion(t *testing.T) {
 		if _, err := LoadEntry(write(`{"stack":"go","runtime":"go","version":"1.28","pre":"` + pre + `","fixture":"go-module","kinds":["lint"]}`)); err == nil || !strings.Contains(err.Error(), "pre-release") {
 			t.Errorf("pre %q: %v", pre, err)
 		}
+	}
+}
+
+// A crate is pinned exactly, as the fixture's Cargo.toml pins it: a range or
+// a glob would leave the version of a run to the registry.
+func TestTheListRefusesACrateThatIsNoExactVersion(t *testing.T) {
+	for doc, want := range map[string]string{
+		good + `crates = { godot = "0.5" }` + "\n":           `compat.toml:1: crate "godot" version "0.5"`,
+		good + `crates = { godot = "0.5.*" }` + "\n":         `crate "godot" version "0.5.*"`,
+		good + `crates = { "Not A Crate" = "1.0.0" }` + "\n": `crate "Not A Crate"`,
+	} {
+		if _, err := parse([]byte(doc), "compat.toml"); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("err = %v, want it to contain %q", err, want)
+		}
+	}
+	if es, err := parse([]byte(good+`crates = { godot = "0.5.5", gdext-sys = "1.0.0" }`+"\n"), "compat.toml"); err != nil || es[0].Crates["godot"] != "0.5.5" {
+		t.Errorf("a pinned crate: %v %+v", err, es)
 	}
 }

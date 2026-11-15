@@ -119,6 +119,9 @@ func TestActivateFindsAToolByItsReportBelowAnotherDirectory(t *testing.T) {
 		".loomux/state/cover/R.data/0f3c/coverage.cobertura.xml": {"coverlet"},
 		"C:/out/0f3c/coverage.cobertura.xml":                     {"coverlet"},
 		"web/coverage/lcov.info":                                 {"c8", "nyc", "vitest"},
+		"lcov.info":                                              {"rust"},
+		".loomux/state/cover/lcov.info":                          {"rust"},
+		"coverage-report/lcov.info":                              {"nanocoverage"},
 		"xcoverage.cobertura.xml":                                nil,
 	} {
 		act, _, _, _ := activeIn(t, map[string]string{"src/a.cs": ""}, report)
@@ -177,8 +180,13 @@ func TestActivateReadsDirectoriesAndConfiguredMarkers(t *testing.T) {
 			t.Errorf("missing %s in %q", want, labels)
 		}
 	}
-	if len(labels) != len(slices.Compact(slices.Sorted(slices.Values(labels)))) {
-		t.Errorf("duplicate markers: %q", labels)
+	// One pattern from two profiles stays twice, once per extension set.
+	var keyed []string
+	for _, m := range Natives(ps, []Active{gcovr, gcovr}) {
+		keyed = append(keyed, m.Label+" "+strings.Join(m.Extensions, " "))
+	}
+	if len(keyed) != len(slices.Compact(slices.Sorted(slices.Values(keyed)))) {
+		t.Errorf("duplicate markers: %q", keyed)
 	}
 }
 
