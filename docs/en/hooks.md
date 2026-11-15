@@ -221,7 +221,7 @@ relative to its area):
 | HTML | `.html`, `.htm` | html-validate on `{file}` with `--preset standard`, the project's own or 11.21.1 through `npx --yes`; instead htmlhint (the project's own or 1.9.2) where `.htmlhintrc` exists | — |
 | Shell | `.sh`, `.bash`, `.zsh` | `shellcheck {file}` | — |
 | SQL | `.sql` | `sqlfluff lint {file}` | — |
-| Rust | `.rs` | `cargo clippy -- -D warnings`, `cargo fmt --check` | — |
+| Rust | `.rs` | `cargo fmt --check -- {file}` (checks the whole crate or workspace, not only `{file}`) | `cargo check --workspace --all-targets` |
 | Wiki | `.md` inside the bundle | the check of `loomux lint <file>`, inside the hook's own process | — |
 | — | `.md` outside the bundle; `.txt`, `.json`, `.yaml`, `.yml`, `.toml`, `.svg`, `.png`, `.jpg`, `.jpeg`, `.import`, `.lock` | none; the hook exits 0 at once | |
 

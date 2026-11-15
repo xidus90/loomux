@@ -267,7 +267,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 // highest first: the first of them with a graph command carries it. A stack
 // outside the list ranks after all of them, and among those the byte order
 // decides.
-var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php", "typescript", "css", "html"}
+var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php", "typescript", "css", "html", "rust"}
 
 // isRootKind says the kind belongs to the repository root: it runs once, not
 // once per stack and area.
@@ -306,7 +306,7 @@ func EditsRules(file string) bool {
 // IsSource says whether the rules read a file as a source: the extractors'
 // extensions, matched exactly as they match them, so A.GD is none.
 func IsSource(rel string) bool {
-	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java", ".php", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx", ".html", ".htm", ".css", ".scss"}, filepath.Ext(rel))
+	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java", ".php", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx", ".html", ".htm", ".css", ".scss", ".rs"}, filepath.Ext(rel))
 }
 
 // rootCarrier is the stack whose job of a root kind a check plans: the

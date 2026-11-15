@@ -14,6 +14,7 @@ import (
 	"github.com/xidus90/loomux/internal/code/extract/html"
 	"github.com/xidus90/loomux/internal/code/extract/java"
 	"github.com/xidus90/loomux/internal/code/extract/php"
+	"github.com/xidus90/loomux/internal/code/extract/rust"
 	"github.com/xidus90/loomux/internal/code/extract/stylesheet"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/verify/linecov"
@@ -362,6 +363,15 @@ func TestContentExtsCoverTheInstrumentedTools(t *testing.T) {
 			if !wantsContent("x" + e) {
 				t.Errorf("%s: %s is not read", p.Name, e)
 			}
+		}
+	}
+}
+
+// The rules read what the Rust extractor takes.
+func TestContentExtsCoverTheRustExtractor(t *testing.T) {
+	for _, e := range (rust.Language{}).Extensions() {
+		if !wantsContent("x" + e) {
+			t.Errorf("%s is not read", e)
 		}
 	}
 }

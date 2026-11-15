@@ -1127,3 +1127,283 @@ func TestHTTPUpstreamEOL(t *testing.T) {
 		t.Errorf("junk: %v", err)
 	}
 }
+
+// testdata/rust-channel-stable.toml and rust-channel-beta.toml are the head
+// of the channel manifests static.rust-lang.org served on 2026-11-14, cut
+// after the first target of pkg.cargo and pkg.rust: 1.100.0 the stable
+// release, 1.101.0-beta.2 the beta. pkg.cargo comes first and carries its
+// own version (0.101.0), which must not be mistaken for the compiler's.
+func rustChannel(t *testing.T, channel string) []byte {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("testdata", "rust-channel-"+channel+".toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
+func TestParseReleasesReadsTheRustChannels(t *testing.T) {
+	if got, err := parseReleases(rustSource, rustChannel(t, "stable")); err != nil || !reflect.DeepEqual(got, []Release{{"1.100.0", false}}) {
+		t.Errorf("stable %v %v", got, err)
+	}
+	if got, err := parseReleases(rustBetaSource, rustChannel(t, "beta")); err != nil || !reflect.DeepEqual(got, []Release{{"1.101.0-beta.2", true}}) {
+		t.Errorf("beta %v %v", got, err)
+	}
+	for name, body := range map[string]string{
+		"junk":             "<html>",
+		"no compiler":      "[pkg.cargo]\nversion = \"0.101.0 (3acc79c0c 2026-11-05)\"\n",
+		"an empty version": "[pkg.rust]\nversion = \"\"\n",
+		"a blank version":  "[pkg.rust]\nversion = \"  \"\n",
+	} {
+		if got, err := parseReleases(rustSource, []byte(body)); err == nil {
+			t.Errorf("%s: read %v", name, got)
+		}
+	}
+}
+
+// The stable manifest names the stable release, the beta manifest the
+// pre-release; the runtime's releases are both, and either failing fails them.
+func TestHTTPUpstreamAsksRustTwice(t *testing.T) {
+	answers := byURL{rustSource: string(rustChannel(t, "stable")), rustBetaSource: string(rustChannel(t, "beta"))}
+	h := HTTPUpstream{Client: &http.Client{Transport: answers}}
+	got, err := h.Releases(rustSource)
+	if err != nil || !reflect.DeepEqual(got, []Release{{"1.100.0", false}, {"1.101.0-beta.2", true}}) {
+		t.Fatalf("%v %v", got, err)
+	}
+	delete(answers, rustBetaSource)
+	if _, err := h.Releases(rustSource); err == nil {
+		t.Error("a failed beta read")
+	}
+	delete(answers, rustSource)
+	if _, err := h.Releases(rustSource); err == nil {
+		t.Error("a failed stable read")
+	}
+}
+
+// rustList is the Rust entries of the list: the toolchain's own fixture and
+// the three that only prove the graph.
+func rustList(t *testing.T) []Entry {
+	t.Helper()
+	list, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []Entry
+	for _, e := range list {
+		if e.Runtime == "rust" {
+			out = append(out, e)
+		}
+	}
+	if len(out) != 4 {
+		t.Fatalf("rust entries %+v", out)
+	}
+	return out
+}
+
+// Every Rust entry holds the same version, so a new stable moves all four:
+// the probe is the entry that runs the toolchain (the others only read
+// syntax), the TOML a block for each.
+func TestScoutMovesEveryRustEntryTogether(t *testing.T) {
+	up := calm()
+	up[rustSource] = []string{"1.101.0"}
+	up["eol:rust"] = []string{"1.99", "1.98!"}
+	got := scout(t, up, rustList(t)...)
+	if len(got) != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+	f := got[0]
+	if f.Kind != "new" || f.Line != "rust-cargo/rust" || f.Version != "1.101" || f.Title != "compat: rust-cargo/rust 1.101 is out" ||
+		f.Probe.Key() != "rust/rust-1.101/rust-cargo" {
+		t.Fatalf("finding %+v, probe %+v", f, f.Probe)
+	}
+	moved, err := parse([]byte(f.TOML), "toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixtures []string
+	for _, e := range moved {
+		if e.Version != "1.101" || e.Runtime != "rust" {
+			t.Errorf("moved %+v", e)
+		}
+		fixtures = append(fixtures, e.Fixture)
+	}
+	want := []string{"rust-cargo", "rust-syntax-2021", "rust-syntax-2024", "godot4-rust"}
+	if !slices.Equal(fixtures, want) {
+		t.Errorf("moved fixtures %v, want %v", fixtures, want)
+	}
+	if !Resolved(moved, f.Title) || Resolved(rustList(t), f.Title) {
+		t.Error("resolved wrong")
+	}
+}
+
+// Another stack's syntax entries stay at their version when its line moves.
+func TestScoutLeavesTheSyntaxEntriesOfOtherStacksBehind(t *testing.T) {
+	up := calm()
+	up[cppSource] = []string{"17", "20", "23", "26"}
+	up["eol:cpp"] = nil
+	got := scout(t, up, cppEntry("23", "cpp-cmake-gtest", "test"), cppEntry("23", "cpp-syntax-23", "graph"))
+	if len(got) != 1 || got[0].Kind != "new" || strings.Count(got[0].TOML, "[[entry]]") != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+func TestScoutFindsTheRustBeta(t *testing.T) {
+	up := calm()
+	up[rustSource] = []string{"1.100.0", "1.101.0-beta.2"}
+	up["eol:rust"] = []string{"1.99", "1.98!"}
+	got := scout(t, up, rustList(t)...)
+	if len(got) != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+	f := got[0]
+	if f.Kind != "pre" || f.Version != "1.101.0-beta.2" || f.TOML != "" || f.Probe.Key() != "rust/rust-1.101.0-beta.2/rust-cargo" {
+		t.Fatalf("finding %+v, probe %+v", f, f.Probe)
+	}
+	if err := check(*f.Probe, references(), true); err != nil {
+		t.Errorf("the probe does not load: %v", err)
+	}
+}
+
+// endoflife.date lags a release or two behind the toolchain (it lacked 1.100
+// on 2026-11-14): a version newer than every cycle it knows is not past
+// end of support, and not an error. One it should know, because a newer
+// cycle exists, still is, and so is an answer without any cycle.
+func TestScoutSkipsRustVersionsTheEOLSourceDoesNotKnowYet(t *testing.T) {
+	up := calm()
+	up[rustSource] = []string{"1.100.0"}
+	up["eol:rust"] = []string{"1.99", "1.98!", "1.97!"}
+	entries := rustList(t)
+	if got := scout(t, up, entries...); len(got) != 0 {
+		t.Fatalf("findings %+v", got)
+	}
+	old := slices.Clone(entries)
+	old[0].Version = "1.98"
+	if got := scout(t, up, old...); len(got) != 2 || got[1].Kind != "eol" || got[1].Line != "rust" || got[1].Version != "1.98" {
+		t.Errorf("an old version: %+v", got)
+	}
+	up["eol:rust"] = []string{"1.99", "1.97!"}
+	if _, err := Scout(old, up); err == nil || !strings.Contains(err.Error(), "rust 1.98") {
+		t.Errorf("a gap below the newest cycle: %v", err)
+	}
+	up["eol:rust"] = nil
+	if _, err := Scout(entries, up); err == nil || !strings.Contains(err.Error(), "rust 1.100") {
+		t.Errorf("no cycle at all: %v", err)
+	}
+	// Only Rust gets the leniency.
+	up = calm()
+	up["eol:python"] = []string{"3.11", "3.14"}
+	if _, err := Scout([]Entry{py("3.15")}, up); err == nil {
+		t.Error("python 3.15 beyond the newest cycle passed")
+	}
+}
+
+// testdata/crates-godot.json is the answer of crates.io for the godot crate
+// on 2026-11-14 (0.5.5 the newest of 27 versions, 0.1.0 yanked), cut to the
+// fields the scout reads.
+func godotCrateAnswer(t *testing.T) []byte {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("testdata", "crates-godot.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
+func TestSourceOfACrateIsCratesIO(t *testing.T) {
+	if s, err := sourceOf("crate", "godot"); err != nil || s != "https://crates.io/api/v1/crates/godot" {
+		t.Errorf("crate %q %v", s, err)
+	}
+}
+
+func TestParseReleasesReadsACrate(t *testing.T) {
+	got, err := parseReleases("https://crates.io/api/v1/crates/godot", godotCrateAnswer(t))
+	if err != nil || len(got) != 26 || got[0] != (Release{"0.5.5", false}) || slices.Contains(got, Release{"0.1.0", false}) {
+		t.Fatalf("%d releases, first %v, %v", len(got), got[:1], err)
+	}
+	pre, err := parseReleases("https://crates.io/api/v1/crates/x", []byte(`{"versions":[{"num":"0.7.0-rc.1","yanked":false}]}`))
+	if err != nil || !reflect.DeepEqual(pre, []Release{{"0.7.0-rc.1", true}}) {
+		t.Errorf("a pre-release %v %v", pre, err)
+	}
+	if _, err := parseReleases("https://crates.io/api/v1/crates/godot", []byte("<html>")); err == nil {
+		t.Error("junk read")
+	}
+}
+
+// crates.io turns away a client without a User-Agent; it is a generic name.
+func TestHTTPUpstreamIntroducesItself(t *testing.T) {
+	rt := &roundTrip{status: 200, body: `{"versions":[]}`}
+	if _, err := (HTTPUpstream{Client: &http.Client{Transport: rt}}).Releases("https://crates.io/api/v1/crates/godot"); err != nil {
+		t.Fatal(err)
+	}
+	if ua := rt.seen.Header.Get("User-Agent"); ua != "loomux-compat-scout" {
+		t.Errorf("User-Agent %q", ua)
+	}
+}
+
+func godotCrateEntry(t *testing.T) Entry {
+	t.Helper()
+	list, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range list {
+		if e.Stack == "gdscript" && e.Fixture == "godot4-rust" {
+			return e
+		}
+	}
+	t.Fatal("no gdscript godot4-rust entry")
+	return Entry{}
+}
+
+// The crate of the godot4-rust fixture follows crates.io: a new minor of 0.x
+// is the next line, a patch release and a pre-release are not. The entry
+// that holds it also holds Godot 4.7, whose line is a finding of its own
+// kind: the two never answer for one another.
+func TestScoutFollowsTheGodotCrate(t *testing.T) {
+	e := godotCrateEntry(t)
+	// The fixture runs on two stacks, so its lines name theirs.
+	entries := []Entry{e, rustList(t)[3]}
+	up := calm()
+	up["eol:rust"] = []string{"1.99", "1.98!"}
+	up[sourceOfMust(t, "crate", "godot")] = []string{"0.6.0", "0.5.6", "0.5.5", "0.7.0-rc.1"}
+	up["https://api.github.com/repos/godot-gdunit-labs/gdUnit4/releases?per_page=100"] = []string{"6.2.2"}
+	got := scout(t, up, entries...)
+	if len(got) != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+	f := got[0]
+	if err := check(*f.Probe, references(), true); err != nil {
+		t.Errorf("the probe does not load: %v", err)
+	}
+	if f.Kind != "new" || f.Line != "godot4-rust@gdscript/crate:godot" || f.Version != "0.6" || f.Title != "compat: godot4-rust@gdscript/crate:godot 0.6 is out" ||
+		f.Probe.Crates["godot"] != "0.6.0" || e.Crates["godot"] != "0.5.5" || !strings.Contains(f.TOML, `crates = { godot = "0.6.0" }`) {
+		t.Fatalf("finding %+v, probe %+v", f, f.Probe)
+	}
+	moved, err := parse([]byte(f.TOML), "toml")
+	if err != nil || len(moved) != 1 || moved[0].Crates["godot"] != "0.6.0" {
+		t.Fatalf("the TOML does not load: %v %+v", err, moved)
+	}
+	if !Resolved(moved, f.Title) || Resolved([]Entry{e}, f.Title) {
+		t.Error("resolved wrong: the engine's 4.7 must not answer for crate 0.6")
+	}
+	if got := scout(t, calmWithCrate(t), entries...); len(got) != 0 {
+		t.Errorf("nothing newer: %+v", got)
+	}
+}
+
+func calmWithCrate(t *testing.T) fakeUp {
+	up := calm()
+	up["eol:rust"] = []string{"1.99", "1.98!"}
+	up[sourceOfMust(t, "crate", "godot")] = []string{"0.5.6", "0.5.5"}
+	up["https://api.github.com/repos/godot-gdunit-labs/gdUnit4/releases?per_page=100"] = []string{"6.2.2"}
+	return up
+}
+
+func sourceOfMust(t *testing.T, kind, name string) string {
+	t.Helper()
+	s, err := sourceOf(kind, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}

@@ -39,6 +39,13 @@ func Rescan(o RescanOptions) (notes []string, err error) {
 	if _, godot3 := verify.ClassListMissing(o.Root); godot3 {
 		return rescan3(o, start, before)
 	}
+	// The import loads the extension: it must be built before the engine
+	// starts. A failing build leaves the project as it was.
+	built, err := buildExtensions(start, o.Root)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { notes = append(built, notes...) }()
 	statusBefore, err := o.Status(o.Root)
 	if err != nil {
 		return nil, err

@@ -1,0 +1,30 @@
+stacks = ["rust", "godot", "gdscript"]
+# The gdext layout: the Godot project in godot/, the crate beside it in
+# rust/. A script extends the Rust class and constructs it, the scene runs it
+# at its root, and the scene connects its signal and its renamed #[func].
+edges = [
+  ["godot/player.gd", "extends", "rust/src/player.rs#Player"],
+  ["godot/player.gd#spawn", "calls", "rust/src/player.rs#Player"],
+  ["godot/main.tscn", "references", "rust/src/player.rs#Player"],
+  ["godot/main.tscn", "references", "rust/src/player.rs#Player.hit"],
+  ["godot/main.tscn", "references", "rust/src/player.rs#Player.move_by"],
+  ["godot/main.tscn", "references", "godot/hud.gd#on_hit"],
+]
+
+[lanes]
+test = "{loomux} check godot-suite"
+graph = "{loomux} check graph-fresh"
+
+# Only the GDScript entry of this fixture runs lanes; the Rust entry proves
+# the graph.
+[[break]]
+kind = "test"
+stack = "gdscript"
+file = "godot/test/player_test.gd"
+content = '''
+extends GdUnitTestSuite
+
+
+func test_player_fails() -> void:
+	assert_int(1).is_equal(2)
+'''

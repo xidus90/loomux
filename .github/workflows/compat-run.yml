@@ -101,6 +101,19 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ steps.setup.outputs.install }}
+      # compat-setup.sh installs the toolchain with rustup; the coverage lane
+      # needs cargo-llvm-cov on top, which this action installs from its
+      # release binaries, checked against the action's own manifest. The
+      # action starts its script with a bare `bash`, which on the
+      # self-hosted runner is WSL's (see ci.yml): Git's comes first.
+      - if: >-
+          steps.setup.outputs.runtime == 'rust' && matrix.os == 'windows'
+          && contains(inputs.windows, 'self-hosted')
+        run: echo 'C:\Program Files\Git\bin' >>"$GITHUB_PATH"
+      - if: steps.setup.outputs.runtime == 'rust'
+        uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
+        with:
+          tool: cargo-llvm-cov@0.9.1
       - if: steps.setup.outputs.rebuild == 'true'
         run: go build -o bin/loomux.exe ./cmd/loomux
         env:

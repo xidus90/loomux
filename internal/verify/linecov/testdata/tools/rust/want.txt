@@ -1,1 +1,3 @@
 src/lib.rs:7 coverage(off) without a reason
+src/lib.rs:17 LCOV_EXCL_START without a reason
+src/lib.rs:23 LCOV_EXCL_START without a stop

@@ -275,7 +275,7 @@ func TestResolveActiveAndAreas(t *testing.T) {
 		t.Fatal("the presets are shared; Resolve hands out a copy")
 	}
 
-	cfg, _ := parse(t, "[verify.project]\ntest = \"make test\"\n[verify.rust.test]\nthreaded = true\n")
+	cfg, _ := parse(t, "[verify.project]\ntest = \"make test\"\n[verify.shell.test]\nthreaded = true\n")
 	eff, err = Resolve(cfg, p, detect.Facts{})
 	if err != nil {
 		t.Fatal(err)

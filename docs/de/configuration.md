@@ -406,7 +406,7 @@ frühere gewonnen hat (`biome` für `lint` neben `jest` für `test` und
 | php | `php vendor/bin/phpcs {phpcs-standard} {phpcs-files}`; bei einem Edit auch `php -l {file}` | `php vendor/bin/phpstan analyse --no-progress {phpstan-defaults}` | `php vendor/bin/phpunit` | `{loomux} check linecov --report {coverdata}`, gemessen von `php -d xdebug.mode=coverage vendor/bin/phpunit --coverage-cobertura {coverdata}` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
-| rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
+| rust | `cargo clippy --workspace --all-targets --config 'build.warnings="deny"'`, `cargo fmt --all --check` | `cargo check --workspace --all-targets` | `cargo test --workspace` (wo eine `.rs`-Datei `#[test]` enthält oder ein Verzeichnis `tests/` besteht) | `{loomux} check linecov --report {coverprofile}`, gemessen von `cargo-llvm-cov llvm-cov --workspace --lcov --output-path {coverprofile}` |
 
 - Die Python-Lanes bringen ihre Werkzeuge mit `uv run --with` mit: Ein
   Projekt, das mypy, pytest oder coverage nicht als Abhängigkeit führt, fährt
@@ -467,7 +467,8 @@ frühere gewonnen hat (`biome` für `lint` neben `jest` für `test` und
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
   css `{stylelint} {stylelint-config} {file}`, html
   `{html-validate} --preset standard {file}` (htmlhint: `{htmlhint} {file}`), shell
-  `shellcheck {file}`, sql `sqlfluff lint {file}`.
+  `shellcheck {file}`, sql `sqlfluff lint {file}`, rust `cargo fmt --check -- {file}`
+  (Cargo prüft das Crate oder den Workspace; `{file}` engt das nicht ein).
 - `lint`, `types`, `test` und `coverage` von cpp tragen `needs =
   ["build/CMakeCache.txt"]`: solange der Build-Baum nicht konfiguriert ist,
   sind sie `unready` mit `build/CMakeCache.txt is missing: configure the build
@@ -480,6 +481,24 @@ frühere gewonnen hat (`biome` für `lint` neben `jest` für `test` und
   `run-clang-tidy`, denn `clang-tidy` prüft nur die Dateien, die man ihm
   nennt, und die Compile-Kommandos nennen alle; `test` läuft
   `after = "types"`, denn ctest führt aus, was der Build gebaut hat.
+- Die rust-Lanes führen Cargo aus. `lint` macht die Lints der lokalen Crates
+  mit `--config 'build.warnings="deny"'` (eine Cargo-Einstellung, ab Cargo 1.97
+  beachtet) zu Fehlern, statt mit `-- -D warnings`, das den Build-Cache von
+  Cargo verwirft; die Anführungszeichen gehören zum Wert, den Cargo als TOML
+  liest. Keine Lane nimmt ein `lock`: Cargo sperrt `target/` selbst. `clippy`,
+  `check`, `test` und der messende Lauf nehmen `--workspace`, `cargo fmt`
+  nimmt `--all`, damit ein Wurzelpaket mit Mitgliedern auch seine Mitglieder
+  prüft. Die Test-Lane misst über `cargo-llvm-cov llvm-cov` (die Form, zu der
+  `cargo llvm-cov` wird), das die Suite selbst ausführt und das Werkzeug
+  `cargo-llvm-cov` sowie `llvm-tools-preview` von rustup braucht; die Datei
+  wird unter ihrem eigenen Namen gesucht, fehlt sie, ist die Lane
+  `missing-tool` und `coverage` dahinter `blocked`. Eine `Cargo.toml` in der
+  Wurzel macht die Wurzel zum einzigen `rust`-Bereich: Ihr Workspace baut seine
+  Mitglieder, die für sich geprüft ein zweites Mal gebaut würden. Tests findet
+  man an `#[test]`, an einem Attributpfad auf `::test` (`#[tokio::test]`,
+  auch `#[async_std::test]` und `#[sqlx::test]`) und an einem Verzeichnis
+  `tests/`; auch ein bloßer Aufruf `foo::test(x)` zählt, was harmlos ist, denn
+  `cargo test` führt dann null Tests aus, und `#[rstest]` allein trifft nicht.
 - Die java-Lanes führen Maven aus; die Variante `gradle` (ein `build.gradle`,
   `settings.gradle` oder ihre `.kts`-Formen, wo darunter eine `.java`-Datei
   liegt) führt Gradle über `{gradle}` aus. Liegen `pom.xml` und ein
@@ -605,7 +624,7 @@ frühere gewonnen hat (`biome` für `lint` neben `jest` für `test` und
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset haben Go, Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS und HTML, mit denselben Befehlen:
+erreicht. Ein Preset haben Go, Python, GDScript, C#, C++, Java, PHP, TypeScript, CSS, HTML und Rust, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
@@ -640,7 +659,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   Graph-Befehl führt ihn nur der ranghöchste aus: in einem
   Repository mit Go und Python läuft `graph/go`, und `graph/python` ist
   `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Der
-  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp`, `java`, `php`, `typescript`, `css` und `html`; ein Stack außerhalb dieser
+  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp`, `java`, `php`, `typescript`, `css`, `html` und `rust`; ein Stack außerhalb dieser
   Liste folgt ihnen in Byte-Reihenfolge. In einem Repository mit einem
   Godot-Projekt neben Go oder Python trägt deren Lane, und `graph/gdscript`
   ist `not-applicable` („graph covered by graph/go“ oder „graph/python“); `graph/gdscript` trägt
@@ -692,7 +711,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   geprüft.
 - **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
   zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, `gdscript`, `csharp`,
-  `cpp`, `java`, `php`, `typescript`, `css` und `html`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
+  `cpp`, `java`, `php`, `typescript`, `css`, `html` und `rust`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
   Godot-Projekt, `[verify.python.graph]` in einem Python-Repository ohne Go
   und `[verify.gdscript.graph]` nur in einem Godot-Projekt mit keinem von
   beiden (und so weiter die Rangfolge hinunter). Eine Überschreibung unter einem Stack, der zurücktritt, wird nie
@@ -734,6 +753,7 @@ Profil `edit` läuft also nie durch den Baum.
 | cpp | `enable_testing(` in `CMakeLists.txt` |
 | java | eine Datei `*Test.java`, `*Tests.java`, `Test*.java` oder `*TestCase.java` |
 | php | eine Datei `*Test.php` |
+| rust | eine Datei `*.rs`, die `#[test]` oder einen Attributpfad auf `::test` enthält (`#[tokio::test]`, mit oder ohne Argumente), oder ein Verzeichnis `tests/` |
 | typescript | eine Datei `*.test.*` oder `*.spec.*` oder ein Verzeichnis `__tests__/` (was vitest und Jest von sich aus finden; ein Runner ohne Test schlägt fehl). Welcher Runner läuft, entscheidet der Wächter der Lane: vitest braucht `vitest` in einer `package.json` des Bereichs oder eines Verzeichnisses darüber bis zur Wurzel (die Wurzel eines Workspaces deklariert die Abhängigkeiten ihrer Mitglieder), Jest seine Variante |
 
 - Keine Tests: `test` und `coverage` sind `unavailable`.

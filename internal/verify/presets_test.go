@@ -230,7 +230,7 @@ func TestTreeSitterGraphLanesAreTheGoOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	goLane := p.Stacks["go"].Lanes["graph"]
-	for _, stack := range []string{"python", "gdscript", "csharp", "cpp", "java", "php", "typescript", "css", "html"} {
+	for _, stack := range []string{"python", "gdscript", "csharp", "cpp", "java", "php", "typescript", "css", "html", "rust"} {
 		lane := p.Stacks[stack].Lanes["graph"]
 		if len(lane.Commands) == 0 || !slices.Equal(lane.Commands, goLane.Commands) || lane.OnFile != nil || lane.Threaded {
 			t.Errorf("%s %+v, go %+v", stack, lane, goLane)
@@ -343,6 +343,48 @@ func TestTheJavaTestLanesWaitForTheCompile(t *testing.T) {
 	for _, l := range lanes {
 		if l.After != "types" {
 			t.Errorf("%q runs after %q", l.Commands, l.After)
+		}
+	}
+}
+
+// Cargo locks target/ itself, so no Rust lane takes a lock of the plan; the
+// coverage lane reads what the test lane writes and waits for it. The graph
+// and the rules are the root's, as for every stack.
+func TestTheRustPresetsRunCargo(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rust := p.Stacks["rust"]
+	if !slices.Equal(rust.TestsWhen, []string{"*.rs:#[test]", "*.rs:::test]", "*.rs:::test(", "tests/"}) {
+		t.Errorf("tests_when %q", rust.TestsWhen)
+	}
+	for kind, want := range map[string][]string{
+		"lint":     {`cargo clippy --workspace --all-targets --config 'build.warnings="deny"'`, "cargo fmt --all --check"},
+		"types":    {"cargo check --workspace --all-targets"},
+		"test":     {"cargo test --workspace"},
+		"coverage": {"{loomux} check linecov --report {coverprofile}"},
+	} {
+		if got := rust.Lanes[kind].Commands; !slices.Equal(got, want) {
+			t.Errorf("%s: %q", kind, got)
+		}
+	}
+	lanes := rust.Lanes
+	if !slices.Equal(lanes["lint"].OnFile, []string{"cargo fmt --check -- {file}"}) {
+		t.Errorf("lint on_file %q", lanes["lint"].OnFile)
+	}
+	llvmCov := "cargo-llvm-cov llvm-cov --workspace --lcov --output-path {coverprofile}"
+	if lanes["test"].Measuring != llvmCov || lanes["coverage"].Measure != llvmCov || lanes["coverage"].After != "test" {
+		t.Errorf("test %+v, coverage %+v", lanes["test"], lanes["coverage"])
+	}
+	for kind, lane := range lanes {
+		if lane.Lock {
+			t.Errorf("%s locks", kind)
+		}
+	}
+	for _, kind := range []string{"graph", "rules"} {
+		if r, py := lanes[kind], p.Stacks["python"].Lanes[kind]; len(r.Commands) == 0 || !reflect.DeepEqual(r, py) {
+			t.Errorf("%s: rust %+v, python %+v", kind, r, py)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package compat
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -12,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/BurntSushi/toml"
 )
 
 // Release is one version a source publishes, without a leading "v" or other
@@ -122,11 +125,17 @@ const (
 	phpCandidatesSource = "https://www.php.net/release-candidates.php?format=json"
 	// Every Node release, newest first, with the alpha of the next line.
 	nodeSource = "https://nodejs.org/dist/index.json"
+	// The channel manifests of Rust's stable release and of its beta, the
+	// pre-release of the next stable; HTTPUpstream reads both for rustSource.
+	rustSource     = "https://static.rust-lang.org/dist/channel-rust-stable.toml"
+	rustBetaSource = "https://static.rust-lang.org/dist/channel-rust-beta.toml"
 	// eolSource covers go, python, godot, dotnet and php under those names,
 	// java and node under eolProducts; python.org and Godot publish no machine-readable
 	// end of support of their own.
 	eolSource  = "https://endoflife.date/api/v1/products/%s"
 	pypiSource = "https://pypi.org/pypi/%s/json"
+	// crates.io lists every version of a crate, yanked ones flagged.
+	cratesSource = "https://crates.io/api/v1/crates/%s"
 )
 
 // cppSource names the C++ standards, which no one publishes in a form a
@@ -139,7 +148,7 @@ const cppSource = "iso:cpp"
 // entries go into the list by hand.
 var cppReleases = []Release{{"17", false}, {"20", false}, {"23", false}, {"26-draft", true}}
 
-var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource, "java": adoptiumSource, "php": phpSource, "node": nodeSource}
+var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource, "java": adoptiumSource, "php": phpSource, "node": nodeSource, "rust": rustSource}
 
 // eolProducts are the endoflife.date products of runtimes it names
 // otherwise: the list's Java is Eclipse Temurin.
@@ -150,6 +159,16 @@ var addonRepos = map[string]string{
 	"gdUnit4":      "godot-gdunit-labs/gdUnit4",
 	"NanoCoverage": "IgorBayerl/nano-coverage-godot",
 }
+
+// companions are the sources a runtime's releases come with: the pre-releases
+// a source lists apart from its stable ones.
+var companions = map[string]string{phpSource: phpCandidatesSource, rustSource: rustBetaSource}
+
+// togetherRuntimes are the runtimes whose every entry holds one version: a
+// new stable moves the entries that only prove the graph with the one that
+// runs the toolchain, where for other runtimes each syntax entry keeps the
+// version whose syntax it proves.
+var togetherRuntimes = map[string]bool{"rust": true}
 
 // sourceOf is where the releases of a runtime, addon or tool come from.
 func sourceOf(kind, name string) (string, error) {
@@ -162,6 +181,8 @@ func sourceOf(kind, name string) (string, error) {
 		if r, ok := addonRepos[name]; ok {
 			return fmt.Sprintf(githubReleases, r), nil
 		}
+	case "crate":
+		return fmt.Sprintf(cratesSource, name), nil
 	default:
 		return fmt.Sprintf(pypiSource, name), nil
 	}
@@ -202,8 +223,18 @@ func cmpVer(a, b []int) int {
 	return 0
 }
 
-// subject is one thing an entry pins: its runtime, an addon or a tool.
+// subject is one thing an entry pins: its runtime, an addon, a tool or a
+// crate.
 type subject struct{ kind, name, version string }
+
+// label names the subject in a line: a crate carries its kind, as the godot
+// crate and the Godot engine share a name and an entry.
+func (s subject) label() string {
+	if s.kind == "crate" {
+		return "crate:" + s.name
+	}
+	return s.name
+}
 
 func subjectsOf(e Entry) []subject {
 	out := []subject{{"runtime", e.Runtime, e.Version}}
@@ -213,6 +244,9 @@ func subjectsOf(e Entry) []subject {
 	for _, name := range slices.Sorted(maps.Keys(e.Tools)) {
 		// A pin is a glob: "0.17.*" holds 0.17, "3.*" holds 3.
 		out = append(out, subject{"tool", name, strings.TrimSuffix(strings.TrimSuffix(e.Tools[name], "*"), ".")})
+	}
+	for _, name := range slices.Sorted(maps.Keys(e.Crates)) {
+		out = append(out, subject{"crate", name, e.Crates[name]})
 	}
 	return out
 }
@@ -262,9 +296,9 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 				return g.fixture == e.Fixture && g.stack == e.Stack && g.subject.kind == s.kind && g.name == s.name && g.major == v[0]
 			})
 			if i < 0 {
-				line := e.Fixture + "/" + s.name
+				line := e.Fixture + "/" + s.label()
 				if len(stacks[e.Fixture]) > 1 {
-					line = e.Fixture + "@" + e.Stack + "/" + s.name
+					line = e.Fixture + "@" + e.Stack + "/" + s.label()
 				}
 				groups = append(groups, &group{fixture: e.Fixture, stack: e.Stack, line: line, subject: s, major: v[0], parts: min(len(v), 2), max: v, newest: e})
 				continue
@@ -296,6 +330,9 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 			cache[src] = rels
 		}
 		if f, ok := scoutGroup(g, rels, topOf(g, groups, top[g.kind+"/"+g.name])); ok {
+			if f.Kind == "new" && g.kind == "runtime" && togetherRuntimes[g.name] {
+				f.TOML = withRiders(entries, g, f)
+			}
 			out = append(out, f)
 		}
 	}
@@ -306,9 +343,24 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 	return append(out, eol...), nil
 }
 
+// withRiders is the TOML of f followed by a block for each syntax entry that
+// holds the version the line leaves, at the new one.
+func withRiders(entries []Entry, g *group, f Finding) string {
+	blocks := f.TOML
+	for _, e := range entries {
+		if e.syntax() && e.Runtime == g.name && e.Version == g.newest.Version {
+			e.Version = f.Probe.Version
+			blocks += "\n" + entryTOML(e)
+		}
+	}
+	return blocks
+}
+
 // scoutEOL reports each listed runtime version past end of support, once per
 // runtime and version however many fixtures run it. A version the source
-// does not know is an error: silence would read as "still supported".
+// does not know is an error: silence would read as "still supported". Rust
+// is the exception for a version newer than every cycle the source lists,
+// which lags behind the toolchain's own releases.
 func scoutEOL(entries []Entry, up Upstream) ([]Finding, error) {
 	versions := map[string][]string{}
 	for _, e := range entries {
@@ -331,6 +383,9 @@ func scoutEOL(entries []Entry, up Upstream) ([]Finding, error) {
 				// endoflife.date names a .NET release by its major: "10" for 10.0.
 				past, ok = eol[strings.TrimSuffix(v, ".0")]
 			}
+			if !ok && runtime == "rust" && beyond(v, eol) {
+				continue
+			}
 			if !ok {
 				return nil, fmt.Errorf("end of support: the source knows no %s %s", runtime, v)
 			}
@@ -342,6 +397,19 @@ func scoutEOL(entries []Entry, up Upstream) ([]Finding, error) {
 		}
 	}
 	return out, nil
+}
+
+// beyond reports whether v is newer than every version of known; with none
+// it is not.
+func beyond(v string, known map[string]bool) bool {
+	var newest []int
+	for name := range known {
+		if k, ok := parseVer(name); ok && cmpVer(k, newest) > 0 {
+			newest = k
+		}
+	}
+	pv, _ := parseVer(v) // the list is validated MAJOR.MINOR
+	return newest != nil && cmpVer(pv, newest) > 0
 }
 
 // topOf is the major a group counts as the highest of its subject: top,
@@ -392,6 +460,7 @@ func scoutGroup(g *group, rels []Release, topMajor int) (Finding, bool) {
 	probe := g.newest
 	probe.Addons = slices.Clone(probe.Addons)
 	probe.Tools = maps.Clone(probe.Tools)
+	probe.Crates = maps.Clone(probe.Crates)
 	switch g.kind {
 	case "runtime":
 		probe.Version = version
@@ -401,6 +470,8 @@ func scoutGroup(g *group, rels []Release, topMajor int) (Finding, bool) {
 				probe.Addons[i].Version = raw
 			}
 		}
+	case "crate":
+		probe.Crates[g.name] = raw
 	default:
 		probe.Tools[g.name] = version + ".*"
 	}
@@ -468,6 +539,13 @@ func entryTOML(e Entry) string {
 		}
 		fmt.Fprintf(&b, "tools = { %s }\n", strings.Join(ts, ", "))
 	}
+	if len(e.Crates) > 0 {
+		var cs []string
+		for _, n := range slices.Sorted(maps.Keys(e.Crates)) {
+			cs = append(cs, n+" = "+q(e.Crates[n]))
+		}
+		fmt.Fprintf(&b, "crates = { %s }\n", strings.Join(cs, ", "))
+	}
 	if e.Held != nil {
 		fmt.Fprintf(&b, "held = %s\n", q(*e.Held))
 	}
@@ -502,7 +580,7 @@ func Resolved(entries []Entry, title string) bool {
 			continue
 		}
 		for _, s := range subjectsOf(e) {
-			if v, ok := parseVer(s.version); ok && s.name == m[2] && cmpVer(v[:min(len(v), len(want))], want) >= 0 {
+			if v, ok := parseVer(s.version); ok && s.label() == m[2] && cmpVer(v[:min(len(v), len(want))], want) >= 0 {
 				return true
 			}
 		}
@@ -532,20 +610,21 @@ type HTTPUpstream struct {
 }
 
 // Releases fetches source and reads its releases; cppSource is answered
-// without a fetch, phpSource with its candidates too.
+// without a fetch, a source with a companion with its pre-releases too.
 func (h HTTPUpstream) Releases(source string) ([]Release, error) {
 	if source == cppSource {
 		return cppReleases, nil
 	}
 	out, err := h.read(source)
-	if err != nil || source != phpSource {
+	companion, ok := companions[source]
+	if err != nil || !ok {
 		return out, err
 	}
-	rcs, err := h.read(phpCandidatesSource)
+	pre, err := h.read(companion)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", phpCandidatesSource, err)
+		return nil, fmt.Errorf("%s: %w", companion, err)
 	}
-	return append(out, rcs...), nil
+	return append(out, pre...), nil
 }
 
 // read fetches one source and reads its releases.
@@ -593,6 +672,8 @@ func (h HTTPUpstream) get(source string) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
+	// crates.io turns away a client that does not introduce itself.
+	req.Header.Set("User-Agent", "loomux-compat-scout")
 	if h.Token != "" && strings.HasPrefix(source, "https://api.github.com/") {
 		req.Header.Set("Authorization", "Bearer "+h.Token)
 	}
@@ -686,6 +767,25 @@ func parseReleases(source string, body []byte) ([]Release, error) {
 				out = append(out, Release{r.Version, true})
 			}
 		}
+	case source == rustSource || source == rustBetaSource:
+		// pkg.cargo comes first and has a version of its own; the compiler's
+		// reads "1.100.0 (0ef1bc386 2026-11-09)", a beta "1.101.0-beta.2 (...)".
+		var doc struct {
+			Pkg struct {
+				Rust struct {
+					Version string `toml:"version"`
+				} `toml:"rust"`
+			} `toml:"pkg"`
+		}
+		if err := toml.Unmarshal(body, &doc); err != nil {
+			return nil, err
+		}
+		fields := strings.Fields(doc.Pkg.Rust.Version)
+		if len(fields) == 0 {
+			return nil, errors.New("no pkg.rust.version")
+		}
+		_, plain := parseVer(fields[0])
+		out = append(out, Release{fields[0], !plain})
 	case source == nodeSource:
 		var rs []struct {
 			Version string `json:"version"`
@@ -710,6 +810,22 @@ func parseReleases(source string, body []byte) ([]Release, error) {
 		for _, c := range doc.Index {
 			_, pre := parsePre(c.Latest)
 			out = append(out, Release{c.Latest, pre})
+		}
+	case strings.HasPrefix(source, "https://crates.io/"):
+		var doc struct {
+			Versions []struct {
+				Num    string `json:"num"`
+				Yanked bool   `json:"yanked"`
+			} `json:"versions"`
+		}
+		if err := json.Unmarshal(body, &doc); err != nil {
+			return nil, err
+		}
+		for _, v := range doc.Versions {
+			if !v.Yanked {
+				_, plain := parseVer(v.Num)
+				out = append(out, Release{v.Num, !plain})
+			}
 		}
 	case strings.HasPrefix(source, "https://pypi.org/"):
 		var doc struct {

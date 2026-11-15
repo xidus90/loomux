@@ -65,6 +65,22 @@ kinds = ["lint", "test", "graph"]
 addons = [{ name = "GUT", version = "9.7.1" }]
 tools = { gdtoolkit = "4.*" }
 
+# A Godot project whose GDExtension is a Rust crate: the suite builds the
+# crate before Godot starts, then runs a gdUnit4 suite against its class.
+# The Rust entry of the same fixture proves what the graph sees of it. The
+# entry pins the godot crate: a run builds with that version, and the scout
+# follows it on crates.io. A Rust move also edits the channel of the crate's
+# rust-toolchain.toml, a test holds the two together.
+
+[[entry]]
+stack = "gdscript"
+runtime = "godot"
+version = "4.7"
+fixture = "godot4-rust"
+kinds = ["test"]
+addons = [{ name = "gdUnit4", version = "6.2.2" }]
+crates = { godot = "0.5.5" }
+
 [[entry]]
 stack = "python"
 runtime = "python"
@@ -262,6 +278,44 @@ stack = "cpp"
 runtime = "cpp"
 version = "17"
 fixture = "godot4-cpp"
+kinds = ["graph"]
+
+# A Rust version is a stable release of the toolchain; the run selects it
+# through RUSTUP_TOOLCHAIN. clippy, rustfmt and llvm-tools come with it,
+# cargo-llvm-cov from CI's setup, so the entries name no tools. rust-cargo
+# carries the version for every kind; the syntax entries run only the graph,
+# over the forms of an edition (2021, 2024). Every listed version moves
+# together, godot4-rust included.
+
+[[entry]]
+stack = "rust"
+runtime = "rust"
+version = "1.100"
+fixture = "rust-cargo"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "rust"
+runtime = "rust"
+version = "1.100"
+fixture = "rust-syntax-2021"
+kinds = ["graph"]
+
+[[entry]]
+stack = "rust"
+runtime = "rust"
+version = "1.100"
+fixture = "rust-syntax-2024"
+kinds = ["graph"]
+
+# A godot-rust extension: GDScript and a scene reach its class, and a scene
+# connection its signal and its renamed #[func].
+
+[[entry]]
+stack = "rust"
+runtime = "rust"
+version = "1.100"
+fixture = "godot4-rust"
 kinds = ["graph"]
 
 # A Java version is a feature release of Eclipse Temurin. The fixtures pin

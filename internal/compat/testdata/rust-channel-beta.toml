@@ -1,0 +1,20 @@
+manifest-version = "2"
+date = "2026-11-14"
+
+[pkg.cargo]
+version = "0.102.0-beta.2 (111443f3d 2026-11-05)"
+git_commit_hash = "63931fb6b6bc05c38a5111ed7b32fe7648d22b1c"
+
+[pkg.cargo.target.aarch64-apple-darwin]
+available = true
+
+[pkg.rust]
+version = "1.101.0-beta.2 (63931fb6b 2026-11-12)"
+git_commit_hash = "63931fb6b6bc05c38a5111ed7b32fe7648d22b1c"
+
+[pkg.rust.target.aarch64-apple-darwin]
+available = true
+url = "https://static.rust-lang.org/dist/2026-11-14/rust-beta-aarch64-apple-darwin.tar.gz"
+hash = "9469cdd4aa8dc9e5f17961819cc09fde226c2d2072bfa2a505f2d57cd3e19ce1"
+xz_url = "https://static.rust-lang.org/dist/2026-11-14/rust-beta-aarch64-apple-darwin.tar.xz"
+xz_hash = "05b1e2f7462db2daf1b5e3828f2a0b9891e27cd64bf92889879e62bb4ae57dac"

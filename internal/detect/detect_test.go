@@ -831,3 +831,19 @@ func TestDetectRecordsEveryAreaAStackIsFoundIn(t *testing.T) {
 		t.Errorf("GodotDir %q", f.GodotDir)
 	}
 }
+
+// A root Cargo.toml builds its workspace members into the root's target/:
+// checked on their own they would build them a second time.
+func TestARootCargoManifestOwnsItsMembers(t *testing.T) {
+	members := fstest.MapFS{
+		"core/Cargo.toml": {Data: []byte("[package]\n")},
+		"cli/Cargo.toml":  {Data: []byte("[package]\n")},
+	}
+	if got := Detect(members).Areas["rust"]; !reflect.DeepEqual(got, []string{"cli", "core"}) {
+		t.Errorf("without a root manifest: %v", got)
+	}
+	members["Cargo.toml"] = &fstest.MapFile{Data: []byte("[workspace]\n")}
+	if got := Detect(members).Areas["rust"]; !reflect.DeepEqual(got, []string{"."}) {
+		t.Errorf("with a root manifest: %v", got)
+	}
+}

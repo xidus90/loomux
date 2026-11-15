@@ -40,6 +40,9 @@ type Entry struct {
 	Kinds   []string          `json:"kinds"`
 	Addons  []Addon           `json:"addons,omitempty"`
 	Tools   map[string]string `json:"tools,omitempty"`
+	// Crates pins Rust crates of the fixture to exact versions: a run builds
+	// with them, and the scout follows them on crates.io.
+	Crates map[string]string `json:"crates,omitempty"`
 	// Held names why the fixture stays below newer versions of its runtime
 	// (its test framework ends there); the scout asks nothing newer for a
 	// held line, another fixture runs those versions.
@@ -103,7 +106,7 @@ func (e Entry) syntax() bool { return slices.Equal(e.Kinds, []string{"graph"}) }
 // Load reads the embedded list in file order, once.
 var Load = sync.OnceValues(func() ([]Entry, error) { return parse(listText, "compat.toml") })
 
-var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet", "cpp": "cpp", "java": "java", "php": "php", "typescript": "node", "html": "node", "css": "node"}
+var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet", "cpp": "cpp", "rust": "rust", "java": "java", "php": "php", "typescript": "node", "html": "node", "css": "node"}
 
 // stackNames lists the stacks of runtimeOf for a message.
 func stackNames() string { return strings.Join(slices.Sorted(maps.Keys(runtimeOf)), ", ") }
@@ -225,6 +228,14 @@ func check(e Entry, refs refs, strict bool) error {
 	for name := range e.Tools {
 		if !slices.Contains(tools, name) {
 			return fmt.Errorf("tool %q is not one %s brings (%s)", name, e.Stack, strings.Join(tools, ", "))
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(e.Crates)) {
+		if name == "" || strings.ContainsFunc(name, func(r rune) bool { return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_') }) {
+			return fmt.Errorf("crate %q is no crate name", name)
+		}
+		if v, ok := parseVer(e.Crates[name]); !ok || len(v) != 3 {
+			return fmt.Errorf("crate %q version %q is not an exact MAJOR.MINOR.PATCH", name, e.Crates[name])
 		}
 	}
 	if _, err := fs.Stat(fixtures, "testdata/"+e.Fixture); strict && err != nil {

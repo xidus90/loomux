@@ -4,10 +4,11 @@
 # Godot lands in <root>/godot (and GODOT_BIN is exported to later steps), each
 # addon's own folder in <root>/addons/<Name>, Python and C++'s clang-tidy,
 # clang-format and gcovr through uv, Maven for Java in <root>/apache-maven-*
-# (its bin goes onto the PATH of later steps). Go, .NET, the JDK, PHP with
-# Composer and Node are set up by the workflow, which rebuilds loomux with
-# the Go when rebuild=true: a Go above the toolchain of go.mod is one loomux
-# was never built with. The description is the JSON of `dev compat run --describe`; it
+# (its bin goes onto the PATH of later steps), the Rust toolchain through
+# rustup. Go, .NET, the JDK, PHP with Composer, Node and cargo-llvm-cov are
+# set up by the workflow, which rebuilds loomux with the Go when
+# rebuild=true: a Go above the toolchain of go.mod is one loomux was never
+# built with. The description is the JSON of `dev compat run --describe`; it
 # is flat and written by loomux, so sed reads it without a JSON tool.
 set -eu
 bin=${1:?usage: ci/compat-setup.sh <loomux binary> <entry key> <root>}
@@ -148,6 +149,23 @@ godot)
 	printf '%s\n' "$desc" | grep -o '{"name":[^}]*}' | while IFS= read -r addon; do
 		install_addon "$addon"
 	done
+	# The suite of godot4-rust builds the crate that is the project's
+	# GDExtension, so its Godot job needs a compiler as well: the channel the
+	# crate's rust-toolchain.toml names, which rustup picks for its cargo.
+	if [ "${key##*/}" = godot4-rust ]; then
+		channel=$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' "$(dirname "$0")/../internal/compat/testdata/godot4-rust/rust/rust-toolchain.toml")
+		[ -n "$channel" ] || { echo "compat-setup: no channel in the rust-toolchain.toml of godot4-rust" >&2; exit 1; }
+		rustup toolchain install "$channel" --profile minimal --no-self-update
+	fi
+	;;
+rust)
+	# rustup comes with the GitHub-hosted runners; a self-hosted one needs
+	# it. $install is the version ("1.100", the newest patch release of it)
+	# or "beta"; the run selects the toolchain through RUSTUP_TOOLCHAIN.
+	# clippy and rustfmt are the lint lane, llvm-tools-preview the coverage
+	# lane's; cargo-llvm-cov comes from the workflow.
+	rustup toolchain install "$install" --profile minimal --no-self-update \
+		--component clippy --component rustfmt --component llvm-tools-preview
 	;;
 python) uv python install "$install" ;;
 go | dotnet | php | node) ;;

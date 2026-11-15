@@ -1,6 +1,8 @@
 package linecov
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -124,6 +126,8 @@ func TestBuiltInMarkersMatchWhatTheToolHonours(t *testing.T) {
 		{"rust", "#[coverage(off)]", []string{"coverage(off)"}},
 		{"rust", "#![coverage(off)]", []string{"coverage(off)"}},
 		{"rust", "#![cfg_attr(coverage_nightly, coverage(off))]", []string{"coverage(off)"}},
+		{"rust", "// LCOV_EXCL_START: platform glue", []string{"LCOV_EXCL_START"}},
+		{"rust", "// LCOV_EXCL_STOP", []string{"LCOV_EXCL_STOP"}},
 		{"gcovr", "x; // LCOVR_EXCL_LINE", []string{"GCOVR_EXCL_LINE"}},
 	} {
 		if got := hits(row.tool, row.line); !slices.Equal(got, row.want) {
@@ -182,5 +186,106 @@ func TestNanoProfileNamesItsMarker(t *testing.T) {
 		if p.Instrumented != want {
 			t.Fatalf("%s: instrumented %q, want %q", p.Name, p.Instrumented, want)
 		}
+	}
+}
+
+// cargo-llvm-cov writes its lcov report to the path the coverage lane gives
+// it; the profile knows lcov.info, so the report is found without --report.
+func TestTheRustProfileKnowsTheLcovInfoReport(t *testing.T) {
+	ps, err := LoadProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(ps, func(p Profile) bool { return p.Name == "rust" })
+	if !slices.Equal(ps[i].Reports, []string{"lcov.info"}) {
+		t.Errorf("reports %q", ps[i].Reports)
+	}
+}
+
+// rustFixture copies the Rust fixture project into a temp dir and writes its
+// report there as lcov.info, with every SF: path behind prefix(root).
+func rustFixture(t *testing.T, prefix func(root string) string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join("testdata", "tools", "rust"))); err != nil {
+		t.Fatal(err)
+	}
+	tree, err := ScanTree(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := os.ReadFile(filepath.Join(dir, "report.info"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := strings.ReplaceAll(string(report), "SF:src/", "SF:"+prefix(filepath.ToSlash(tree.Root))+"src/")
+	if err := os.WriteFile(filepath.Join(dir, "lcov.info"), []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func rustWant(t *testing.T) []string {
+	t.Helper()
+	w, err := os.ReadFile(filepath.Join("testdata", "tools", "rust", "want.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(w)), "\n")
+}
+
+func findingTexts(fs []Finding) []string {
+	var got []string
+	for _, f := range fs {
+		got = append(got, f.String())
+	}
+	return got
+}
+
+// cargo-llvm-cov may spell SF: as an absolute path; one below the root
+// reads as the repo path, so the gate sees the same findings as with a
+// relative one.
+func TestAnAbsoluteSFPathBelowTheRootReadsAsTheRepoPath(t *testing.T) {
+	dir := rustFixture(t, func(root string) string { return root + "/" })
+	res, err := Check(Options{Root: dir, Reports: []string{filepath.Join(dir, "lcov.info")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := findingTexts(res.Findings); !slices.Equal(got, rustWant(t)) {
+		t.Errorf("findings %q, want %q", got, rustWant(t))
+	}
+	// No record is skipped; the one note says rust has no scope of its own.
+	if want := []string{"rust: no scope in its settings; files absent from the report are not checked"}; !slices.Equal(res.Notes, want) {
+		t.Errorf("notes %q", res.Notes)
+	}
+}
+
+// A record outside the root stays unmatched: it is skipped with a note and
+// adds no finding of its own.
+func TestAnAbsoluteSFPathOutsideTheRootStaysUnmatched(t *testing.T) {
+	dir := rustFixture(t, func(string) string { return "/elsewhere/checkout/" })
+	res, err := Check(Options{Root: dir, Reports: []string{filepath.Join(dir, "lcov.info")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"the reports hold no line records"}
+	if got := findingTexts(res.Findings); !slices.Equal(got, want) {
+		t.Errorf("findings %q, want %q", got, want)
+	}
+	if !slices.Contains(res.Notes, "1 records outside the root were skipped") {
+		t.Errorf("notes %q", res.Notes)
+	}
+}
+
+// The coverage lane runs the gate on lcov.info in the root: with no --report
+// the profile's report location finds it and activates the rust profile.
+func TestTheRustReportAtItsDefaultLocationIsFoundAndChecked(t *testing.T) {
+	dir := rustFixture(t, func(string) string { return "" })
+	res, err := Check(Options{Root: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := findingTexts(res.Findings); !slices.Equal(got, rustWant(t)) {
+		t.Errorf("findings %q, want %q", got, rustWant(t))
 	}
 }

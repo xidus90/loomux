@@ -2,6 +2,7 @@ package verify
 
 import (
 	"cmp"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1694,10 +1695,10 @@ func factsOf(stacks ...string) detect.Facts {
 	return f
 }
 
-// The carrier follows the rank go, python, gdscript, csharp, cpp, java, php, typescript, css, html, then byte order, not the
+// The carrier follows the rank go, python, gdscript, csharp, cpp, java, php, typescript, css, html, rust, then byte order, not the
 // walk: the jobs stay in byte order, and the carrier may stand later in it.
 func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
-	unranked := "[verify.sql.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
+	unranked := "[verify.sql.graph]\ncommands = [\"a\"]\n[verify.shell.graph]\ncommands = [\"b\"]\n"
 	covered := func(c string) string { return "graph covered by graph/" + c }
 	for _, c := range []struct {
 		name   string
@@ -1715,8 +1716,8 @@ func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 		{"a stack without a graph command does not carry", "[verify.sql.graph]\ncommands = [\"c\"]\n", []string{"shell", "sql"},
 			[][3]string{{"graph/shell", "not-applicable", "no command"}, {"graph/sql", "", ""}}},
 		{"gdscript alone", "", []string{"gdscript"}, [][3]string{{"graph/gdscript", "", ""}}},
-		{"gdscript beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"gdscript", "rust"},
-			[][3]string{{"graph/gdscript", "", ""}, {"graph/rust", "not-applicable", covered("gdscript")}}},
+		{"gdscript beats a stack without a rank", "[verify.shell.graph]\ncommands = [\"b\"]\n", []string{"gdscript", "shell"},
+			[][3]string{{"graph/gdscript", "", ""}, {"graph/shell", "not-applicable", covered("gdscript")}}},
 		{"gdscript beats csharp", "", []string{"csharp", "gdscript"},
 			[][3]string{{"graph/csharp", "not-applicable", covered("gdscript")}, {"graph/gdscript", "", ""}}},
 		{"csharp beats cpp", "", []string{"cpp", "csharp"},
@@ -1728,16 +1729,18 @@ func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 		{"php beats typescript", "", []string{"php", "typescript"},
 			[][3]string{{"graph/php", "", ""}, {"graph/typescript", "not-applicable", covered("php")}}},
 		{"typescript alone", "", []string{"typescript"}, [][3]string{{"graph/typescript", "", ""}}},
-		{"typescript beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"rust", "typescript"},
-			[][3]string{{"graph/rust", "not-applicable", covered("typescript")}, {"graph/typescript", "", ""}}},
+		{"typescript beats a stack without a rank", "[verify.shell.graph]\ncommands = [\"b\"]\n", []string{"shell", "typescript"},
+			[][3]string{{"graph/shell", "not-applicable", covered("typescript")}, {"graph/typescript", "", ""}}},
 		{"typescript beats css", "", []string{"css", "typescript"},
 			[][3]string{{"graph/css", "not-applicable", covered("typescript")}, {"graph/typescript", "", ""}}},
 		{"css beats html", "", []string{"css", "html"},
 			[][3]string{{"graph/css", "", ""}, {"graph/html", "not-applicable", covered("css")}}},
-		{"html beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"html", "rust"},
+		{"rust beats a stack without a rank that sorts before it", "[verify.project.graph]\ncommands = [\"b\"]\n", []string{"project", "rust"},
+			[][3]string{{"graph/project", "not-applicable", covered("rust")}, {"graph/rust", "", ""}}},
+		{"html beats rust", "", []string{"html", "rust"},
 			[][3]string{{"graph/html", "", ""}, {"graph/rust", "not-applicable", covered("html")}}},
-		{"unranked stacks follow in byte order", unranked, []string{"sql", "rust"},
-			[][3]string{{"graph/rust", "", ""}, {"graph/sql", "not-applicable", covered("rust")}}},
+		{"unranked stacks follow in byte order", unranked, []string{"sql", "shell"},
+			[][3]string{{"graph/shell", "", ""}, {"graph/sql", "not-applicable", covered("shell")}}},
 	} {
 		calls := 0
 		jobs, err := Plan(effFor(t, c.src, factsOf(c.stacks...)), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
@@ -2012,5 +2015,103 @@ func TestPlanNamesTheRescanWithoutRootForTheRootArea(t *testing.T) {
 	jobs, _ := Plan(effFor(t, "[verify.gdscript]\ntest = \"sh run_tests.sh\"\n", facts), Request{Kinds: []string{"test"}}, e)
 	if len(jobs) != 1 || jobs[0].Note != "run loomux godot rescan to import the project" {
 		t.Fatalf("%+v", jobs)
+	}
+}
+
+// cargo takes the lock on target/ itself, so the Rust lanes carry none of the
+// plan. The test lane measures through cargo-llvm-cov into this run's data
+// directory, and coverage reads the lcov report from there. The warnings level
+// reaches cargo as one argument with its quotes: TOML needs them.
+func TestPlanRunsCargoForARustCrate(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "Cargo.toml", "[package]\nname = \"t\"\n")
+	put(t, root, "src/lib.rs", "#[test]\nfn t() {}\n")
+	facts := detect.Facts{Stacks: []string{"rust"}, Areas: map[string][]string{"rust": {"."}}}
+	e := env(root)
+	e.HasTests = HasTests
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: fourKinds}, e)
+	if err != nil || names(jobs) != "lint/rust types/rust test/rust coverage/rust" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	profile, _ := CoverPaths(root, "R", "rust", ".")
+	want := [][][]string{
+		{{"cargo", "clippy", "--workspace", "--all-targets", "--config", `build.warnings="deny"`}, {"cargo", "fmt", "--all", "--check"}},
+		{{"cargo", "check", "--workspace", "--all-targets"}},
+		{{"cargo-llvm-cov", "llvm-cov", "--workspace", "--lcov", "--output-path", profile}},
+		{{`C:\bin\loomux.exe`, "check", "linecov", "--report", profile}},
+	}
+	for i, j := range jobs {
+		if j.Pre != "" || !slices.EqualFunc(j.Argvs, want[i], slices.Equal) || j.Lock != "" {
+			t.Errorf("%s: %+v", j.Name, j)
+		}
+	}
+	if jobs[3].After != 2 || !slices.Equal(jobs[3].Reads, []string{profile}) {
+		t.Fatalf("coverage: %+v", jobs[3])
+	}
+	jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"test", "lint"}, Scope: ScopeEdit, File: "src/lib.rs"}, e)
+	if names(jobs) != "test/rust lint/rust" || !slices.Equal(jobs[0].Argvs[0], []string{"cargo", "test", "--workspace"}) ||
+		!slices.EqualFunc(jobs[1].Argvs, [][]string{{"cargo", "fmt", "--check", "--", "src/lib.rs"}}, slices.Equal) {
+		t.Fatalf("edit: %+v", jobs)
+	}
+	// Coverage alone measures by itself.
+	jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"coverage"}}, e)
+	if jobs[0].Pre != "" || !slices.Equal(jobs[0].Measure, []string{"cargo-llvm-cov", "llvm-cov", "--workspace", "--lcov", "--output-path", profile}) {
+		t.Fatalf("coverage alone: %+v", jobs[0])
+	}
+}
+
+// A crate has tests where a source holds #[test] (or an attribute path ending
+// in ::test, such as tokio's) or a tests/ directory stands; a manifest alone
+// does not make them.
+func TestPlanFindsRustTestsByAttributeOrDirectory(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"rust"}, Areas: map[string][]string{"rust": {"."}}}
+	for _, c := range []struct {
+		name  string
+		files map[string]string
+		want  State
+	}{
+		{"nothing but a manifest", map[string]string{"Cargo.toml": "", "src/lib.rs": "pub fn f() {}\n"}, StateUnavailable},
+		{"an inline test", map[string]string{"Cargo.toml": "", "src/lib.rs": "#[test]\nfn t() {}\n"}, ""},
+		{"an integration test", map[string]string{"Cargo.toml": "", "src/lib.rs": "", "tests/it.rs": ""}, ""},
+		{"a tokio test", map[string]string{"Cargo.toml": "", "src/lib.rs": "#[tokio::test]\nasync fn t() {}\n"}, ""},
+		{"a tokio test with arguments", map[string]string{"Cargo.toml": "", "src/lib.rs": "#[tokio::test(flavor = \"multi_thread\")]\nasync fn t() {}\n"}, ""},
+		{"a test only under target", map[string]string{"Cargo.toml": "", "target/x.rs": "#[test]\n"}, StateUnavailable},
+	} {
+		root := t.TempDir()
+		for rel, body := range c.files {
+			put(t, root, rel, body)
+		}
+		e := env(root)
+		e.HasTests = HasTests
+		jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"test"}}, e)
+		if err != nil || len(jobs) != 1 || jobs[0].Pre != c.want {
+			t.Errorf("%s: %v %+v", c.name, err, jobs)
+		}
+	}
+}
+
+// cargo-llvm-cov is looked up by its own name, so without it the test lane
+// (measuring) ends as missing-tool, not as a failed cargo call, and the
+// coverage lane behind it is blocked.
+func TestRunNamesAMissingCargoLlvmCov(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "src/lib.rs", "#[test]\nfn t() {}\n")
+	facts := detect.Facts{Stacks: []string{"rust"}, Areas: map[string][]string{"rust": {"."}}}
+	e := env(root)
+	e.HasTests = HasTests
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"test", "coverage"}}, e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := opts(&fakeStart{answer: ok})
+	o.Look = func(name string) (string, error) {
+		if name == "cargo-llvm-cov" {
+			return "", errors.New("not found")
+		}
+		return name, nil
+	}
+	out := Run(jobs, o)
+	if out[0].State != StateMissingTool || !strings.Contains(out[0].Output, `"cargo-llvm-cov" is not on PATH`) || out[1].State != StateBlocked {
+		t.Errorf("%s %q, %s", out[0].State, out[0].Output, out[1].State)
 	}
 }

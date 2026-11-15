@@ -30,6 +30,205 @@
   `syntheses/warum-fast-die-vorgabe-bleibt.md` (zitiert
   `topics/suche-und-profile.md`) rücken mit; beide gegen die zitierte Seite
   gelesen, Inhalt unverändert.
+- 2026-11-15 — `docs/{de,en}/stacks/gdscript.md`: Die Grenze für den Bau der
+  Rust-Extension ist das git-Repository (nächstes `.git`, Verzeichnis oder
+  Datei), nicht mehr die Wurzel, die loomux über `.loomux/config.toml` findet.
+  Ohne diese Datei baute das Layout `godot/` + `rust/` sonst nichts. Ohne
+  git-Checkout (Compat-Arbeitskopie) gilt das Verzeichnis um das Projekt.
+  Quelle: die Nachprüfung des letzten Fix-Durchgangs.
+- 2026-11-15 — `topics/code-graph.md` (Lücken von Rust, Kennzahlen, Cargo-Leser),
+  `docs/{de,en}/stacks/gdscript.md`, `docs/{de,en}/support.md`,
+  `docs/{de,en}/hooks.md`, `docs/{de,en}/configuration.md`, Spec: Berichtigungen
+  nach dem letzten Gegenlesen von Rust. Der Bau der Rust-Extension sucht das
+  `Cargo.toml` nur noch bis zur Repository-Wurzel und baut kein `target/` oder
+  Crate außerhalb (Hinweis statt Bau); bei gesetztem `CARGO_TARGET_DIR` sagt
+  der Lauf, dass Godot die alte Bibliothek lädt; der `.gdextension`-Leser
+  verträgt BOM und `;`-Kommentare am Zeilenende und überspringt auch den Tag
+  `template_release`. `cargo fmt --check -- {file}` bleibt die `on_file`-Form,
+  die Doku sagt jetzt, dass es das Crate oder den Workspace prüft. Das
+  ungenutzte Feld `Members` des Cargo-Lesers entfällt. Das `use` im
+  Funktionsrumpf bindet für die ganze Datei und steht bei den Lücken; die
+  Zeitangaben nennen weder Windows noch Kerne und ordnen die 298 000 Zeilen
+  allen Sprachen des Repos zu. Die Spec trägt dazu eine datierte Notiz zu
+  Aufgabe 3.4 (Entscheidung 10). Quelle: das Gegenlesen des Branches.
+- 2026-11-15 — `topics/code-graph.md` (Kennzahlen von Rust), `docs/{de,en}/stacks/gdscript.md`
+  (Windows: die Bibliothek ist belegt): Abnahme der Rust-Unterstützung.
+  `go test ./...` grün, `check gocover` ohne Befund; der Graph dieses Repos
+  gleicht dem des Merge-Basis-Binaries bis auf den Extraktor-Stempel
+  (`rust/1`); ripgrep, tokio und gdext bauen ohne Abbruch, die Aufrufzahlen
+  stimmen mit dem Probelauf überein, außer in gdext (7112 statt 7530; der Build
+  liest 363 von 384 Dateien, die 21 fehlenden vermutlich wegen Ignorier-Regeln
+  und `pruneDirs`, nicht nachgemessen). Windows 11, Godot 4.7.1 (Mono-Konsole),
+  godot-rust 0.5.5, gdUnit4 6.2.2, gemessen nur mit dem Headless-Editor
+  (`--headless --editor`) und einem Headless-Spiel (`--headless --path`); nicht
+  gemessen: der Editor mit Fenster, andere Godot-Versionen, Hot Reload. Der
+  Headless-Editor lud eine Kopie (`~demo.dll`), `cargo build` und `check
+  godot-suite` überschrieben `demo.dll`; die geladene Datei hing nicht von
+  `reloadable` ab (`true` wie `false`). Ein Headless-Spiel hielt `demo.dll`
+  offen und ließ `cargo build` mit `os error 5` scheitern, ebenfalls bei
+  beiden Werten. Das ersetzt die Zeile zur DLL-Sperre unten („noch nicht
+  geprüft“). Die Spec (`docs/.superpowers/specs/2026-11-14-rust-design.md`) trägt dazu
+  eine datierte Notiz. Quelle: Probeläufe der Abnahme.
+- 2026-11-15 — `docs/{de,en}/support.md` (Absatz zur gepflegten Liste und zur
+  Rust-Zeile), `README.md`, `README.de.md` (Roadmap: Rust ist nicht mehr unter
+  den übrigen Stacks): Der Scout kennt Rust. Die stabile Version liest er aus
+  `channel-rust-stable.toml` (`pkg.rust.version`), die Vorabversion aus
+  `channel-rust-beta.toml`; die Manifeste sind maschinenlesbar, kommen vom
+  Rust-Projekt selbst und stehen vor den GitHub-Releases (die Tags von
+  `rust-lang/rust` tragen auch Patch- und Vorabstände). Ein neues Stable
+  schlägt alle vier Rust-Einträge vor (die Probe fährt `rust-cargo`, der
+  TOML-Block nennt auch die nur-Graph-Einträge); endoflife.date hinkt nach
+  (`1.100` fehlte am 2026-11-14), darum überspringt `scoutEOL` für Rust eine
+  Version, die neuer ist als jeder Zyklus dort. Ein Beta-Probe läuft auf dem
+  Kanal `beta`. CI: rustup installiert die Toolchain mit `clippy`, `rustfmt`
+  und `llvm-tools-preview` (`ci/compat-setup.sh`), `cargo-llvm-cov` 0.9.1 kommt
+  von `taiki-e/install-action`; der GDScript-Job von `godot4-rust` installiert
+  den Kanal aus `rust-toolchain.toml` der Crate (ein Test hält ihn auf der
+  Version der Rust-Einträge). Die `godot`-Crate steht als `crates = { godot =
+  "0.5.5" }` am GDScript-Eintrag `godot4-rust`: ein neuer Minor auf crates.io
+  ist ein Scout-Befund (`godot4-rust@gdscript/crate:godot`, die Zeile trägt
+  `crate:`, weil Engine und Crate `godot` heißen), und ein Lauf schreibt die
+  Version in die `Cargo.toml` der Arbeitskopie und löscht die `Cargo.lock`
+  daneben, damit cargo neu auflöst. Fixture `godot4-rust`:
+  `compatibility_minimum = 4.7` (die Crate baut mit `api-4-7`), `Cargo.lock`
+  eingecheckt. Quelle: `internal/compat/scout.go`, `internal/compat/run.go`,
+  `ci/compat-setup.sh`.
+- 2026-11-15 — `docs/{de,en}/support.md` (Geprüfte Kombinationen, Zeile
+  `rust`, Graph-Zeile Rust): Rust 1.100 ist geprüft, mit den Einträgen
+  `rust-cargo` (Workspace aus Bibliothek und Programm, Inline-Tests,
+  `tests/it.rs`, ein `LCOV_EXCL_START`-Block mit Grund; alle Prüfarten),
+  `rust-syntax-2021` und `rust-syntax-2024` (nur Graph) und `godot4-rust`
+  zweimal (Rust-Eintrag nur Graph, GDScript-Eintrag auf Godot 4.7 mit
+  gdUnit4 6.2.2: die Suite baut die Crate und ruft ihre Klasse auf). Die
+  Toolchain eines Rust-Eintrags wählt `RUSTUP_TOOLCHAIN` (rustup nimmt
+  `1.100` als Kurzform und löst sie auf das neueste Patch-Release auf); liegt
+  `project.godot` unter der Wurzel (`godot/`), legt ein Lauf Addons,
+  Engine-Version und Rescan dort an. Grammatik-Lücke tree-sitter-rust #250
+  (`safe` in `unsafe extern`): der Block ist ein Parse-Fehler, die Elemente
+  darum und die Aufrufe seiner Funktionen kommen an; `layer1_test.go` hält das
+  fest. Lokal gelaufen (1.100.0, Godot 4.7.1, `godot` 0.5.5 mit `api-4-7`):
+  `godot4-rust` (beide Einträge), beide Syntax-Einträge und `rust-cargo` grün.
+  Quelle: `internal/compat/`.
+- 2026-11-15 — `docs/{de,en}/configuration.md` (Preset-Tabelle, Zeile `rust`):
+  `cargo-llvm-cov` schreibt den Bericht nach `{coverprofile}` statt nach
+  `{coverdata}/lcov.info`, denn es legt das Verzeichnis nicht an und das
+  `.data` von `{coverdata}` gibt es vor dem ersten Schreiben nicht; `check
+  linecov --report` liest den Pfad auch ohne den Namen `lcov.info`. Gefunden
+  beim ersten echten Lauf von `rust-cargo`. Quelle: `internal/verify/presets.toml`.
+- 2026-11-15 — `docs/{de,en}/stacks/gdscript.md` (neuer Abschnitt Rust-Extensionen),
+  `cli-reference.md` (`check godot-suite`, `godot rescan`): beide Befehle bauen
+  eine godot-rust-Extension (`.gdextension` mit `entry_symbol =
+  "gdext_rust_init"`), bevor sie Godot starten. Jeder `[libraries]`-Pfad nach
+  `<verz>/target/<profil>/` ergibt einen Bau je Crate und Profil (`debug` ohne
+  Flag, `release`, sonst `--profile`; Einträge mit dem Schlüssel-Tag `release`
+  baut sie nicht, die Suite lädt Debug oder Editor, nur-Release ergibt einen
+  Hinweis); das Crate ist die nächste `Cargo.toml`
+  über `target/`, ohne eine gibt es einen Hinweis (eigenes Zielverzeichnis,
+  bekannte Lücke). Baufehler und fehlendes `cargo` sind Befunde vor jedem
+  Engine-Start. Zeitbudget gemessen: kalter Bau eines Crates mit nur `godot
+  =0.5.5` 42 s (debug; release 59 s, wird nicht gebaut) auf 16 Kernen, im Limit von 600 s;
+  der Bau zählt gegen `[verify].timeout`. Windows-DLL-Sperre: `reloadable =
+  true` laut Spec, noch nicht gegen einen laufenden Editor geprüft. Quelle:
+  `internal/verify/godotsuite/gdextension.go`.
+- 2026-11-15 — `topics/code-graph.md` (Prüfart `graph`: Preset und Rang nennen
+  Rust), `docs/{de,en}/support.md`, `configuration.md`, `hooks.md`,
+  `cli-reference.md` (`graph build`): der Stack `rust` hat die Prüfkette:
+  clippy mit `--config 'build.warnings="deny"'` (die Anführungszeichen
+  gehören zum Wert; Cargo liest ihn als TOML, `deny` steht in der Cargo-Doku
+  unter `build.warnings`, ab Cargo 1.97 beachtet), `cargo fmt --all --check`,
+  `cargo check --workspace --all-targets`, `cargo test --workspace`,
+  Coverage über `cargo-llvm-cov llvm-cov --workspace --lcov` (unter dem
+  eigenen Namen aufgerufen, damit ein fehlendes Werkzeug `missing-tool` ist)
+  und `check linecov`; `tests_when` ist `*.rs:#[test]`, ein Attributpfad auf
+  `::test` (tokio) oder `tests/`; keine Sperre, denn Cargo sperrt `target/`
+  selbst und `coverage` wartet per `after`; eine `Cargo.toml` in der Wurzel
+  macht die Wurzel zum einzigen Bereich; `rust` steht am Ende des Graph-Rangs.
+  `graph build` nennt `.rs` und Rust in seinen Listen. Quelle:
+  `internal/verify/presets.toml`, `plan.go`, `internal/detect/signals.go`.
+- 2026-11-15 — `docs/{de,en}/cli-reference.md` (`check linecov`): das Profil
+  `rust` nimmt die Block-Marker `// LCOV_EXCL_START: <Grund>` …
+  `// LCOV_EXCL_STOP` (stable; `#[coverage(off)]` braucht Nightly) und kennt
+  den Bericht `lcov.info`; ein absoluter `SF:`-Pfad unter dem Repo gilt als
+  Repo-Pfad (schon vorher, jetzt per Test festgehalten). Ein `lcov.info` unter
+  `coverage/` bleibt bei vitest, c8 und nyc, aktiviert `rust` nicht mit.
+  Quelle: `internal/verify/linecov/tools.toml`, `activate.go`.
+- 2026-11-15 — `topics/code-graph.md`: Rust: ein `use`, das den eigenen
+  Namen seiner Datei zurückliest, liest an allen solchen vorbei, nicht nur an
+  sich selbst (zwei `mod tests { use super::X; }` lasen einander und
+  verdeckten das X der Globs); die Lücke über einen Alias steht unter „Was
+  offen“. Probelauf unverändert. Quelle: `internal/code/resolve/rust.go`.
+- 2026-11-15 — `topics/code-graph.md`: Rust: die Modultabellen sind der
+  kleinste Fixpunkt über Kandidatenmengen, über Mehrdeutigkeit entscheidet
+  erst das Ergebnis; das Vergiften ist gestrichen (ein Kandidat, den eine
+  Reihenfolge zuerst sah, überlebte in einem Kreis von Globs, je nach den
+  Namen der Module). Ein `use` liest an sich selbst vorbei, statt bei leerem
+  Ergebnis nichts zu binden; der Crate-Name zählt, wenn weder Definition noch
+  `use` den Namen binden. Probelauf unverändert. Quelle:
+  `internal/code/resolve/rust.go`.
+- 2026-11-15 — `topics/code-graph.md`: Rust: Namen lösen sich gegen
+  Modultabellen je Namensraum, die Runden bis zum Fixpunkt festlegen, statt
+  über eine rekursive Suche mit Merkliste (die einen Kreis von Globs je nach
+  Reihenfolge falsch oder gar nicht auflöste); ein `use` verdeckt die Globs
+  auch ohne Ziel im Repository, eines, das nur den eigenen Namen der Datei
+  zurückliest, bindet nichts; ein Eintrag, der einen Kandidaten verliert, ist
+  vergiftet. Probelauf neu gezählt. Quelle: `internal/code/resolve/rust.go`.
+- 2026-11-15 — `topics/code-graph.md`: Rust: ein halbes Ergebnis aus einem
+  Kreis von Re-Exporten gilt für die laufende Auflösung weiter, damit jede
+  Suche einmal läuft (ein dichter Kreis von Globs blähte sonst jede Auflösung
+  auf); Cargo-Satz neu umbrochen. Quelle: `internal/code/resolve/rust.go`.
+- 2026-11-15 — `topics/code-graph.md`: Rust: ein Crate-Name erreicht die
+  Bibliothek unter `[lib] path` (`CargoManifest.LibRoot`), die Lücke dazu ist
+  aus „Was offen“ gestrichen; `self.f()` sucht auch in Supertraits; eine
+  Suche, die einen Kreis von Re-Exporten nur halb sah, wird nicht gemerkt;
+  zwei gleichnamige Methoden eines Typs geben keine Kante. Godot-Angebote: die
+  Klasse kommt vom einen Typ dieses Namens, nicht nur einem Struct. Absatz
+  neu umbrochen. Quellen: `internal/code/resolve/rust.go`,
+  `internal/code/resolve/cargo.go`.
+- 2026-11-15 — `topics/code-graph.md`: Rust-Absatz: eine Datei, die kein Baum
+  erreicht, sucht ihre `mod x;` nach ihrem Namen (aus `a.rs` in `a/`); Probelauf
+  für tokio neu gezählt. Quelle: `internal/code/resolve/rust.go`.
+- 2026-11-15 — `topics/code-graph.md`: Absatz „Rust“ um die Auflösung
+  (Modulbaum je Crate-Wurzel, Bindungsreihenfolge, `pub use`-Ketten,
+  Methoden über `Owner`, Konfidenzen, Probelauf auf ripgrep, tokio und gdext),
+  Godot-Angebote um godot-rust, „Was offen“ um die Lücken von Rust; dazu die
+  Rust-Zeile in `docs/{en,de}/support.md`. Quelle:
+  `internal/code/resolve/rust.go`.
+- 2026-11-15 — Quelle neu gepinnt (`loomux wiki repin`), Inhalt unverändert:
+  `topics/code-graph.md`. Die zitierende Seite
+  `syntheses/graph-hinweis-im-waechter.md` gegen den neuen Text gelesen; sie
+  stützt sich nicht auf die Rust-Auflösung.
+- 2026-11-15 — `topics/code-graph.md`: `Cargo.toml` ist Moduldatei des Graphen
+  (`resolve.Module.Cargo`: Paketname, Bibliothek, Crate-Wurzeln, Workspace-Mitglieder,
+  Pfadabhängigkeiten) und macht den Graphen wie `go.mod` nicht veraltet. Quelle:
+  `internal/code/resolve/cargo.go`.
+- 2026-11-15 — Quelle neu gepinnt (`loomux wiki repin`), Inhalt unverändert:
+  `topics/code-graph.md`. Die zitierende Seite
+  `syntheses/graph-hinweis-im-waechter.md` gegen den neuen Text gelesen; sie
+  stützt sich nicht auf Moduldateien.
+- 2026-11-15 — `topics/code-graph.md`: neuer Absatz „Rust“ unter „Wie der Graph
+  entsteht“: was der Extraktor heute liest (Items, Methoden über `Node.Owner`,
+  Tests am Knoten, gdext-Registrierungen, Rohkanten) und dass die Auflösung
+  folgt. Quellen: `internal/code/extract/rust`, `internal/code/extract/all`.
+- 2026-11-15 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt unverändert:
+  `docs/de/architecture.md` (Paketliste der Extraktoren um `extract/rust`) und
+  `topics/code-graph.md`. Die zitierenden Seiten
+  `topics/architektur-grundsaetze.md`, `topics/wiki-schicht.md`,
+  `syntheses/gegenpruefung-vor-jeder-designempfehlung.md` und
+  `syntheses/graph-hinweis-im-waechter.md` gegen den neuen Text gelesen; keine
+  stützt sich auf die Sprachliste oder die Paketliste der Extraktoren.
+
+## 2026-11-14
+
+- 2026-11-14 — `topics/code-graph.md`: Rust-Testpfade (`tests/`, `benches/`,
+  `tests.rs`, `test.rs`) in der Liste der Testdateien; neuer Absatz „Tests am
+  Knoten“: `model.Node.Test`, `blast.IsTestNode` und das Blast-Signal, das
+  einen markierten Test in einer Produktivdatei nur dann als geändert zählt,
+  wenn ein Hunk seinen Span schneidet. Quellen: `internal/code/blast/radius.go`,
+  `internal/code/model/graph.go`.
+- 2026-11-14 — Quelle neu gepinnt (`loomux wiki repin`), Inhalt unverändert:
+  `topics/code-graph.md`. Die zitierende Seite
+  `syntheses/graph-hinweis-im-waechter.md` gegen den neuen Text gelesen; sie
+  stützt sich nur auf die Go-Ketten, nicht auf Testpfade oder das Blast-Signal.
 
 ## 2026-11-13
 

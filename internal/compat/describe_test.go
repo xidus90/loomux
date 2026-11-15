@@ -50,6 +50,9 @@ func TestDescribeInstallsThePreRelease(t *testing.T) {
 		// too, and a line ("26") as its newest release.
 		{"node", "27", "27.0.0-alpha.0.0.0", "27.0.0-alpha.0.0.0"},
 		{"node", "26", "", "26"},
+		// rustup knows the beta by its channel, not by the version it leads to.
+		{"rust", "1.101", "1.101.0-beta.2", "beta"},
+		{"rust", "1.100", "", "1.100"},
 	} {
 		d, err := DescribeEntry(Entry{Runtime: c.runtime, Version: c.version, Pre: c.pre})
 		if err != nil || d.Install != c.want {

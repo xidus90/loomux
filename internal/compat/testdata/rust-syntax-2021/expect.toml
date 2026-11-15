@@ -1,0 +1,11 @@
+stacks = ["rust"]
+# Each edge leaves an item written in a form of the 2021 edition, or follows
+# one: a const generic impl, a macro_rules! macro, a let-else body.
+edges = [
+  ["src/lib.rs#Square", "implements", "src/lib.rs#Shape"],
+  ["src/lib.rs#doubled", "calls", "src/lib.rs#twice"],
+  ["src/lib.rs#parse", "calls", "src/lib.rs#doubled"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

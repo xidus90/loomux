@@ -18,9 +18,9 @@ type signal struct {
 	// without a package.json is a configuration file, not a project.
 	besides string
 	// owns, when set and matched in the root, makes the root the stack's
-	// only area: a solution or a CMake or Meson project builds what lies
-	// below it, and a member checked on its own would build it a second
-	// time, or in C++ find no build tree at all.
+	// only area: a solution, a Cargo workspace or a CMake or Meson project
+	// builds what lies below it, and a member checked on its own would build
+	// it a second time, or in C++ find no build tree at all.
 	owns bool
 	// below, when set, holds extensions of which some file under the area
 	// must carry one: a Gradle build in Kotlin DSL is a Java project only with
@@ -92,7 +92,7 @@ var signals = []signal{
 	// properties and packages of a project do not.
 	{path: "global.json", contains: "Microsoft.Testing.Platform", stacks: []string{"csharp", "mtp"}},
 	{path: "Directory.Build.props", stacks: []string{"csharp"}},
-	{path: "Cargo.toml", stacks: []string{"rust"}},
+	{path: "Cargo.toml", stacks: []string{"rust"}, owns: true},
 	{path: "go.mod", stacks: []string{"go"}},
 	{path: ".golangci.yml", stacks: []string{"go", "golangci-lint"}},
 	{path: ".golangci.yaml", stacks: []string{"go", "golangci-lint"}},
