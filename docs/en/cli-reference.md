@@ -996,6 +996,7 @@ Shows what a change reaches, from git's diff: per changed file the symbols its h
 ### `loomux graph viz [dir]` *(specified, Stage W3)*
 Starts the local D3-Force / WebGL interactive graph visualizer.
 - **Flags**: `--port <p>`, `--no-open`.
+- **Status**: not built. The graph is drawn by the graph page of the web interface (see [`loomux ui`](#loomux-ui---no-browser)); this command stays specified for a viewer that starts on its own.
 
 ---
 
@@ -1106,6 +1107,14 @@ Runs a reconcile pass over the registered areas, then rebuilds each area's direc
 - **`--registry`**: a `registry.toml`, or the directory holding one; default `registry.toml` in the state directory.
 - **Catch-up**: the reconcile pass runs first, so that a changed source becomes a case before the index run advances its hash. Cases it opens are listed on `stderr` and the run **goes on**; a vault without a review centre gets a warning and is indexed; any other failure of the pass stops the command before anything is indexed. For a case of a `local_only` area the pass also asks the local model (30 s per case once the model is loaded, see [`loomux reconcile`](#loomux-reconcile)), and a broken `[model]` that ends that pass (see there for when it counts) is such a failure: `reindex` stops.
 - **Area lock**: each area is indexed under `<state>/areas/<scope>.lock`, the lock `loomux approve` takes for the same area, so neither rewrites the identity register while the other reads it; a second runner waits until the first releases it. The file stays behind, like `registry.lock`.
+- **Code references**: next to `nodes`, `edges` (the links between documents) and `links`, `graph.json` holds the list `code_refs`, one entry such as `{"from": "topics/x.md", "path": "internal/hooks/guard.go", "line": 67, "end": 0}` for each place in the repository that a document of the area names. A `graph.json` written before the field existed reads as one without references; every other reader is unchanged. What counts is the rule a writer of wiki pages needs:
+  - Inline code in single backticks whose whole content is `path`, `path:line` or `path:from-to`, the path made of letters, digits, `_`, `.`, `-` and `/`. The path has at least one `/` (single names such as `go.mod`, `README.md` or `docs` are almost never code) and starts at the area's root; a `/` at its end is dropped, so a directory can be named.
+  - A Markdown link to a file or directory (`[x](../../internal/a.go)`), resolved against the folder of the document, without its `#fragment`. A link with a scheme or a leading `/` does not count, and a link names no line.
+  - Nothing inside a fenced code block (```` ``` ```` or `~~~`): what stands there is an example, not a reference.
+  - The path exists under the area's root, as a file or directory, with every segment spelled exactly (checked segment by segment, so a case-insensitive file system writes the same `graph.json` as any other), and does not lie under `.git` or `.loomux` or lead out of the root. That keeps prose such as `a/b` and example paths out.
+  - `line` and `end` are `0` where the reference names no line; with a `line` and `end` `0` the reference means that one line. Equal references of a document merge, and the list is sorted by document, path, line and end, so `reindex` writes the same file every time.
+  - Every document of the area gets references, not only those in its wiki folder. A read-only area gets an empty list: the paths are looked up in the area's own tree, which the reader of its artefacts cannot open. A wiki in an area of its own, apart from the code it describes, gets none either, since the check runs against the root of the area that holds the document.
+  - Known limits: a line number is read against today's code graph when the graph page draws it, so a stale one points at another symbol without a warning. A reference is judged when `reindex` reads the document: a file created after the last run gets its references with the next, a change to code alone starts no `reindex`, and a deleted file keeps its reference until then (the graph page lists it as not in the code graph). A name without a path (`ReadPolicy`, "the guard") is no reference, and the indexer does not resolve a reference to a symbol.
 - **Output**: `indexed the areas of <path>` on `stdout`; on `stderr` the collections updated or dropped, and each collection refused because qmd already holds one of that name that brain did not create.
 - **Exit codes**: `0` on success, and also when there is no registry in the state directory (`no areas registered in <path>; nothing to index` on `stdout`); `1` for a registry named with `--registry` that does not exist, a registry that does not read, a failed catch-up, a failed index run, a refused collection or a read-only area whose path the system cannot inspect (`skipping <scope>: <path> cannot be inspected: <error>`; the other areas are still indexed, and an area whose path is merely absent is skipped with exit `0`); `2` for a usage error. The catch-up before the index run reads the `.loomux/config.toml` of every area: one that is there and does not read, or that the system cannot inspect — a writable area whose path cannot be inspected included — fails the catch-up, and nothing is indexed; a declaration that is merely missing or holds no `[area]` is skipped.
 
@@ -1365,6 +1374,67 @@ the write guard refuses it to an agent in every form but `--help`.
   write (a key, a rule, a proposal, the `llm_config` switch) shows its diff
   first and is written only after it is confirmed, one key at a time.
   **Add project** is the setup wizard ([Getting started](getting-started.md#the-second-way-the-browser)).
+- **Graph page**: `/graph/<project>` shows the code graph of a project beside
+  the documents of its wiki area, with an edge from a document to the code it
+  names ([code references](#loomux-reindex---registry-path)). It is linked as
+  **Graph** from the navigation, from a project's settings page and from the
+  project names of the dashboard tile "Code graph"; `global` and an unknown ID answer
+  `404`. The page is a shell with one script and the only page that needs
+  JavaScript. The script fetches the view as JSON from
+  `GET /graph/<project>/data` and the hits of its search box from
+  `GET /graph/<project>/search?q=<text>`; both only read, behind the same
+  session and `Host` checks as every other route. The drawing library,
+  force-graph 1.52.0, is part of the binary and served from `/assets/vendor/`:
+  nothing is loaded from the network, and the content security policy is the
+  one of every other page.
+  - **Sources**: the code graph is the project's `wiring.json`
+    (`loomux graph build`), the wiki graph the `graph.json` of the project's
+    registered area (`loomux reindex`). If one is missing or unreadable the
+    page shows the other and says which command builds the missing one
+    (`no code graph yet: run loomux graph build`, `no wiki graph yet: run
+    loomux reindex`); a project that is no registered area has no wiki graph.
+    The interface keeps each project's decoded code graph in memory and reads
+    it again when the modification time of `wiring.json` changes.
+  - **Folding**: the whole graph never goes to the browser. The code is folded
+    into directories, each sized by the summed PageRank of its members. A
+    request without any `open` parameter has directories opened from the root
+    while the view stays within 150 nodes. Otherwise the repeatable parameter
+    `open=<directory or file>` names exactly what is open: a directory opens
+    into its subdirectories and files, a file into its symbols, and an empty
+    `open=` shows the top level only. An entry that is not in the graph or
+    whose parent is not open is ignored, and
+    no view grows past 1000 nodes. An edge between two shown nodes counts the
+    `calls`, `references`, `imports`, `implements` and `extends` edges between
+    their members, by relation and confidence; `contains`, edges inside one
+    node and edges to a target that is no node (`npm:lodash`) do not count.
+  - **Documents**: each document of the area is a node, coloured by its
+    folder, and each link between two documents is an edge. The documents
+    under the area's wiki folder (`docs/wiki` in this repository) show by
+    default; the others of the area wait behind **Other documents**. An area
+    without a wiki folder counts every document as wiki. The data answer
+    carries all documents; **Other documents** only hides them in the browser.
+  - **Code references**: a reference ends at the shown node that holds its
+    path: a closed directory, a file or, when the file is open and the
+    reference names a line, the symbol that encloses the line. A reference to
+    an open directory goes to each of its shown children. A reference to
+    another document of the area is an edge between the two documents. A
+    reference whose path is not in the code graph (a `.toml` or `.ps1` file, a
+    language without an extractor, a deleted file) makes no edge; the
+    document's info box lists it under "Not in the code graph".
+  - **Controls**: a search box for directories, files, symbols and documents
+    (at most 20 hits; a hit opens what it needs and is centred, a document
+    hit keeps what is open and switches **Other documents** on if it is one
+    of them, and a hit the view cannot show is named among the problems); an
+    info box
+    for the selected node (kind, path, number of members, neighbours with
+    their counts, the paths not in the code graph); a double click on a
+    directory or file opens it, and the path bar above the drawing closes an
+    entry again; checkboxes for each relation, each confidence, **Wiki**,
+    **Other documents** and each colour of the legend. What is open and what
+    is switched off stands in the fragment of the address (`#open=…&off=…`), so
+    reload and Back work. The layout settles after 200 steps and then stands
+    still. A document does not open: the interface has no wiki reader yet, so
+    the info box shows its path.
 - **`--no-browser`**: opens nothing and prints the login address instead,
   which works once. Without the flag the command prints
   `http://127.0.0.1:<port>/` without the code; if the browser does not open,

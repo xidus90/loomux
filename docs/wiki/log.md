@@ -4,6 +4,33 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-11-15
+
+- 2026-11-15 — `topics/code-graph.md`: ein Absatz zur Graphseite der
+  Weboberfläche; der offene Punkt zur Brücke von Code zu Wiki-Seiten nennt,
+  was gebaut ist (`code_refs`, die 2D-Graphseite) und was bleibt (3D-Ansicht,
+  Blast-Overlays, MCP-Abfrage; `graph viz` ist nicht gebaut). Die Roadmap-Zeile
+  „Graph-Visualizer“ ist auf das gekürzt, was noch nicht gebaut ist: 3D-Ansicht
+  und Blast-Overlays. Quellen: `docs/de/cli-reference.md`
+  (`loomux ui`, `loomux reindex`), `internal/web/graph.go`,
+  `internal/brain/graph/coderefs.go`.
+- 2026-11-15 — `topics/wiki-schicht.md`: neuer Abschnitt „Codeverweise einer
+  Seite“: was als Verweis zählt und wo die Grenzen stehen. Quelle:
+  `docs/de/cli-reference.md` (`loomux reindex`),
+  `internal/brain/graph/coderefs.go`.
+- 2026-11-15 — Quelle neu gepinnt (`loomux wiki repin`): `docs/de/cli-reference.md`
+  (Graphseite unter `loomux ui`, Codeverweise unter `loomux reindex`, Stand von
+  `graph viz`). Die zitierenden Seiten gegen den neuen Text gelesen:
+  `entities/brain-daemon.md`, `entities/okf.md`, `entities/qmd.md`,
+  `topics/brain-maintenance.md`, `topics/datenmodell-und-bereiche.md`,
+  `topics/datenschutz-und-kanaele.md`, `topics/scheiben-und-abnahme.md` und
+  `topics/suche-und-profile.md` bleiben unverändert, `topics/code-graph.md` und
+  `topics/wiki-schicht.md` sind oben angepasst. Die Pins der Synthesen
+  `syntheses/graph-hinweis-im-waechter.md` (zitiert `topics/code-graph.md`) und
+  `syntheses/warum-fast-die-vorgabe-bleibt.md` (zitiert
+  `topics/suche-und-profile.md`) rücken mit; beide gegen die zitierte Seite
+  gelesen, Inhalt unverändert.
+
 ## 2026-11-13
 
 - 2026-11-13 — `topics/schreibschranke.md`: `loomux ui stop` beendet nur den
