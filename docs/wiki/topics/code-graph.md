@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:ef612ecf8271f6d70ee53a169f4734b13920d7dd2bd74eb41d41863e2e471003"
-    revision: 53
+    content_hash: "sha256:9f10a23fed23d03a8901e702abb20aaa1c08bbd188a92acdcbd2b3edb71a30d4"
+    revision: 56
 ---
 
 ## Wofür
@@ -562,6 +562,18 @@ fünf `brain_*`-Werkzeugen. **Auf dem Cloud-Kanal schließen sie im Zweifel:**
 was ein `local_only`-Bereich verbirgt, verraten auch die Graph-Werkzeuge
 nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
 
+**Die Graphseite.** Die Weboberfläche zeichnet den Code-Graphen unter
+`/graph/<Projekt>` in 2D, mit force-graph im Binary. Der Server fasst ihn zu
+Verzeichnissen zusammen (zu Beginn bis 150 Knoten, nie mehr als 1000, größer
+nach der Summe des PageRank ihrer Mitglieder); ein Doppelklick öffnet ein
+Verzeichnis oder eine Datei. Neben dem Code stehen die Dokumente des
+Wiki-Bereichs, und eine Kante geht von einem Dokument zu dem Code, den es
+nennt: `reindex` liest dafür Backtick-Pfade und Markdown-Links der Dokumente
+und schreibt die, deren Pfad es gibt, als `code_refs` in `graph.json`. Auf ein
+Symbol löst erst die Seite auf, gegen den heutigen Graphen; eine veraltete
+Zeilenangabe zeigt darum ohne Warnung auf ein anderes Symbol. Regel und Grenzen
+stehen in `docs/de/cli-reference.md` unter `loomux ui` und `loomux reindex`.
+
 ## In Hook und Prüfkette
 
 - **Post-Edit-Hook, rein informativ:** Nach einem Edit an einer `.go`-Datei
@@ -768,8 +780,12 @@ das Binary kommt über die üblichen Wege.
   aus der Spec: das Schema kennt heute nur den Schalter `graph` unter
   `[modules]`.
 - Die Brücke von Code-Symbolen zu Wiki-Seiten und ADRs und der Viewer
-  `graph viz` ordnete die Spec G4 und G5 zu; die Roadmap im README führt
-  beide heute unter dem Graph-Visualizer.
+  `graph viz` ordnete die Spec G4 und G5 zu. Die Brücke steht als `code_refs`
+  und wird auf der Graphseite der Weboberfläche gezeichnet; der Befehl
+  `graph viz` ist nicht gebaut. Offen bleiben die 3D-Ansicht und die
+  Blast-Overlays (die Roadmap im README führt beide unter dem
+  Graph-Visualizer) und die Abfrage über MCP, welche Wikiseiten einen Code
+  beschreiben.
 
 Quelle: die Architektur und die CLI-Referenz der Nutzerdoku; offene Stufen
 führt die Roadmap im README.

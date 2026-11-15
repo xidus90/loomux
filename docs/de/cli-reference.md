@@ -928,6 +928,7 @@ Zeigt, was eine Änderung erreicht, aus dem Git-Diff: je geänderter Datei die S
 ### `loomux graph viz [dir]` *(spezifiziert, Stufe W3)*
 Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.
 - **Flags**: `--port <p>`, `--no-open`.
+- **Stand**: nicht gebaut. Den Graphen zeichnet die Graphseite der Weboberfläche (siehe [`loomux ui`](#loomux-ui---no-browser)); dieser Befehl bleibt spezifiziert für einen Viewer, der für sich startet.
 
 ---
 
@@ -1038,6 +1039,14 @@ Fährt einen Abgleich über die registrierten Bereiche, baut danach je Bereich d
 - **`--registry`**: eine `registry.toml` oder das Verzeichnis, das eine hält; Standard ist `registry.toml` im Zustandsverzeichnis.
 - **Aufholung**: Der Abgleich läuft zuerst, damit eine geänderte Quelle zum Fall wird, bevor der Indexlauf ihren Hash fortschreibt. Fälle, die er eröffnet, stehen auf `stderr`, und der Lauf **geht weiter**; ein Tresor ohne Prüfzentrum bekommt eine Warnung und wird indiziert; jeder andere Fehlschlag des Abgleichs beendet den Befehl, bevor etwas indiziert ist. Für einen Fall eines `local_only`-Bereichs fragt der Abgleich auch das lokale Modell (30 s je Fall, sobald das Modell geladen ist, siehe [`loomux reconcile`](#loomux-reconcile)), und ein kaputtes `[model]`, das diesen Abgleich beendet (wann, steht dort), ist ein solcher Fehlschlag: `reindex` bricht ab.
 - **Bereichssperre**: Jeder Bereich wird unter `<zustand>/areas/<scope>.lock` indiziert, der Sperre, die `loomux approve` für denselben Bereich nimmt; so schreibt keiner das Identitätsregister neu, während der andere es liest. Ein zweiter Läufer wartet, bis der erste sie freigibt. Die Datei bleibt liegen wie `registry.lock`.
+- **Codeverweise**: Neben `nodes`, `edges` (den Links zwischen Dokumenten) und `links` hält `graph.json` die Liste `code_refs`, je einen Eintrag wie `{"from": "topics/x.md", "path": "internal/hooks/guard.go", "line": 67, "end": 0}` für jede Stelle im Repository, die ein Dokument des Bereichs nennt. Ein `graph.json`, das vor dem Feld geschrieben wurde, liest sich wie eines ohne Verweise; jeder andere Leser bleibt unverändert. Was zählt, ist die Regel, die wissen muss, wer Wikiseiten schreibt:
+  - Inline-Code in einfachen Backticks, dessen ganzer Inhalt `pfad`, `pfad:zeile` oder `pfad:von-bis` ist, der Pfad aus Buchstaben, Ziffern, `_`, `.`, `-` und `/`. Der Pfad enthält mindestens einen `/` (einzelne Namen wie `go.mod`, `README.md` oder `docs` sind fast nie Code) und beginnt an der Wurzel des Bereichs; ein `/` am Ende entfällt, damit sich ein Verzeichnis nennen lässt.
+  - Ein Markdown-Link auf eine Datei oder ein Verzeichnis (`[x](../../internal/a.go)`), aufgelöst relativ zum Ordner des Dokuments und ohne sein `#fragment`. Ein Link mit Schema oder führendem `/` zählt nicht, und ein Link nennt keine Zeile.
+  - Nichts in einem Codeblock (```` ``` ```` oder `~~~`): Was dort steht, ist ein Beispiel, kein Verweis.
+  - Der Pfad existiert unter der Wurzel des Bereichs, als Datei oder Verzeichnis, jedes Segment in exakter Schreibweise (Segment für Segment geprüft, damit ein Dateisystem ohne Unterscheidung von Groß- und Kleinschreibung dasselbe `graph.json` schreibt wie jedes andere), und liegt weder unter `.git` noch unter `.loomux` noch führt er aus der Wurzel heraus. So bleiben Prosa wie `a/b` und Beispielpfade draußen.
+  - `line` und `end` sind `0`, wo der Verweis keine Zeile nennt; mit `line` und `end` `0` meint der Verweis genau diese eine Zeile. Gleiche Verweise eines Dokuments fallen zusammen, und die Liste ist nach Dokument, Pfad, Zeile und Ende sortiert, damit `reindex` jedes Mal dieselbe Datei schreibt.
+  - Jedes Dokument des Bereichs bekommt Verweise, nicht nur die in seinem Wiki-Ordner. Ein schreibgeschützter Bereich bekommt eine leere Liste: Die Pfade werden im eigenen Baum des Bereichs nachgeschlagen, den der Leser seiner Artefakte nicht öffnen kann. Ein Wiki in einem eigenen Bereich, getrennt vom Code, den es beschreibt, bekommt ebenfalls keine, denn die Prüfung läuft gegen die Wurzel des Bereichs, der das Dokument hält.
+  - Bekannte Grenzen: Eine Zeilenangabe wird gegen den heutigen Code-Graphen gelesen, wenn die Graphseite zeichnet; eine veraltete zeigt darum ohne Warnung auf ein anderes Symbol. Ein Verweis wird beurteilt, wenn `reindex` das Dokument liest: Eine Datei, die nach dem letzten Lauf angelegt wurde, bekommt ihre Verweise mit dem nächsten, eine reine Codeänderung löst kein `reindex` aus, und eine gelöschte Datei behält ihren Verweis bis dahin (die Graphseite führt ihn als nicht im Code-Graphen). Ein Name ohne Pfad (`ReadPolicy`, „der Wächter“) ist kein Verweis, und der Indexer löst einen Verweis nicht auf ein Symbol auf.
 - **Ausgabe**: `indexed the areas of <pfad>` auf `stdout`; auf `stderr` die aktualisierten oder entfernten Sammlungen und jede verweigerte, weil qmd schon eine gleichnamige führt, die brain nicht angelegt hat.
 - **Exit-Codes**: `0` bei Erfolg, und auch dann, wenn im Zustandsverzeichnis keine Registry liegt (`no areas registered in <pfad>; nothing to index` auf `stdout`); `1` bei einer mit `--registry` benannten Registry, die es nicht gibt, einer Registry, die sich nicht lesen lässt, einer fehlgeschlagenen Aufholung, einem fehlgeschlagenen Indexlauf, einer verweigerten Sammlung oder einem schreibgeschützten Bereich, dessen Pfad das System nicht prüfen kann (`skipping <scope>: <pfad> cannot be inspected: <fehler>`; die übrigen Bereiche werden trotzdem indiziert, und ein Bereich, dessen Pfad nur fehlt, wird mit Exit `0` übersprungen); `2` bei einem Usage-Fehler. Die Aufholung vor dem Indexlauf liest die `.loomux/config.toml` jedes Bereichs: Eine, die da ist und sich nicht lesen lässt oder die das System nicht prüfen kann — auch bei einem beschreibbaren Bereich, dessen Pfad sich nicht prüfen lässt —, lässt die Aufholung scheitern, und es wird nichts indiziert; eine Erklärung, die nur fehlt oder kein `[area]` enthält, wird übersprungen.
 
@@ -1316,6 +1325,75 @@ außer `--help`.
   `llm_config`) zeigt zuerst seinen Diff und wird erst nach der Bestätigung
   geschrieben, Schlüssel für Schlüssel. **Add project** ist der
   Einrichtungsassistent ([Erste Schritte](getting-started.md#der-zweite-weg-der-browser)).
+- **Graphseite**: `/graph/<Projekt>` zeigt den Code-Graphen eines Projekts
+  neben den Dokumenten seines Wiki-Bereichs, mit einer Kante von einem
+  Dokument zu dem Code, den es nennt
+  ([Codeverweise](#loomux-reindex---registry-pfad)). Sie ist als **Graph**
+  aus der Navigation, von der Einstellungsseite eines Projekts und von den
+  Projektnamen der Dashboard-Kachel „Code graph“ verlinkt; `global` und eine
+  unbekannte ID antworten `404`. Die Seite ist eine Hülle mit einem Skript und
+  die einzige Seite, die JavaScript braucht. Das Skript holt die Ansicht als
+  JSON von `GET /graph/<Projekt>/data` und die Treffer seines Suchfelds von
+  `GET /graph/<Projekt>/search?q=<Text>`; beide lesen nur, hinter derselben
+  Sitzungs- und `Host`-Prüfung wie jede andere Route. Die Zeichenbibliothek,
+  force-graph 1.52.0, gehört zum Binary und wird unter `/assets/vendor/`
+  ausgeliefert: Nichts wird aus dem Netz geladen, und die
+  Content-Security-Policy ist die jeder anderen Seite.
+  - **Quellen**: Der Code-Graph ist die `wiring.json` des Projekts
+    (`loomux graph build`), der Wiki-Graph die `graph.json` des registrierten
+    Bereichs des Projekts (`loomux reindex`). Fehlt einer oder lässt er sich
+    nicht lesen, zeigt die Seite den anderen und nennt den Befehl, der den
+    fehlenden baut (`no code graph yet: run loomux graph build`,
+    `no wiki graph yet: run loomux reindex`); ein Projekt, das kein
+    registrierter Bereich ist, hat keinen Wiki-Graphen. Die Oberfläche hält den
+    gelesenen Code-Graphen je Projekt im Speicher und liest ihn neu, wenn sich
+    die Änderungszeit der `wiring.json` ändert.
+  - **Zusammenfassen**: Der ganze Graph geht nie an den Browser. Der Code wird
+    zu Verzeichnissen zusammengefasst, jedes so groß wie die Summe des
+    PageRank seiner Mitglieder. Bei einer Anfrage ohne jeden Parameter `open`
+    werden Verzeichnisse von der Wurzel aus aufgeklappt, solange die Ansicht
+    unter 150 Knoten bleibt. Sonst nennt der wiederholbare Parameter
+    `open=<Verzeichnis oder Datei>` genau, was offen ist: Ein Verzeichnis
+    klappt in seine Unterverzeichnisse und Dateien auf, eine Datei in ihre
+    Symbole, und ein leeres `open=` zeigt nur die oberste Ebene. Ein Eintrag,
+    der nicht im Graphen steht oder dessen Elternteil nicht offen ist, wird
+    übergangen, und keine Ansicht wächst über
+    1000 Knoten. Eine Kante zwischen zwei sichtbaren Knoten zählt die Kanten
+    `calls`, `references`, `imports`, `implements` und `extends` zwischen ihren
+    Mitgliedern, getrennt nach Relation und Konfidenz; `contains`, Kanten
+    innerhalb eines Knotens und Kanten zu einem Ziel, das kein Knoten ist
+    (`npm:lodash`), zählen nicht.
+  - **Dokumente**: Jedes Dokument des Bereichs ist ein Knoten, gefärbt nach
+    seinem Ordner, und jeder Link zwischen zwei Dokumenten eine Kante. Die
+    Dokumente unter dem Wiki-Ordner des Bereichs (in diesem Repository
+    `docs/wiki`) erscheinen vorgabemäßig; die übrigen des Bereichs warten
+    hinter **Other documents**. Ein Bereich ohne Wiki-Ordner zählt jedes
+    Dokument als Wiki. Die Antwort der Daten enthält alle Dokumente; **Other
+    documents** blendet sie nur im Browser aus.
+  - **Codeverweise**: Ein Verweis endet an dem sichtbaren Knoten, der seinen
+    Pfad enthält: ein geschlossenes Verzeichnis, eine Datei oder, wenn die
+    Datei offen ist und der Verweis eine Zeile nennt, das Symbol, das diese
+    Zeile umschließt. Ein Verweis auf ein offenes Verzeichnis geht an jedes
+    seiner sichtbaren Kinder. Ein Verweis auf ein anderes Dokument des Bereichs
+    wird eine Kante zwischen den beiden Dokumenten. Ein Verweis, dessen Pfad im
+    Code-Graphen fehlt (eine `.toml`- oder `.ps1`-Datei, eine Sprache ohne
+    Extraktor, eine gelöschte Datei), ergibt keine Kante; das Infofeld des
+    Dokuments führt ihn unter „Not in the code graph“ auf.
+  - **Bedienung**: ein Suchfeld für Verzeichnisse, Dateien, Symbole und
+    Dokumente (höchstens 20 Treffer; ein Treffer öffnet, was er braucht, und
+    wird zentriert, ein Dokument als Treffer lässt offen, was offen ist, und
+    schaltet **Other documents** ein, wenn es eines davon ist, und ein
+    Treffer, den die Ansicht nicht zeigen kann, steht bei den Problemen); ein
+    Infofeld zum gewählten Knoten (Art, Pfad, Zahl der
+    Mitglieder, Nachbarn mit ihren Zählern, die Pfade, die nicht im
+    Code-Graphen stehen); ein Doppelklick auf ein Verzeichnis oder eine Datei
+    öffnet sie, und die Pfadleiste über der Zeichnung schließt einen Eintrag
+    wieder; Haken je Relation, je Konfidenz, **Wiki**, **Other documents** und
+    je Farbe der Legende. Was offen ist und was ausgeschaltet, steht im
+    Fragment der Adresse (`#open=…&off=…`), sodass Neuladen und Zurück
+    funktionieren. Das Layout beruhigt sich nach 200 Schritten und steht dann
+    still. Ein Dokument öffnet sich nicht: Die Oberfläche hat noch keinen
+    Wiki-Leser, das Infofeld zeigt darum seinen Pfad.
 - **`--no-browser`**: öffnet nichts und druckt stattdessen die
   Anmeldeadresse, die einmal gilt. Ohne das Flag druckt der Befehl
   `http://127.0.0.1:<Port>/` ohne den Code; öffnet sich der Browser nicht,
