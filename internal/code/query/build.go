@@ -232,9 +232,9 @@ func Extract(root string, opts ExtractOptions) (*model.Graph, Stats, error) {
 // a nil extractor, for the day the lists part.
 var languageFor = all.For
 
-// moduleFiles are the repo-relative go.mod, tsconfig.json and jsconfig.json
-// files (resolve.ModuleFile), found by walking for them -- sourceset lists
-// source files and none of these is one. This walk shares
+// moduleFiles are the repo-relative go.mod, Cargo.toml, tsconfig.json and
+// jsconfig.json files (resolve.ModuleFile), found by walking for them --
+// sourceset lists source files and none of these is one. This walk shares
 // sourceset.SkipDir with sourceset.Stat, so a module file under a pruned
 // directory such as testdata never reaches resolution.
 func moduleFiles(root string) []string {

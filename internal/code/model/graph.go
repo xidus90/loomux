@@ -130,6 +130,12 @@ type Node struct {
 	Signature string `json:"signature"`
 	Exported  bool   `json:"exported"`
 
+	// Test marks a node that is test code although its file is not: a test
+	// function, or anything inside a test module, that lives in a production
+	// file. A test file's own nodes need no mark; blast.IsTestNode joins both.
+	// See docs/wiki/topics/code-graph.md.
+	Test bool `json:"test,omitempty"`
+
 	// BodyHash is sha256 (full hex) over the text of the whole declaration. It
 	// is what `graph check` diffs on: a body that changed changes the hash,
 	// and a doc comment that changed does not -- go/ast's Pos()..End() leaves

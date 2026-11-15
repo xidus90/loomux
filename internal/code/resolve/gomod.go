@@ -19,6 +19,7 @@ package resolve
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -26,12 +27,13 @@ import (
 	"strings"
 )
 
-// Module is one go.mod, or one tsconfig.json or jsconfig.json with path
-// aliases, of the repository.
+// Module is one go.mod, one Cargo.toml, or one tsconfig.json or jsconfig.json
+// with path aliases, of the repository.
 type Module struct {
-	Dir  string
-	Path string    // go.mod: the module path; "" for a tsconfig
-	TS   *TSConfig // nil for a go.mod
+	Dir   string
+	Path  string         // go.mod: the module path; "" for a tsconfig or a Cargo.toml
+	TS    *TSConfig      // nil unless a tsconfig
+	Cargo *CargoManifest // nil unless a Cargo.toml
 }
 
 // TSConfig is the alias part of a tsconfig.json or jsconfig.json.
@@ -43,23 +45,28 @@ type TSConfig struct {
 // ModuleFile says whether rel is a file Modules reads.
 func ModuleFile(rel string) bool {
 	switch path.Base(rel) {
-	case "go.mod", "tsconfig.json", "jsconfig.json":
+	case "go.mod", "Cargo.toml", "tsconfig.json", "jsconfig.json":
 		return true
 	}
 	return false
 }
 
-// Modules reads the module directive of every go.mod and the path aliases of
-// every tsconfig.json and jsconfig.json among files.
+// Modules reads the module directive of every go.mod, the manifest of every
+// Cargo.toml and the path aliases of every tsconfig.json and jsconfig.json
+// among files.
 //
 // Only that directive, by hand: golang.org/x/mod would parse the whole file and
 // is a dependency this stage does not take. A go.mod without a module
 // directive declares nothing and is skipped.
 //
-// Only an unreadable go.mod fails: a tsconfig.json or jsconfig.json that
-// cannot be read -- a dangling symlink in an example, a locked file -- reads
-// as empty, which ModulesFrom skips like any config that does not parse, and
+// Only an unreadable go.mod fails: a Cargo.toml, tsconfig.json or jsconfig.json
+// that cannot be read -- a dangling symlink in an example, a locked file --
+// reads as empty, which is skipped like any config that does not parse, and
 // an unreadable tsconfig.json still hides the jsconfig.json beside it.
+//
+// Unlike ModulesFrom it has the repository at hand, so a Cargo manifest also
+// gets the crate roots and workspace members that only a directory listing
+// settles.
 func Modules(root string, files []string) ([]Module, error) {
 	bodies := map[string]string{}
 	for _, rel := range files {
@@ -72,7 +79,7 @@ func Modules(root string, files []string) ([]Module, error) {
 		}
 		bodies[rel] = string(b)
 	}
-	return ModulesFrom(bodies)
+	return modulesFrom(bodies, os.DirFS(root))
 }
 
 // ModulesFrom is Modules over contents already read: the repo-relative path
@@ -83,7 +90,17 @@ func Modules(root string, files []string) ([]Module, error) {
 // tsconfig.json beside it. A config without paths and baseUrl aliases
 // nothing, and one that does not parse is skipped rather than failing the
 // build: unlike a go.mod, it is hand-written JSONC that tsc alone validates.
+//
+// A Cargo manifest gets what its text settles -- package, library name, roots
+// named by path, path dependencies, literal workspace members -- and no root
+// or member a glob would find; Modules adds those.
 func ModulesFrom(bodies map[string]string) ([]Module, error) {
+	return modulesFrom(bodies, nil)
+}
+
+// modulesFrom is ModulesFrom with the repository to expand Cargo globs in, or
+// nil.
+func modulesFrom(bodies map[string]string, fsys fs.FS) ([]Module, error) {
 	rels := make([]string, 0, len(bodies))
 	for rel := range bodies {
 		rels = append(rels, rel)
@@ -108,6 +125,7 @@ func ModulesFrom(bodies map[string]string) ([]Module, error) {
 			}
 		}
 	}
+	out = append(out, cargoModules(bodies, rels, fsys)...)
 	// Longest path first, so resolveImport can take the first match and have
 	// the most specific module. A tsconfig has no path and keeps its place
 	// behind every go.mod.
@@ -244,7 +262,7 @@ func moduleDirective(body string) (string, bool) {
 // parent.
 func importDir(spec string, mods []Module) (string, bool) {
 	for _, m := range mods {
-		if m.TS != nil {
+		if m.TS != nil || m.Cargo != nil {
 			continue
 		}
 		var sub string

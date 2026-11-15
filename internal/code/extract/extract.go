@@ -147,6 +147,15 @@ type Language interface {
 //
 // Alias "static" marks C#'s `using static` and Java's `import static`, and
 // "module" Java's `import module`: neither keyword can be an alias.
+//
+// Rust makes one Import per bound name: Path is the path as written, with
+// "::" and a leading "::" kept (`crate::a::b`, `::std::fmt`). A use inside an
+// inline module is read from the file's own module, as the resolver binds per
+// file: `use super::x` in `mod a { mod b }` is Path "self::a::x", and a super
+// that climbs out of the file stays, one per level beyond it. Name is the name it
+// binds -- its last segment, or "*" for a glob, whose Path is then the module --
+// and Alias the one `as` gives, "_" included. `use a::{self}` is Path "a".
+// `extern crate x as y` has Path "x" and Alias "y" and no Name.
 type Import struct {
 	Alias string `json:"alias,omitempty"`
 	Path  string `json:"path"`
@@ -157,6 +166,9 @@ type Import struct {
 	// System marks C++'s `#include <a/b.hpp>`, which the compiler looks
 	// up on the include path and not next to the file first.
 	System bool `json:"system,omitempty"`
+	// Reexport marks Rust's `pub use` and `pub extern crate`, which hand the
+	// name on to whoever imports this module.
+	Reexport bool `json:"reexport,omitempty"`
 	// Kind marks a PHP import of something other than a class or
 	// namespace: "function" and "const" for `use function` and
 	// `use const`, "require" for require and include, whose Path is the
@@ -186,6 +198,13 @@ type Import struct {
 //   - Name and Receiver -- a selector whose receiver is declared nowhere in the
 //     file; the resolver decides whether that receiver names a package, because
 //     only it can see the target's package clause
+//
+// A Rust implements edge names the type that implements in Owner, as written
+// without its path or generics. The type may be declared in another file; the
+// edge's Source is then this file, and only the Owner says who implements. An
+// imports edge of `mod x;` names the module in Name, with the #[path]
+// attribute's value as Specifier and the inline module it is declared in as
+// Receiver, "a::b" or empty.
 type RawEdge struct {
 	Source    model.NodeID   `json:"source"`
 	Relation  model.Relation `json:"relation"`
@@ -209,6 +228,14 @@ type RawEdge struct {
 	// call through an object; "::" marks its static call through a class,
 	// X::m() or self::m(), which a function X\m() would otherwise split
 	// alike.
+	// In Rust, "." marks the same member call, x.f(): its Receiver is the
+	// text of a plain object, a.b, and empty for any other. A call on self has
+	// no mark and no Receiver; Owner is the type of the impl. "macro" marks a
+	// macro invocation, f!(), named like a call. "guess" marks a call read from
+	// the flat tokens of a macro's arguments, which the parser does not
+	// structure: a path before a parenthesis, named like a call. "guess."
+	// marks a name between "." and a parenthesis, a method call with no
+	// Receiver.
 	// On a references edge, a Godot namespace -- "godot.method" or
 	// "godot.signal" -- marks a C++ binding: Specifier is the name Godot
 	// knows, Receiver the class and Name the bound method, empty for a

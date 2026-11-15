@@ -339,3 +339,16 @@ func TestResolveRanksExactCaseThenNonTestFirst(t *testing.T) {
 		}
 	}
 }
+
+// A symbol the extractor marked as a test ranks after one outside the tests
+// although its file is no test file.
+func TestResolveRanksAMarkedTestNodeLast(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "src/lib.rs#build", Path: "src/lib.rs", Name: "build", Kind: "function", Test: true},
+		{ID: "src/b.rs#build", Path: "src/b.rs", Name: "build", Kind: "function"},
+	}}
+	hits, err := blast.Resolve(g, "build", "")
+	if err != nil || len(hits) != 2 || hits[0].ID != "src/b.rs#build" {
+		t.Fatalf("Resolve = %v, %v; want the unmarked symbol first", hits, err)
+	}
+}

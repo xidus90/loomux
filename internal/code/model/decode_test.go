@@ -182,3 +182,35 @@ func TestSchemaVersion3(t *testing.T) {
 		t.Fatalf("got %v, want ErrSchemaVersion for version 2", err)
 	}
 }
+
+// A graph written before nodes carried a test mark reads with the mark off,
+// and a node writes the field only when it is set, so existing graphs stay
+// byte-identical.
+func TestDecodeKeepsOldGraphs(t *testing.T) {
+	old := `{"meta":{"version":3,"extractor":"t/1"},"nodes":[{"id":"a.rs","name":"a.rs","kind":"file","path":"a.rs","span":"","signature":"","exported":false,"body_hash":"h"}],"edges":[]}`
+	g, err := model.Decode(strings.NewReader(old))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Nodes[0].Test {
+		t.Error("a node without the field must read as no test")
+	}
+	plain, err := json.Marshal(g.Nodes[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), `"test"`) {
+		t.Errorf("an unmarked node wrote the field: %s", plain)
+	}
+	marked, err := json.Marshal(model.Node{ID: "a.rs#t", Test: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(marked), `"test":true`) {
+		t.Errorf("a test node must write the field: %s", marked)
+	}
+	var back model.Node
+	if err := json.Unmarshal(marked, &back); err != nil || !back.Test {
+		t.Errorf("the field must read back: %+v, %v", back, err)
+	}
+}

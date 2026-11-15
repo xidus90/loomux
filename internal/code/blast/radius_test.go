@@ -527,3 +527,140 @@ func TestRadiusReportEncodesInferred(t *testing.T) {
 		t.Errorf("json misses the inferred flag: %s", raw)
 	}
 }
+
+func TestIsTestPathRust(t *testing.T) {
+	for path, want := range map[string]bool{
+		"tests/it.rs": true, "crates/a/tests/x.rs": true, "benches/b.rs": true, "crates/a/benches/b.rs": true,
+		"src/a/tests.rs": true, "src/test.rs": true,
+		"src/tests_util.rs": false, "src/lib.rs": false, "src/attests/a.rs": false, "src/tests.rs.bak": false,
+		"src/Tests.rs": false, "TESTS/a.rs": false,
+	} {
+		if got := blast.IsTestPath(path); got != want {
+			t.Errorf("IsTestPath(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestIsTestNode(t *testing.T) {
+	for name, c := range map[string]struct {
+		n    *model.Node
+		want bool
+	}{
+		"mark on a production file": {&model.Node{Path: "src/lib.rs", Test: true}, true},
+		"path rule alone":           {&model.Node{Path: "tests/it.rs"}, true},
+		"neither":                   {&model.Node{Path: "src/lib.rs"}, false},
+		"nil":                       {nil, false},
+	} {
+		if got := blast.IsTestNode(c.n); got != c.want {
+			t.Errorf("%s: IsTestNode = %v, want %v", name, got, c.want)
+		}
+	}
+}
+
+// inlineGraph is a Rust library whose test module sits in the same file: add
+// at L3-L5, a test marked on the node at L20-L25 that calls it, and a helper
+// without the mark at L30-L32 that calls it too.
+func inlineGraph() *model.Graph {
+	sym := func(name string, span model.Span, test bool) model.Node {
+		return model.Node{ID: model.NodeID("src/lib.rs#" + name), Name: name, Kind: "function", Path: "src/lib.rs", Span: span, Test: test}
+	}
+	return &model.Graph{
+		Meta: model.Meta{Version: 3},
+		Nodes: []model.Node{
+			{ID: "src/lib.rs", Name: "src/lib.rs", Kind: model.KindFile, Path: "src/lib.rs"},
+			sym("add", "L3-L5", false),
+			sym("tests::adds", "L20-L25", true),
+		},
+		Edges: []model.Edge{
+			{Source: "src/lib.rs#tests::adds", Target: "src/lib.rs#add", Relation: model.RelationCalls},
+		},
+	}
+}
+
+// An inline test is reached by the walk, but the file being in the diff does
+// not make it changed: only a hunk inside its own span does.
+func TestSignalInlineTestUnchanged(t *testing.T) {
+	rep := radius(inlineGraph(), blast.All, changed("src/lib.rs", 3))
+
+	a := rep.Areas[0]
+	if a.Signal != blast.SignalStale {
+		t.Errorf("signal = %q, want stale", a.Signal)
+	}
+	if want := []string{"src/lib.rs"}; !reflect.DeepEqual(a.Tests, want) {
+		t.Errorf("tests = %v, want %v", a.Tests, want)
+	}
+}
+
+func TestSignalInlineTestChanged(t *testing.T) {
+	rep := radius(inlineGraph(), blast.All, changed("src/lib.rs", 3, 22))
+
+	if got := rep.Areas[0].Signal; got != blast.SignalChanged {
+		t.Errorf("signal = %q, want changed", got)
+	}
+}
+
+func TestSignalInlineTestSpanEdges(t *testing.T) {
+	for line, want := range map[int]blast.Signal{
+		19: blast.SignalStale, 20: blast.SignalChanged, 25: blast.SignalChanged, 26: blast.SignalStale,
+	} {
+		if got := radius(inlineGraph(), blast.All, changed("src/lib.rs", 3, line)).Areas[0].Signal; got != want {
+			t.Errorf("hunk at L%d: signal = %q, want %q", line, got, want)
+		}
+	}
+	// A hunk that straddles the span's first line still touches it.
+	f := diff.File{Status: diff.Modified, Path: "src/lib.rs", Hunks: []diff.Hunk{{From: 3, To: 3}, {From: 18, To: 21}}}
+	if got := radius(inlineGraph(), blast.All, f).Areas[0].Signal; got != blast.SignalChanged {
+		t.Errorf("straddling hunk: signal = %q, want changed", got)
+	}
+}
+
+// A withheld path has no hunks, so a test node in it counts whole, as a test
+// file always did.
+func TestSignalWithheldCountsWhole(t *testing.T) {
+	g := inlineGraph()
+	g.Nodes = append(g.Nodes,
+		model.Node{ID: "src/other.rs#t", Name: "t", Kind: "function", Path: "src/other.rs", Span: "L1-L3", Test: true})
+	g.Edges = append(g.Edges, model.Edge{Source: "src/other.rs#t", Target: "src/lib.rs#add", Relation: model.RelationCalls})
+	rep := blast.Radius(g, blast.New(g), []diff.File{changed("src/lib.rs", 3)}, []string{"src/other.rs"}, blast.All)
+
+	if got := rep.Areas[0].Signal; got != blast.SignalChanged {
+		t.Errorf("signal = %q, want changed", got)
+	}
+	if want := []string{"src/lib.rs", "src/other.rs"}; !reflect.DeepEqual(rep.Areas[0].Tests, want) {
+		t.Errorf("tests = %v, want %v", rep.Areas[0].Tests, want)
+	}
+}
+
+// A changed file the diff gave no hunks for cannot be told apart from one that
+// changed everywhere, so its test nodes count whole; so does a test node whose
+// span does not read.
+func TestSignalCountsATestNodeWithoutHunksOrSpanWhole(t *testing.T) {
+	g := inlineGraph()
+	g.Nodes = append(g.Nodes, model.Node{ID: "src/o.rs#t", Name: "t", Kind: "function", Path: "src/o.rs", Span: "L1-L3", Test: true})
+	g.Edges = append(g.Edges, model.Edge{Source: "src/o.rs#t", Target: "src/lib.rs#add", Relation: model.RelationCalls})
+	g.Nodes[2].Test = false // only o.rs holds a test now
+	rep := radius(g, blast.All, changed("src/lib.rs", 3), diff.File{Status: diff.Modified, Path: "src/o.rs"})
+	if got := rep.Areas[0].Signal; got != blast.SignalChanged {
+		t.Errorf("no hunks: signal = %q, want changed", got)
+	}
+
+	g2 := inlineGraph()
+	g2.Nodes[2].Span = "L20-Lx"
+	if got := radius(g2, blast.All, changed("src/lib.rs", 3)).Areas[0].Signal; got != blast.SignalChanged {
+		t.Errorf("unreadable span: signal = %q, want changed", got)
+	}
+}
+
+// A test node as the seed is no behaviour to cover; the file's production
+// seeds still are.
+func TestSignalSkipsATestNodeAsSeed(t *testing.T) {
+	rep := radius(inlineGraph(), blast.All, changed("src/lib.rs", 22))
+
+	if got := rep.Areas[0].Signal; got != blast.SignalNA {
+		t.Errorf("signal = %q, want na for a seed that is itself a test", got)
+	}
+	rep = radius(inlineGraph(), blast.All, changed("src/lib.rs", 3, 22))
+	if got := rep.Areas[0].Signal; got != blast.SignalChanged {
+		t.Errorf("signal = %q, want changed once the production seed is in the diff too", got)
+	}
+}

@@ -61,7 +61,7 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 }
 
 func TestExtensionsIsACopy(t *testing.T) {
-	want := []string{".c++", ".cc", ".cjs", ".cpp", ".cs", ".css", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".htm", ".html", ".hxx", ".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".scss", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid"}
+	want := []string{".c++", ".cc", ".cjs", ".cpp", ".cs", ".css", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".htm", ".html", ".hxx", ".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".rs", ".scss", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid"}
 	first := sourceset.Extensions()
 	if !reflect.DeepEqual(first, want) {
 		t.Fatalf("Extensions() = %v, want %v", first, want)

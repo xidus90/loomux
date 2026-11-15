@@ -660,3 +660,19 @@ func TestRunInJudgesTheNodesPathToo(t *testing.T) {
 		t.Fatalf("got %v, want only dir/b.go#Generate -- dir#1 is not under dir", idsOf(got))
 	}
 }
+
+// A test the extractor marked on the node is de-ranked although its file is
+// no test file.
+func TestRunDeRanksAMarkedTestNodeInAProductionFile(t *testing.T) {
+	for _, marked := range []bool{true, false} {
+		inline := symbol("src/lib.rs#tests::CacheCacheCache", "CacheCacheCache", "src/lib.rs", "cache cache cache")
+		inline.Test = marked
+		nodes := []model.Node{inline, symbol("src/cache.rs#Cache", "Cache", "src/cache.rs", "implementation")}
+		g, ix := world(nodes, nil)
+
+		got := ask.Run(g, ix, "cache", ask.Options{})
+		if sourceFirst := got.Hits[0].ID == "src/cache.rs#Cache"; sourceFirst != marked {
+			t.Errorf("Test=%v: got %v, want the source first = %v", marked, idsOf(got), marked)
+		}
+	}
+}

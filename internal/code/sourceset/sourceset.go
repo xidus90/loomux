@@ -34,8 +34,8 @@ const maxFileBytes = 1_000_000
 // matched exactly: x.GO is no Go file to the Go toolchain, so it is none to
 // the graph either. .cs is C#. .c++, .cc, .cpp, .cxx, .h, .h++, .hh, .hpp,
 // .hxx, .inl, .ipp and .tpp are C++; .c is not, the graph leaves C alone. .java
-// is Java, .php PHP. .js, .mjs, .cjs and .jsx are JavaScript, .ts, .mts, .cts
-// and .tsx TypeScript. .html and .htm are HTML. .css is CSS and .scss SCSS;
+// is Java, .php PHP, .rs Rust. .js, .mjs, .cjs and .jsx are JavaScript, .ts,
+// .mts, .cts and .tsx TypeScript. .html and .htm are HTML. .css is CSS and .scss SCSS;
 // the indented .sass and .less are not read. .godot, .tres and .tscn are the
 // project file, resources and scenes of a Godot project, read with its
 // scripts, and .uid the uid Godot 4.4 keeps beside a script. A literal and
@@ -43,7 +43,7 @@ const maxFileBytes = 1_000_000
 // extract/all.
 var extensions = []string{
 	".c++", ".cc", ".cjs", ".cpp", ".cs", ".css", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".htm", ".html", ".hxx",
-	".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".scss", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid",
+	".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".rs", ".scss", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid",
 }
 
 // Extensions is a copy of the extensions the walk takes, so no caller can

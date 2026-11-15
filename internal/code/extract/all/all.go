@@ -24,13 +24,14 @@ import (
 	"github.com/xidus90/loomux/internal/code/extract/java"
 	"github.com/xidus90/loomux/internal/code/extract/php"
 	"github.com/xidus90/loomux/internal/code/extract/python"
+	"github.com/xidus90/loomux/internal/code/extract/rust"
 	"github.com/xidus90/loomux/internal/code/extract/stylesheet"
 )
 
 // Languages is every extractor a build runs, Go first.
 func Languages() []extract.Language {
 	return []extract.Language{
-		golang.Language{}, python.Language{}, gdscript.Language{}, csharp.Language{}, cpp.Language{}, java.Language{}, php.Language{},
+		golang.Language{}, python.Language{}, gdscript.Language{}, csharp.Language{}, cpp.Language{}, java.Language{}, php.Language{}, rust.Language{},
 		ecmascript.JavaScript{}, ecmascript.TypeScript{}, stylesheet.CSS{}, stylesheet.SCSS{}, html.Language{},
 	}
 }

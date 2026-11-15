@@ -72,6 +72,8 @@ func langFromPath(p string) string {
 		return "python"
 	case ".gd", ".godot", ".tres", ".tscn":
 		return "gdscript"
+	case ".rs":
+		return "rust"
 	case ".cs":
 		return "csharp"
 	case ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp":
