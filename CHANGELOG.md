@@ -7,6 +7,17 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.29.0] - 2026-11-16
+
+<https://github.com/xidus90/loomux/pull/165>
+
+### Added
+- Rust in the code graph (`.rs`), with Cargo workspaces, module and `use` resolution, trait relations and test marking.
+- godot-rust bridge: GDScript `extends`, `X.new()`, scene node types and `[connection]`s reach Rust classes, `#[func]` and `#[signal]`.
+- `rust` check stack: `cargo clippy`, `cargo fmt --check`, `cargo check`, `cargo test` and `cargo-llvm-cov`, with coverage exclusions by `LCOV_EXCL_START: <reason>` blocks.
+- The Godot suite and the rescan build a godot-rust GDExtension's debug or editor library with cargo before Godot loads it.
+- Compatibility entries for Rust 1.100 (Cargo workspace, editions 2021 and 2024, godot-rust) and a gdUnit4 run against a Rust extension on Godot 4.7; the scout reports new Rust releases and `godot` crate versions.
+
 ## [1.28.0] - 2026-11-15
 
 <https://github.com/xidus90/loomux/pull/166>
