@@ -127,12 +127,14 @@ func resource(lang *gts.Language, rel, source string) (extract.Result, error) {
 	return r, nil
 }
 
-// bareKeys rewrites every property key in quotes, which Godot writes for a
-// key with a space ("nodes/Animation 2/node"), into a bare one of the same
-// length: each byte that is no letter, digit, "_", "/", "." or ":" becomes
-// "_". The grammar (gotreesitter v0.55.1, probed) takes no quoted key, and
-// after the first one it builds no section of the rest of the file. No key
-// this package reads is ever quoted, and lines and offsets stay as they were.
+// bareKeys rewrites every property key the grammar rejects into one of the
+// same length it takes: each byte that is no letter, digit, "_", "/" or ":"
+// becomes "_". Godot writes a key in quotes when it holds a space
+// ("nodes/Animation 2/node"), and a bare key with a feature tag after a "."
+// (run/main_scene.web); the grammar (gotreesitter v0.57.0, probed) takes
+// neither quotes nor "." nor "-" in a key, and after the first such key it
+// builds no section of the rest of the file. No key this package reads holds
+// any of them, and lines and offsets stay as they were.
 func bareKeys(src []byte) []byte {
 	out := slices.Clone(src)
 	// Split's lines share out's bytes, so bareKey rewrites out itself.
@@ -142,21 +144,31 @@ func bareKeys(src []byte) []byte {
 	return out
 }
 
-// bareKey rewrites one line's key, if the line starts with one in quotes
-// followed by "=".
+// bareKey rewrites one line's key, if the line starts with one followed by
+// "=": in quotes, or bare of key bytes, "." and "-".
 func bareKey(line []byte) {
-	if len(line) == 0 || line[0] != '"' {
+	end := 0 // the key is line[:end]
+	if len(line) > 0 && line[0] == '"' {
+		if end = bytes.IndexByte(line[1:], '"') + 2; end == 1 {
+			return
+		}
+	}
+	for end < len(line) && line[0] != '"' && (keyByte(line[end]) || line[end] == '.' || line[end] == '-') {
+		end++
+	}
+	if end == 0 || !bytes.HasPrefix(bytes.TrimLeft(line[end:], " \t"), []byte("=")) {
 		return
 	}
-	end := bytes.IndexByte(line[1:], '"') + 1
-	if end == 0 || !bytes.HasPrefix(bytes.TrimLeft(line[end+1:], " \t"), []byte("=")) {
-		return
-	}
-	for i := 0; i <= end; i++ {
-		if c := line[i]; !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("_/.:", c) >= 0) {
+	for i := range end {
+		if !keyByte(line[i]) {
 			line[i] = '_'
 		}
 	}
+}
+
+// keyByte reports whether the grammar takes c in a property key.
+func keyByte(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("_/:", c) >= 0
 }
 
 // nodePath is where a [node] section stands below the scene's root: "." for

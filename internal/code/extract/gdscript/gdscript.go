@@ -56,6 +56,7 @@
 package gdscript
 
 import (
+	"bytes"
 	"path"
 	"slices"
 	"strings"
@@ -72,7 +73,7 @@ import (
 // version is this extractor's identity. Bump it by hand whenever the nodes or
 // edges below change shape or meaning; the extract cache and the graph's meta
 // key on it.
-const version = "gdscript/7"
+const version = "gdscript/8"
 
 // langName is the language as the graph's meta lists it and as a Result carries it.
 const langName = "gdscript"
@@ -122,11 +123,14 @@ func uidFile(rel, source string) extract.Result {
 // builds a tree from any input, and only a missing grammar makes the parse
 // fail.
 func script(lang *gts.Language, rel, source string) (extract.Result, error) {
-	doc, err := treesitter.Parse(lang, rel, []byte(source))
+	doc, err := treesitter.Parse(lang, rel, parseable([]byte(source)))
 	if err != nil {
 		return extract.Result{}, err
 	}
 	defer doc.Close()
+	// The rewrite keeps every offset, so the tree cuts the file as written;
+	// names, spans and body hashes come from that.
+	doc.Src = []byte(source)
 
 	x := &extractor{doc: doc, fileID: model.NodeID(rel), referenced: map[[2]string]bool{}}
 	x.script()
@@ -140,6 +144,48 @@ func script(lang *gts.Language, rel, source string) (extract.Result, error) {
 		Edges:       slices.Concat(x.contains, x.importEdges, x.extends, x.calls, x.refs),
 		ParseErrors: doc.ParseErrors(),
 	}, nil
+}
+
+// parseable rewrites, line by line and at the same length, two forms of
+// valid GDScript the grammar (gotreesitter v0.57.0, probed) rejects:
+//
+//   - A comment-only line becomes blank. The grammar reads its indentation as
+//     the block's, so a comment deeper or shallower than the code after it
+//     breaks the block and everything up to the next definition. A line
+//     holding a triple quote may close a string and stays.
+//   - `else: if` becomes `elif` and spaces, which Godot parses alike: the
+//     trailing else of the inner if is the chain's.
+func parseable(src []byte) []byte {
+	out := slices.Clone(src)
+	// Split's lines share out's bytes, so the rewrites land in out itself.
+	for _, line := range bytes.Split(out, []byte("\n")) {
+		code := bytes.TrimLeft(line, " \t")
+		if bytes.HasPrefix(code, []byte("#")) && !bytes.Contains(code, []byte(`"""`)) && !bytes.Contains(code, []byte(`'''`)) {
+			for i, c := range line {
+				if c != '\r' {
+					line[i] = ' '
+				}
+			}
+			continue
+		}
+		after, ok := bytes.CutPrefix(code, []byte("else:"))
+		cond := bytes.TrimLeft(after, " \t")
+		if !ok || !bytes.HasPrefix(cond, []byte("if")) || len(cond) > 2 && wordByte(cond[2]) {
+			continue
+		}
+		n := len(code) - len(cond) + len("if")
+		copy(code, "elif")
+		for i := len("elif"); i < n; i++ {
+			code[i] = ' '
+		}
+	}
+	return out
+}
+
+// wordByte reports whether c continues an identifier; a byte of a non-ASCII
+// letter counts.
+func wordByte(c byte) bool {
+	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c >= 0x80
 }
 
 // extractor gathers one script's nodes and edges in source order.
