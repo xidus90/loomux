@@ -84,6 +84,21 @@ func matcherForRules(rules *Rules) Matcher {
 // through Compare and skip the git calls Load would make.
 func RulesFromRecord(rec Record) *Rules { return rulesFromRecord(rec) }
 
+// StandingRules is RulesFromRecord of root's record while no recorded ignore
+// source and not the git config moved since: a walk with it ignores what a
+// fresh Load would, without a git call. A path git started or stopped
+// tracking since is the one difference; the next build's Load settles it.
+// nil and false without a record, for a record outside a repository, or once
+// a source or the config moved.
+func StandingRules(root string) (*Rules, bool) {
+	rec, ok := Read(root)
+	if !ok || configMoved(rec) || len(changedSources(rec)) > 0 {
+		return nil, false
+	}
+	r := rulesFromRecord(rec)
+	return r, r != nil
+}
+
 // MovedBeforeWalk reports the drift Compare finds without a listing: the
 // settings, the git config or a recorded ignore source moved. Each of them
 // rebuilds rather than overlays, so a caller can skip work only an overlay

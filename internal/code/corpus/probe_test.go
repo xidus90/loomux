@@ -385,3 +385,40 @@ func TestMovedBeforeWalk(t *testing.T) {
 		})
 	}
 }
+
+// StandingRules hands out the record's matcher while its ignore sources and
+// the git config stand, and nothing once one moved, without a record, or for
+// a record written outside a repository.
+func TestStandingRules(t *testing.T) {
+	if r, ok := StandingRules(t.TempDir()); ok || r != nil {
+		t.Fatalf("without a record = %v, %v; want nil, false", r, ok)
+	}
+
+	outside := t.TempDir()
+	if err := Write(outside, NewRecord(nil, map[string]Print{}, DefaultMaxFilesize)); err != nil {
+		t.Fatal(err)
+	}
+	if r, ok := StandingRules(outside); ok || r != nil {
+		t.Fatalf("outside a repository = %v, %v; want nil, false", r, ok)
+	}
+
+	root := newRepo(t, map[string]string{".gitignore": "*.log\n", "a.go": "package a\n"}, nil, nil)
+	written(t, root, DefaultMaxFilesize)
+	r, ok := StandingRules(root)
+	if !ok || !r.Ignored("x.log", false) || r.Ignored("a.go", false) {
+		t.Fatalf("standing = %v, %v; want the recorded rules", r, ok)
+	}
+
+	gitRun(t, root, "config", "core.ignorecase", "true")
+	bump(t, filepath.Join(root, ".git", "config"))
+	if _, ok := StandingRules(root); ok {
+		t.Fatal("git config moved, want no standing rules")
+	}
+	written(t, root, DefaultMaxFilesize)
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("*.go\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := StandingRules(root); ok {
+		t.Fatal(".gitignore moved, want no standing rules")
+	}
+}

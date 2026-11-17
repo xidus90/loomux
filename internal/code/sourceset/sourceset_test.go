@@ -339,6 +339,45 @@ func TestListSkipsTheOutputDirectory(t *testing.T) {
 	}
 }
 
+// While the search corpus record's ignore sources stand, the walk takes its
+// rules from the record and asks git nothing: a file git stopped tracking
+// since keeps its place until a build writes a new record.
+func TestListTakesTheRulesOfAStandingRecord(t *testing.T) {
+	root := repo(t, map[string]string{".gitignore": "gen/\n", "a.go": "package a\n", "gen/g.go": "package g\n"},
+		[]string{"add", "-f", "gen/g.go"})
+	rules, _, err := corpus.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := corpus.Write(root, corpus.NewRecord(rules, map[string]corpus.Print{}, 0)); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "-C", root, "rm", "-q", "--cached", "gen/g.go")
+	cmd.Env = gitenv.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git rm: %v\n%s", err, out)
+	}
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"a.go", "gen/g.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("List = %v, want %v", got, want)
+	}
+}
+
+// A repository whose index git cannot list is an error, never a set that
+// would take the ignored files in.
+func TestListRefusesAnUnreadableIndex(t *testing.T) {
+	root := repo(t, map[string]string{"a.go": "package a\n"})
+	if err := os.WriteFile(filepath.Join(root, ".git", "index"), []byte("garbage"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sourceset.List(root); err == nil {
+		t.Fatal("got nil, want an error for an index git cannot read")
+	}
+}
+
 func TestListRefusesAMissingRoot(t *testing.T) {
 	_, err := sourceset.List(filepath.Join(t.TempDir(), "nope"))
 	if err == nil {
@@ -413,28 +452,73 @@ func TestFromListingEqualsStat(t *testing.T) {
 	}
 }
 
-// TestFromListingOfAMatcherWalkEqualsStat pins that a walk with the search
-// index's ignore rules still yields the graph's set: the graph does not honour
-// .gitignore, so an ignored source file stays in.
-func TestFromListingOfAMatcherWalkEqualsStat(t *testing.T) {
+// repo writes files into a fresh git repository, with git's global and system
+// configuration out of reach, and runs each git command given in it.
+func repo(t *testing.T, files map[string]string, cmds ...[]string) string {
+	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(home, "gitconfig"))
-	root := tree(t, map[string]string{
+	root := tree(t, files)
+	for _, args := range append([][]string{{"init", "-q"}}, cmds...) {
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = gitenv.Environ()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	return root
+}
+
+// TestListHonoursGitignore pins git's answer for the graph's set: the root
+// and a nested .gitignore, .git/info/exclude, a negation, and a tracked file
+// that an ignore rule names, which stays.
+func TestListHonoursGitignore(t *testing.T) {
+	root := repo(t, map[string]string{
+		".gitignore":       "/reports/\n*.gen.js\ngen/\n",
+		"a.go":             "package a\n",
+		"web/app.js":       "f()\n",
+		"web/app.gen.js":   "f()\n",
+		"reports/r.html":   "<p></p>\n",
+		"gen/out.go":       "package gen\n",
+		"sub/.gitignore":   "*.py\n!keep.py\n",
+		"sub/drop.py":      "x = 1\n",
+		"sub/keep.py":      "x = 1\n",
+		"local/scratch.gd": "extends Node\n",
+		"forced/f.go":      "package f\n",
+		"forced/.gitkeep":  "",
+	}, []string{"config", "core.excludesFile", ""})
+	if err := os.WriteFile(filepath.Join(root, ".git", "info", "exclude"), []byte("local/\nforced/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "-C", root, "add", "-f", "forced/f.go")
+	cmd.Env = gitenv.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, out)
+	}
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"a.go", "forced/f.go", "sub/keep.py", "web/app.js"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("List = %v, want %v", got, want)
+	}
+}
+
+// TestFromListingOfAMatcherWalkEqualsStat pins that a walk with the search
+// index's ignore rules, read back from its record, yields the graph's set:
+// both drop what git ignores.
+func TestFromListingOfAMatcherWalkEqualsStat(t *testing.T) {
+	root := repo(t, map[string]string{
 		".gitignore":    "gen/\nskip.go\n",
 		"a.go":          "package a\n",
 		"skip.go":       "package skip\n",
 		"gen/out.go":    "package gen\n",
 		"gen/other.txt": "text\n",
 	})
-	cmd := exec.Command("git", "-C", root, "init", "-q")
-	cmd.Env = gitenv.Environ()
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v\n%s", err, out)
-	}
 	rules, _, err := corpus.Load(root)
 	if err != nil {
 		t.Fatal(err)
@@ -457,7 +541,7 @@ func TestFromListingOfAMatcherWalkEqualsStat(t *testing.T) {
 	for _, f := range got {
 		rels = append(rels, f.Rel)
 	}
-	if !reflect.DeepEqual(rels, []string{"a.go", "gen/out.go", "skip.go"}) {
-		t.Fatalf("got %v, want the ignored .go files kept", rels)
+	if !reflect.DeepEqual(rels, []string{"a.go"}) {
+		t.Fatalf("got %v, want the ignored .go files dropped", rels)
 	}
 }
