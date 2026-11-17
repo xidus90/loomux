@@ -76,10 +76,16 @@ func List(root string) ([]string, error) {
 
 // Stat returns the file set with each file's size and modification time.
 //
-// The enumeration is corpus.Walk's, the same walk the search index uses; the
-// filter (FromListing) is the graph's: the extensions, one megabyte, and no
-// file below a pruned directory segment. A dot directory never reaches the
-// filter, because the walk does not enter one.
+// The enumeration is corpus.Walk's with git's ignore rules, the same walk the
+// search index uses; the filter (FromListing) is the graph's: nothing git
+// ignores, the extensions, one megabyte, and no file below a pruned directory
+// segment. A dot directory never reaches the filter, because the walk does not
+// enter one. Outside a git repository nothing is ignored.
+//
+// The rules come from the search corpus record while its ignore sources
+// stand (corpus.StandingRules): a probe runs before every graph question, and
+// asking git costs one process per question asked of it, about 70 ms each on
+// Windows. Otherwise they come from git.
 //
 // A file that vanishes between the walk and the stat is dropped rather than
 // reported: the next probe will see the same thing and call it removed.
@@ -89,7 +95,18 @@ func List(root string) ([]string, error) {
 var Stat = stat
 
 func stat(root string) ([]SourceFile, error) {
-	listing, err := corpus.Walk(root, nil)
+	rules, ok := corpus.StandingRules(root)
+	if !ok {
+		var err error
+		if rules, _, err = corpus.Load(root); err != nil {
+			return nil, err
+		}
+	}
+	var m corpus.Matcher
+	if rules != nil {
+		m = rules
+	}
+	listing, err := corpus.Walk(root, m)
 	if err != nil {
 		return nil, err
 	}
@@ -97,13 +114,13 @@ func stat(root string) ([]SourceFile, error) {
 }
 
 // FromListing is Stat's filter over a walk the caller already ran, for a
-// caller whose walk serves another probe too. The listing may come from a walk
-// with ignore rules: the graph does not honour them, so an Entry's Ignored
-// flag plays no part here.
+// caller whose walk serves another probe too. The walk must have run with the
+// ignore rules: an Entry's Ignored flag drops it, a walk without rules sets
+// none.
 func FromListing(l corpus.Listing) []SourceFile {
 	out := make([]SourceFile, 0, len(l.Entries))
 	for _, e := range l.Entries {
-		if !slices.Contains(extensions, filepath.Ext(e.Abs)) {
+		if e.Ignored || !slices.Contains(extensions, filepath.Ext(e.Abs)) {
 			continue
 		}
 		if e.Size > maxFileBytes || minified(e.Rel) {
