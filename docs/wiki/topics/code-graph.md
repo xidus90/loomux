@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:34ebb8a7e729133aeff474390b954a59d52ceca8d7f010976d00dfee5d0661cf"
-    revision: 57
+    content_hash: "sha256:14491f4bc5a190adce3aca779b1c25bdb98f5e18e108775eb8cb46c2c76999e4"
+    revision: 58
 ---
 
 ## Wofür
@@ -40,6 +40,15 @@ Telemetrie:
 
 `loomux graph build` zieht Symbole und Kanten aus dem Quelltext und schreibt
 sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
+Gelesen wird nur, was git nicht ignoriert, nach denselben Regeln wie der
+Suchkorpus unten (`internal/code/sourceset`); eine getrackte Datei bleibt,
+außerhalb eines git-Repositorys gilt keine Regel. Die Regeln kommen aus dem
+Record des Suchkorpus, solange dessen Ignore-Quellen und `.git/config` stehen,
+sonst von git: jeder git-Prozess kostet unter Windows etwa 70 ms, und die
+Sonde läuft vor jeder Frage an den Graphen (`docs/de/benchmarks.md`,
+2026-11-17).
+Bis 2026-11-17 las der Graph auch Ignoriertes, etwa die HTML-Berichte unter
+einem ignorierten `game/reports/` eines Godot-Projekts.
 
 - **Go** liest er allein mit `go/parser`. Die Spec sah für den Offline-Bau
   noch `go/types` vor; gebaut ist der Extraktor ohne `go/types` und ohne
@@ -71,6 +80,13 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   Szenen-Autoload bindet das Wurzelskript, und `uid://` löst sich über die
   `.uid`-Dateien und die UIDs im Kopf von Szenen und Ressourcen auf
   (`docs/.superpowers/specs/2026-10-19-gdscript-godot-linien-design.md`).
+  Was die Grammatik an gültigem Godot ablehnt, schreibt der Extraktor vor dem
+  Parsen in einer Kopie gleicher Länge um, sodass Spans und Hashes auf die
+  Datei zeigen: In GDScript wird eine reine Kommentarzeile geleert (ihre
+  Einrückung hielt die Grammatik für die des Blocks) und `else: if` zu
+  `elif`; in Szenen, Ressourcen und `project.godot` wird ein Schlüssel in
+  Anführungszeichen oder mit `.` oder `-` (`run/main_scene.web`) zu einem mit
+  `_`. Offen bleibt `remote` als Name.
 
 - **C#** liest er auf demselben Kern (`internal/code/extract/csharp`, Endung
   `.cs`): Dateien, Typen (auch `record`, `struct`, `interface`, `enum`,
