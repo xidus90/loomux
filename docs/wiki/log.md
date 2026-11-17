@@ -4,6 +4,29 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-11-17
+
+- 2026-11-17 — `topics/code-graph.md`: der Graph liest nur noch, was git
+  nicht ignoriert (dieselben Regeln wie der Suchkorpus, aus dessen Record,
+  solange er steht); der Godot-Absatz nennt, was der Extraktor vor dem
+  Parsen umschreibt (reine Kommentarzeilen, `else: if`, Schlüssel mit `.`,
+  `-` oder in Anführungszeichen) und dass `remote` als Name offen bleibt.
+  Quellen: `docs/de/cli-reference.md` (`loomux graph build`),
+  `docs/de/benchmarks.md` (2026-11-17), `internal/code/sourceset/sourceset.go`,
+  `internal/code/extract/gdscript`.
+- 2026-11-17 — Quellen neu gepinnt (`loomux wiki repin`):
+  `docs/de/cli-reference.md` (Dateimenge und Parsefehler von
+  `loomux graph build`) und `docs/de/benchmarks.md` (neuer Abschnitt vom
+  2026-11-17 am Ende). Die zitierenden Seiten gegen den neuen Text gelesen:
+  `entities/brain-daemon.md`, `entities/okf.md`, `entities/qmd.md`,
+  `topics/abnahmen-und-echte-umgebung.md`, `topics/brain-maintenance.md`,
+  `topics/datenmodell-und-bereiche.md`, `topics/datenschutz-und-kanaele.md`,
+  `topics/scheiben-und-abnahme.md`, `topics/schreibschranke.md`,
+  `topics/suche-und-profile.md` und `topics/wiki-schicht.md` bleiben
+  unverändert, `topics/code-graph.md` ist oben angepasst; die Pins der
+  Synthesen `syntheses/graph-hinweis-im-waechter.md` und
+  `syntheses/warum-fast-die-vorgabe-bleibt.md` folgen ohne Textänderung.
+
 ## 2026-11-15
 
 - 2026-11-15 — `topics/code-graph.md`: ein Absatz zur Graphseite der

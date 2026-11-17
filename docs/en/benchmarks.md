@@ -4639,3 +4639,28 @@ because test suites ran alongside.
    an MCP call with `scope: "loomux"` fails but spends the hint. The fix for
    it (a short name resolves to `project/loomux`) ships
    with v1.24.2; with it that call succeeds.
+
+## 2026-11-17 12:03 — The graph's file set honours .gitignore
+
+**What:** `loomux graph build` and `loomux graph check` (one probe, three
+runs each, after each binary's own build) on a Godot 4.8 and Rust repository
+on Windows: 752 tracked files, 31 848 files in the tree outside dot
+directories. Baseline v1.29.0, which walked without ignore rules and dropped
+pruned directories only after the walk; change: the walk with git's ignore
+rules, taken from the search corpus record while its ignore sources stand.
+
+| | v1.29.0 | change |
+|---|---:|---:|
+| `graph build -no-reuse`: files | 753 | 628 |
+| nodes | 6 648 | 4 739 |
+| HTML / JavaScript files | 88 / 68 | 3 / 3 |
+| GDScript parse errors | 51 | 0 |
+| `graph check`, warm | 296–323 ms | 245–256 ms |
+| `graph ask`, warm | 241 ms | 188 ms |
+
+The file set inside the probe (`sourceset.Stat`) takes about 3 ms with the
+record's rules, against 37–51 ms for the walk without rules that also entered
+`build/` and `target/`. Asking git for the rules instead costs one process
+per call, about 70 ms each on this machine, eight of them for `corpus.Load`;
+a first version that always asked git measured 454 ms for the same
+`graph check`, which is why the record's rules come first.

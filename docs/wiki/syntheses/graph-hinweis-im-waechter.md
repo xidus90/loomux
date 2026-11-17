@@ -9,13 +9,13 @@ sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:d10df343fb61fb76ea53dfdf88a3f2511e6c17849aa11f01be74cdf87ac0d952"
-    revision: 22
+    content_hash: "sha256:895ce910d4e05668700755bbe112c72d7832b7c73681baa8f4ad7e6412a4424c"
+    revision: 23
   - id: code-graph
     resource: brain://project/loomux/docs/wiki/topics/code-graph.md
     doc_id: 01M39NDHWJPTMR7NKS5RZ78AWK
-    content_hash: "sha256:ed17c7ac3e2b1bb03dd592609ca30d8dd7122ef12d139e44cf730abad801aa5b"
-    revision: 41
+    content_hash: "sha256:ac86b0e321df45cea12c210b600a05fed3646ee692a196fbe51ed0c7e782ed4d"
+    revision: 43
 ---
 
 ## Frage

@@ -4708,3 +4708,29 @@ Testsuiten liefen.
    dritte Lücke: Ein MCP-Aufruf mit `scope: "loomux"` scheitert, verbraucht
    aber den Hinweis. Der Fix dafür (Kurzname wird zu `project/loomux`) ist seit
    v1.24.2 enthalten; mit ihm gelingt dieser Aufruf.
+
+## 2026-11-17 12:03 — Die Dateimenge des Graphen folgt der .gitignore
+
+**Was:** `loomux graph build` und `loomux graph check` (eine Sonde, je drei
+Läufe nach dem eigenen Build jedes Binarys) auf einem Repository mit Godot 4.8
+und Rust unter Windows: 752 getrackte Dateien, 31 848 Dateien im Baum außerhalb
+von Punktverzeichnissen. Basis v1.29.0, die ohne Ignore-Regeln lief und
+ausgeschlossene Verzeichnisse erst nach dem Walk verwarf; Änderung: der Walk
+mit den Ignore-Regeln von git, aus dem Record des Suchkorpus, solange dessen
+Ignore-Quellen stehen.
+
+| | v1.29.0 | Änderung |
+|---|---:|---:|
+| `graph build -no-reuse`: Dateien | 753 | 628 |
+| Knoten | 6 648 | 4 739 |
+| HTML-/JavaScript-Dateien | 88 / 68 | 3 / 3 |
+| GDScript-Parsefehler | 51 | 0 |
+| `graph check`, warm | 296–323 ms | 245–256 ms |
+| `graph ask`, warm | 241 ms | 188 ms |
+
+Die Dateimenge in der Sonde (`sourceset.Stat`) braucht mit den Regeln des
+Records etwa 3 ms, gegen 37–51 ms für den Walk ohne Regeln, der auch `build/`
+und `target/` betrat. Die Regeln stattdessen bei git zu erfragen kostet einen
+Prozess je Aufruf, hier etwa 70 ms, acht davon für `corpus.Load`; eine erste
+Fassung, die immer git fragte, brauchte für dasselbe `graph check` 454 ms, darum
+kommen die Regeln des Records zuerst.
