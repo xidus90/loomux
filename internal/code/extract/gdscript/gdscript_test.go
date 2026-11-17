@@ -1,6 +1,8 @@
 package gdscript_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"reflect"
 	"strings"
@@ -184,7 +186,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/7@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/8@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -548,6 +550,56 @@ func TestAResourceWithCRLFReadsLikeLF(t *testing.T) {
 		}
 		same(t, p+" edges", crlf.Edges, lf.Edges)
 		same(t, p+" imports", crlf.Imports, lf.Imports)
+	}
+}
+
+// A key with a feature tag (run/main_scene.web) or a dash parses: the grammar
+// takes neither "." nor "-" in a key, and errors from there on. The tagged
+// key is no main scene.
+func TestAKeyWithADotOrADashParses(t *testing.T) {
+	const p = "project.godot"
+	r := extractSrc(t, p, "; comment\nconfig_version=5\n\n[application]\n\nrun/main_scene.web=\"res://web.tscn\"\nrun/main_scene=\"res://main.tscn\"\n\n"+
+		"[rendering]\n\nrenderer/rendering_method.mobile=\"gl_compatibility\"\nx-y=1\n\"a.b c\"=2\nshader = \"a.b = 1\nc\"\n")
+	if r.ParseErrors != 0 {
+		t.Errorf("ParseErrors = %d, want 0", r.ParseErrors)
+	}
+	same(t, "imports", noLines(r.Edges), []extract.RawEdge{
+		{Source: p, Relation: model.RelationImports, Specifier: "res://main.tscn", File: p},
+	})
+}
+
+// Valid GDScript the grammar rejects as written: a comment line indented
+// other than the code after it, and Godot's `else: if` for elif. Both parse,
+// and the function keeps the hash of its text as written.
+func TestCommentIndentAndElseIfParse(t *testing.T) {
+	for name, src := range map[string]string{
+		"deeper comment in match": "func f(t):\n\tmatch t:\n\t\t\t# c\n\t\t1:\n\t\t\tpass\n\t\t2:\n\t\t\tpass\n\nfunc g():\n\tpass\n",
+		"deeper comment in if":    "func f(t):\n\tif t:\n\t\t\t# c\n\t\tpass\n\telse:\n\t\tpass\n\nfunc g():\n\tpass\n",
+		"shallower comment":       "func f(t):\n\tif t:\n# c\n\t\tpass\n\telse:\n\t\tpass\n\nfunc g():\n\tpass\n",
+		"else: if":                "func f(a, b):\n\tif a:\n\t\tpass\n\telse: if b:\n\t\tpass\n\telse:\n\t\tpass\n\nfunc g():\n\tpass\n",
+		"else:if crlf":            "func f(a, b):\r\n\tif a:\r\n\t\tpass\r\n\telse:if(b):\r\n\t\tpass\r\n\telse:\r\n\t\tpass\r\n\r\nfunc g():\r\n\tpass\r\n",
+	} {
+		r := extractSrc(t, rel, src)
+		if r.ParseErrors != 0 || len(r.Nodes) != 3 {
+			t.Errorf("%s: ParseErrors %d, nodes %v", name, r.ParseErrors, views(r))
+			continue
+		}
+		end := strings.Index(src, "pass\n\nfunc g") + len("pass")
+		if end < len("pass") {
+			end = strings.Index(src, "pass\r\n\r\nfunc g") + len("pass")
+		}
+		if sum := sha256.Sum256([]byte(src[:end])); r.Nodes[1].BodyHash != hex.EncodeToString(sum[:]) {
+			t.Errorf("%s: body hash of f is not over its text as written", name)
+		}
+	}
+}
+
+// A comment line inside a multi-line string that closes the string stays as
+// it is.
+func TestACommentLineClosingAStringStays(t *testing.T) {
+	r := extractSrc(t, rel, "var s = \"\"\"\n\t# x \"\"\"\n\nfunc g():\n\tpass\n")
+	if r.ParseErrors != 0 || len(r.Nodes) != 2 {
+		t.Errorf("ParseErrors %d, nodes %v", r.ParseErrors, views(r))
 	}
 }
 
