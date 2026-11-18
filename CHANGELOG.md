@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.29.3] - 2026-11-18
+
+<https://github.com/xidus90/loomux/pull/180>
+
+### Fixed
+- GDScript engine callbacks such as `_ready` are now reached through `T.new()` and through scenes that attach the script, so blast-audit no longer reports them as untested when a changed test instantiates the class.
+
 ## [1.29.2] - 2026-11-18
 
 <https://github.com/xidus90/loomux/pull/179>
