@@ -287,6 +287,16 @@ var byName = map[string]int{
 	"rpc_id": 1, "rpc_unreliable_id": 1,
 }
 
+// callbacks are the methods the engine calls on an instance with no line of
+// the project naming them: Object's _init and _notification, Node's tree,
+// frame and input callbacks, Control's _gui_input and CanvasItem's _draw.
+// Creating an instance, by X.new() or by a scene that runs the script,
+// reaches them; one the class does not define resolves to nothing.
+var callbacks = []string{
+	"_init", "_notification", "_enter_tree", "_ready", "_exit_tree", "_process", "_physics_process",
+	"_input", "_shortcut_input", "_unhandled_input", "_unhandled_key_input", "_gui_input", "_draw",
+}
+
 // callableVerbs are the members of a Callable that call it now.
 var callableVerbs = map[string]bool{"call": true, "call_deferred": true, "callv": true, "rpc": true, "rpc_id": true}
 
@@ -454,6 +464,11 @@ func (x *extractor) member(c *gts.Node, chain []string, sc scope) {
 		}
 	}
 	x.calls = append(x.calls, e)
+	if name == "new" {
+		for _, cb := range callbacks {
+			x.addCall(sc, cb, recv, c)
+		}
+	}
 	_, local := sc.locals[chain[0]]
 	if written := trimSelf(strings.Join(chain, ".")); callableVerbs[name] && written != "" && !strings.Contains(written, ".") && !local {
 		x.addCall(sc, written, "", c)

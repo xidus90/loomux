@@ -73,7 +73,7 @@ import (
 // version is this extractor's identity. Bump it by hand whenever the nodes or
 // edges below change shape or meaning; the extract cache and the graph's meta
 // key on it.
-const version = "gdscript/9"
+const version = "gdscript/10"
 
 // langName is the language as the graph's meta lists it and as a Result carries it.
 const langName = "gdscript"

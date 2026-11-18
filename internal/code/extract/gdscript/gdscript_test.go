@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -186,7 +187,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/9@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/10@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -200,6 +201,21 @@ const edgeSrc = "class_name Sample extends \"res://base.gd\"\n\nconst Helper := 
 
 func edge(src model.NodeID, r model.Relation, name, receiver, spec string) extract.RawEdge {
 	return extract.RawEdge{Source: src, Relation: r, Name: name, Receiver: receiver, Specifier: spec, File: rel}
+}
+
+// callbacks are the edges an instance adds from src to the engine callbacks
+// of a class: calls on the receiver of X.new(), references on the script a
+// scene's node runs.
+func callbacks(src model.NodeID, r model.Relation, receiver, spec string, line int) []extract.RawEdge {
+	var out []extract.RawEdge
+	for _, cb := range []string{
+		"_init", "_notification", "_enter_tree", "_ready", "_exit_tree", "_process", "_physics_process",
+		"_input", "_shortcut_input", "_unhandled_input", "_unhandled_key_input", "_gui_input", "_draw",
+	} {
+		file, _, _ := strings.Cut(string(src), "#")
+		out = append(out, extract.RawEdge{Source: src, Relation: r, Name: cb, Receiver: receiver, Specifier: spec, File: file, Line: line})
+	}
+	return out
 }
 
 func TestEveryEdgeFormOfAScript(t *testing.T) {
@@ -218,8 +234,9 @@ func TestEveryEdgeFormOfAScript(t *testing.T) {
 		{Alias: "Helper", Path: "res://lib/helper.gd"},
 		{Alias: "Scene", Path: "res://scenes/x.tscn"},
 	})
-	same(t, "calls", edgesOf(r, model.RelationCalls), []extract.RawEdge{
+	same(t, "calls", edgesOf(r, model.RelationCalls), slices.Concat([]extract.RawEdge{
 		edge(run, model.RelationCalls, "new", "Foo", ""),
+	}, callbacks(run, model.RelationCalls, "Foo", "", 0), []extract.RawEdge{
 		edge(run, model.RelationCalls, "bump", "", ""),
 		edge(run, model.RelationCalls, "bump", "", ""),
 		edge(run, model.RelationCalls, "make", "Helper", ""),
@@ -232,7 +249,7 @@ func TestEveryEdgeFormOfAScript(t *testing.T) {
 		edge(run, model.RelationCalls, "emit", "changed", ""),
 		edge(run, model.RelationCalls, "emit", "changed", ""),
 		edge(run, model.RelationCalls, "get_node", "", ""),
-	})
+	}))
 	var refs []string
 	for _, e := range edgesOf(r, model.RelationReferences) {
 		refs = append(refs, string(e.Source)+" "+e.Name)
@@ -506,10 +523,13 @@ func TestConnectionEndsCarryMember(t *testing.T) {
 			got = append(got, e)
 		}
 	}
-	same(t, "connection", got, []extract.RawEdge{
-		{Source: p, Relation: model.RelationReferences, Name: "on_hit", Specifier: "res://hud.gd", File: p, Member: "method"},
-		{Source: p, Relation: model.RelationReferences, Name: "hit", Specifier: "res://p.gd", File: p, Member: "signal"},
-	})
+	same(t, "connection", got, slices.Concat(
+		callbacks(p, model.RelationReferences, "", "res://p.gd", 0),
+		callbacks(p, model.RelationReferences, "", "res://hud.gd", 0),
+		[]extract.RawEdge{
+			{Source: p, Relation: model.RelationReferences, Name: "on_hit", Specifier: "res://hud.gd", File: p, Member: "method"},
+			{Source: p, Relation: model.RelationReferences, Name: "hit", Specifier: "res://p.gd", File: p, Member: "signal"},
+		}))
 }
 
 // A node's type is a reference of the class; a connection end on a node
@@ -529,14 +549,15 @@ func TestNodeTypesAndTheirConnectionEnds(t *testing.T) {
 			got = append(got, e)
 		}
 	}
-	same(t, "references", got, []extract.RawEdge{
+	same(t, "references", got, slices.Concat([]extract.RawEdge{
 		{Source: p, Relation: model.RelationReferences, Name: "GDExample", File: p, Line: 5, Member: "class"},
 		{Source: p, Relation: model.RelationReferences, Name: "Control", File: p, Line: 7, Member: "class"},
+	}, callbacks(p, model.RelationReferences, "", "res://hud.gd", 7), []extract.RawEdge{
 		{Source: p, Relation: model.RelationReferences, Name: "on_moved", Specifier: "res://hud.gd", File: p, Line: 12, Member: "method"},
 		{Source: p, Relation: model.RelationReferences, Name: "position_changed", Receiver: "GDExample", File: p, Line: 12, Member: "signal"},
 		{Source: p, Relation: model.RelationReferences, Name: "get_speed", Receiver: "GDExample", File: p, Line: 13, Member: "method"},
 		{Source: p, Relation: model.RelationReferences, Name: "done", Specifier: "res://hud.gd", File: p, Line: 13, Member: "signal"},
-	})
+	}))
 }
 
 // A quoted key is read as a bare one, so the sections after it still count;

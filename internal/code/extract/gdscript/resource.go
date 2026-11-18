@@ -85,6 +85,11 @@ func resource(lang *gts.Language, rel, source string) (extract.Result, error) {
 			}
 			if spec, ok := ext[extID(doc, s, "property", "script")]; ok {
 				runs[at] = spec
+				for _, cb := range callbacks {
+					r.Edges = append(r.Edges, extract.RawEdge{
+						Source: model.NodeID(rel), Relation: model.RelationReferences, Name: cb, Specifier: spec, File: rel, Line: line(s),
+					})
+				}
 			}
 		case "connection":
 			links = append(links, s)

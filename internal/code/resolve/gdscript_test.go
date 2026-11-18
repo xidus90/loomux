@@ -4,6 +4,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/blast"
+	"github.com/xidus90/loomux/internal/code/diff"
 	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/extract/gdscript"
 	"github.com/xidus90/loomux/internal/code/model"
@@ -357,4 +359,52 @@ func TestGodotACallOnACastLandsOnItsClass(t *testing.T) {
 		"p/test.gd":       "extends Node\n\nfunc test_it(viewer):\n\t(viewer.get_node(\"%LayerBar\") as LayerBar).set_missing(1)\n",
 	})
 	wantCalls(t, g, "p/test.gd#test_it", "p/bar.gd#LayerBar.set_missing extracted")
+}
+
+// The engine calls a class's callbacks on every instance, and no line of the
+// project names them. X.new() reaches them, the class's own and those it
+// inherits, and no other method; an engine class's new() reaches nothing.
+func TestGodotNewReachesTheEngineCallbacksOfTheClass(t *testing.T) {
+	g := gdGraph(t, map[string]string{
+		"p/project.godot": "config_version=5\n",
+		"p/base.gd":       "class_name Strip\nextends Node\n\nfunc _enter_tree():\n\tpass\n\nfunc _ready():\n\tpass\n",
+		"p/bar.gd":        "class_name LayerBar\nextends Strip\n\nconst LABELS := {}\n\nfunc _ready():\n\tpass\n\nfunc _draw():\n\tpass\n\nfunc _toggle(on):\n\tpass\n",
+		"p/test.gd":       "extends Node\n\nfunc test_it():\n\tvar bar: LayerBar = LayerBar.new()\n\tLabel.new()\n",
+	})
+	wantCalls(t, g, "p/test.gd#test_it", "p/bar.gd#LayerBar extracted",
+		"p/bar.gd#LayerBar._draw extracted", "p/bar.gd#LayerBar._ready extracted", "p/base.gd#Strip._enter_tree extracted")
+}
+
+// A scene instances the script a node runs, so it reaches that script's
+// callbacks as X.new() does.
+func TestGodotASceneReachesTheEngineCallbacksOfItsScripts(t *testing.T) {
+	g := gdGraph(t, map[string]string{
+		"p/project.godot": "config_version=5\n",
+		"p/bar.gd":        "class_name LayerBar\nextends Node\n\nfunc _init():\n\tpass\n\nfunc _ready():\n\tpass\n\nfunc _toggle(on):\n\tpass\n",
+		"p/bar.tscn": "[gd_scene format=3]\n\n[ext_resource type=\"Script\" path=\"res://bar.gd\" id=\"1\"]\n\n" +
+			"[node name=\"Bar\" type=\"Node\"]\nscript = ExtResource(\"1\")\n",
+	})
+	wantTargets(t, g, "p/bar.tscn", model.RelationReferences, "p/bar.gd#LayerBar._init", "p/bar.gd#LayerBar._ready")
+}
+
+// A class-level const and the _ready that reads it change together with a
+// test that only instantiates the class: the test reaches the change, so the
+// area counts as tested and changed.
+func TestGodotATestThatInstantiatesAClassReachesItsChangedCallback(t *testing.T) {
+	g := gdGraph(t, map[string]string{
+		"p/project.godot":    "config_version=5\n",
+		"p/bar.gd":           "class_name LayerBar\nextends Node\n\nconst LABELS := {}\n\nfunc _ready():\n\tprint(LABELS)\n",
+		"p/test/bar_test.gd": "extends Node\n\nfunc test_it():\n\tvar bar: LayerBar = LayerBar.new()\n",
+	})
+	hunk := func(path string, lines ...int) diff.File {
+		f := diff.File{Status: diff.Modified, Path: path}
+		for _, l := range lines {
+			f.Hunks = append(f.Hunks, diff.Hunk{From: l, To: l, Lines: []string{"+x"}})
+		}
+		return f
+	}
+	rep := blast.Radius(g, blast.New(g), []diff.File{hunk("p/bar.gd", 4, 7), hunk("p/test/bar_test.gd", 4)}, nil, blast.All)
+	if a := rep.Areas[0]; a.Path != "p/bar.gd" || a.Signal != blast.SignalChanged {
+		t.Errorf("area %s signal %s, want p/bar.gd changed", a.Path, a.Signal)
+	}
 }
