@@ -88,6 +88,16 @@ einem ignorierten `game/reports/` eines Godot-Projekts.
   die Stelle des Namens; ein lokaler Name verdeckt ein Feld, `self.x` meint
   immer das Feld. Ein Empfänger ohne bekannte Klasse bleibt ohne Kante, wie
   in Python: kein Raten über den Methodennamen.
+  Die Rückrufe, die die Engine auf jeder Instanz aufruft (`_init`,
+  `_notification`, `_enter_tree`, `_ready`, `_exit_tree`, `_process`,
+  `_physics_process`, `_input`, `_shortcut_input`, `_unhandled_input`,
+  `_unhandled_key_input`, `_gui_input`, `_draw`), nennt keine Zeile des
+  Projekts. `T.new()` ruft darum die auf, die `T` definiert oder erbt, und
+  eine Szene referenziert die des Skripts, das einer ihrer Knoten ausführt.
+  Ein Test, der die Klasse erzeugt oder die Szene lädt, erreicht so eine
+  Änderung an `_ready`; ohne diese Kanten blieb `_ready` ohne Test, und
+  `blast-audit` meldete die Klasse mit ihrem Eingangsgrad, sobald dieselbe
+  Änderung eine Konstante der Klasse traf.
   Was die Grammatik an gültigem Godot ablehnt, schreibt der Extraktor vor dem
   Parsen in einer Kopie gleicher Länge um, sodass Spans und Hashes auf die
   Datei zeigen: In GDScript wird eine reine Kommentarzeile geleert (ihre

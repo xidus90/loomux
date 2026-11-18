@@ -6,6 +6,10 @@
 
 ## 2026-11-18
 
+- 2026-11-18 — `topics/code-graph.md`: der Godot-Absatz nennt die
+  Engine-Rückrufe (`_ready`, `_process`, …), die `T.new()` und eine Szene mit
+  dem Skript eines Knotens erreichen. Quelle:
+  `internal/code/extract/gdscript`.
 - 2026-11-18 — `topics/code-graph.md`: der Godot-Absatz nennt, wie ein
   Aufruf auf einem Empfänger bekannter Klasse (Typannotation, `:=` aus
   `T.new()`, `as` oder einer Funktion mit Rückgabetyp, Cast in Klammern)
