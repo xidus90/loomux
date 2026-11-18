@@ -4,6 +4,13 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-11-18
+
+- 2026-11-18 — `topics/code-graph.md`: der Godot-Absatz nennt, wie ein
+  Aufruf auf einem Empfänger bekannter Klasse (Typannotation, `:=` aus
+  `T.new()`, `as` oder einer Funktion mit Rückgabetyp, Cast in Klammern)
+  bei der Klasse landet. Quelle: `internal/code/extract/gdscript`.
+
 ## 2026-11-17
 
 - 2026-11-17 — `topics/code-graph.md`: der Graph liest nur noch, was git

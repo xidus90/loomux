@@ -29,7 +29,9 @@ import (
 // Calls follow GDScript: a plain name or self.name is a function of the
 // class or one of its bases, and nothing else -- there are no free
 // functions in other files, so a name found nowhere is the engine's or a
-// builtin and gives no edge. super starts at the base. X.f() binds X.
+// builtin and gives no edge. super starts at the base. X.f() binds X; a
+// variable whose class the script states arrives with that class as X (the
+// extractor's typed), any other variable binds nothing.
 // X.new() is X's own _init, or X.
 // sig.emit(), sig.connect() and sig.disconnect() on a signal of the class or
 // one of its bases reference the signal, as do is_connected and the

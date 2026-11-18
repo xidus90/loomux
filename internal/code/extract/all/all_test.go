@@ -36,7 +36,7 @@ func TestVersionIsSortedJoin(t *testing.T) {
 	// gdscript sort before go, html, java, javascript and php between go and
 	// python, rust and scss between python and typescript, typescript last). A graph
 	// built by a binary that knew Go alone reads as foreign and is rebuilt.
-	if got, want := all.Version(), "cpp/1@"+treesitter.Parser+"+csharp/1@"+treesitter.Parser+"+css/1@"+treesitter.Parser+"+gdscript/8@"+treesitter.Parser+"+"+golang.Version+"+html/1@"+treesitter.Parser+"+java/1@"+treesitter.Parser+"+javascript/1@"+treesitter.Parser+"+php/1@"+treesitter.Parser+"+python/2@"+treesitter.Parser+"+rust/1@"+treesitter.Parser+"+scss/1@"+treesitter.Parser+"+typescript/1@"+treesitter.Parser; got != want {
+	if got, want := all.Version(), "cpp/1@"+treesitter.Parser+"+csharp/1@"+treesitter.Parser+"+css/1@"+treesitter.Parser+"+gdscript/9@"+treesitter.Parser+"+"+golang.Version+"+html/1@"+treesitter.Parser+"+java/1@"+treesitter.Parser+"+javascript/1@"+treesitter.Parser+"+php/1@"+treesitter.Parser+"+python/2@"+treesitter.Parser+"+rust/1@"+treesitter.Parser+"+scss/1@"+treesitter.Parser+"+typescript/1@"+treesitter.Parser; got != want {
 		t.Fatalf("Version() = %q, want %q", got, want)
 	}
 }

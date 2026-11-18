@@ -73,7 +73,7 @@ import (
 // version is this extractor's identity. Bump it by hand whenever the nodes or
 // edges below change shape or meaning; the extract cache and the graph's meta
 // key on it.
-const version = "gdscript/8"
+const version = "gdscript/9"
 
 // langName is the language as the graph's meta lists it and as a Result carries it.
 const langName = "gdscript"
@@ -206,10 +206,12 @@ type extractor struct {
 
 // scope is what a definition or a call at one place belongs to.
 type scope struct {
-	source model.NodeID    // the innermost definition with a node, or the script's class
-	class  string          // the qualified class around it; "" at the top of a script without class_name
-	fn     string          // the function it is in, for super(); "" outside one
-	locals map[string]bool // its parameters and locals, which hide a member of the same name
+	source  model.NodeID      // the innermost definition with a node, or the script's class
+	class   string            // the qualified class around it; "" at the top of a script without class_name
+	fn      string            // the function it is in, for super(); "" outside one
+	locals  map[string]string // its parameters and locals, which hide a member of the same name, and the class each declares
+	returns map[string]string // the return types of the functions of the class or script around it, by name
+	fields  map[string]string // the vars of the class or script around it, and the class each declares
 }
 
 // script reads the whole file: the class_name first, wherever it stands,
@@ -253,6 +255,8 @@ func (x *extractor) classNameStatement(root *gts.Node) *gts.Node {
 
 // body reads the statements of a script (top) or of a class body.
 func (x *extractor) body(n *gts.Node, sc scope, top bool) {
+	sc.returns = x.returns(n)
+	sc.fields = x.fields(n, sc.returns)
 	for _, stmt := range n.Children() {
 		switch x.doc.Type(stmt) {
 		case "class_name_statement":
@@ -290,7 +294,7 @@ func (x *extractor) function(def *gts.Node, sc scope) {
 		kind = "function"
 	}
 	n := x.symbol(def, end, name, kind, sc)
-	inner := scope{source: n.ID, class: sc.class, fn: name, locals: x.locals(def)}
+	inner := scope{source: n.ID, class: sc.class, fn: name, locals: x.locals(def, sc.returns), returns: sc.returns, fields: sc.fields}
 	for _, c := range def.Children() {
 		x.collect(c, inner)
 	}
@@ -317,7 +321,7 @@ func (x *extractor) signal(stmt *gts.Node, sc scope) {
 	n := x.symbol(stmt, stmt.EndByte(), x.doc.Text(x.doc.Field(stmt, "name")), "signal", sc)
 	// The signal's own name is no identifier node in this grammar, so walking
 	// the statement names only its parameters and their types.
-	inner := scope{source: n.ID, class: sc.class, locals: x.locals(stmt)}
+	inner := scope{source: n.ID, class: sc.class, locals: x.locals(stmt, sc.returns)}
 	for _, c := range stmt.Children() {
 		x.collect(c, inner)
 	}

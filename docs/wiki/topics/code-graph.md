@@ -80,6 +80,14 @@ einem ignorierten `game/reports/` eines Godot-Projekts.
   Szenen-Autoload bindet das Wurzelskript, und `uid://` löst sich über die
   `.uid`-Dateien und die UIDs im Kopf von Szenen und Ressourcen auf
   (`docs/.superpowers/specs/2026-10-19-gdscript-godot-linien-design.md`).
+  Ein Aufruf, ein Signal oder ein `await` auf einem Empfänger, dessen Klasse
+  die Datei nennt, landet bei dieser Klasse und ihren Basen: ein Feld, ein
+  Parameter oder ein lokaler Name mit Typannotation, `:=` aus `T.new()`,
+  `x as T` oder einer Funktion derselben Klasse mit deklariertem
+  Rückgabetyp, und `(x as T).f()`. Der Extraktor setzt dafür die Klasse an
+  die Stelle des Namens; ein lokaler Name verdeckt ein Feld, `self.x` meint
+  immer das Feld. Ein Empfänger ohne bekannte Klasse bleibt ohne Kante, wie
+  in Python: kein Raten über den Methodennamen.
   Was die Grammatik an gültigem Godot ablehnt, schreibt der Extraktor vor dem
   Parsen in einer Kopie gleicher Länge um, sodass Spans und Hashes auf die
   Datei zeigen: In GDScript wird eine reine Kommentarzeile geleert (ihre
