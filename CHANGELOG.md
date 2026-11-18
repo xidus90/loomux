@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.29.2] - 2026-11-18
+
+<https://github.com/xidus90/loomux/pull/179>
+
+### Fixed
+- GDScript calls on receivers of a statically known class now resolve to that class's method, so blast-audit no longer reports tested GDScript changes as untested.
+
 ## [1.29.1] - 2026-11-17
 
 <https://github.com/xidus90/loomux/pull/178>
