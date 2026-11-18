@@ -69,40 +69,142 @@ func (x *extractor) chain(n *gts.Node) string {
 	case "identifier":
 		return x.doc.Text(n)
 	case "attribute":
-		var parts []string
-		for _, c := range n.Children() {
-			switch x.doc.Type(c) {
-			case "identifier":
-				parts = append(parts, x.doc.Text(c))
-			case ".":
-			default:
-				return ""
-			}
-		}
-		return strings.Join(parts, ".")
+		return x.names(n.Children())
 	}
 	return ""
 }
 
+// names are identifier and "." nodes read as a chain: "Outer.Inner". ""
+// when anything else stands among them.
+func (x *extractor) names(nodes []*gts.Node) string {
+	var parts []string
+	for _, c := range nodes {
+		switch x.doc.Type(c) {
+		case "identifier":
+			parts = append(parts, x.doc.Text(c))
+		case ".":
+		default:
+			return ""
+		}
+	}
+	return strings.Join(parts, ".")
+}
+
 // locals are the names a function or signal binds for itself: every
 // parameter, its lambdas' included, and every var and const in its body.
-// Loop and match bindings are not among them.
-func (x *extractor) locals(def *gts.Node) map[string]bool {
-	out := map[string]bool{}
+// Loop and match bindings are not among them. Each maps to the class its
+// declaration names (declared), or "" -- also when two declarations of the
+// name disagree, since the function body is read flat, not per block, or
+// when the class is a local itself (`var g := script.new()`).
+func (x *extractor) locals(def *gts.Node, returns map[string]string) map[string]string {
+	out := map[string]string{}
+	declare := func(name, class string) {
+		head, _, _ := strings.Cut(class, ".")
+		if _, shadowed := out[head]; shadowed {
+			class = ""
+		}
+		if old, ok := out[name]; ok && old != class {
+			class = ""
+		}
+		out[name] = class
+	}
 	treesitter.Walk(def, func(c *gts.Node) bool {
 		switch x.doc.Type(c) {
 		case "parameters":
 			for _, p := range c.Children() {
 				if id := x.firstIdentifier(p); id != "" {
-					out[id] = true
+					declare(id, x.declared(p, returns))
 				}
 			}
 		case "variable_statement", "const_statement":
-			out[x.doc.Text(x.doc.Field(c, "name"))] = true
+			declare(x.doc.Text(x.doc.Field(c, "name")), x.declared(c, returns))
 		}
 		return true
 	})
 	return out
+}
+
+// declared is the class a parameter or variable declares, as written: the
+// one its annotation names, or with `:=` the one its value has (inferred).
+// "" without either, or for a type that is no name or chain of names
+// (Array[T], whose element the variable is not). returns are the return
+// types of the functions of the class around n, by name.
+func (x *extractor) declared(n *gts.Node, returns map[string]string) string {
+	switch t := x.doc.Field(n, "type"); x.doc.Type(t) {
+	case "type":
+		return x.chain(t.Child(0))
+	case "inferred_type":
+		return x.inferred(x.doc.Field(n, "value"), returns)
+	}
+	return ""
+}
+
+// inferred is the class of a value as Godot infers it for `:=`, in the forms
+// that name it: T.new(), `x as T`, and a call of a function of the class
+// whose return type is declared. A static function of another class or a
+// method of a base has its return type in another file and gives "".
+func (x *extractor) inferred(v *gts.Node, returns map[string]string) string {
+	switch x.doc.Type(v) {
+	case "call":
+		return returns[x.doc.Text(v.Child(0))]
+	case "binary_operator":
+		if x.doc.Type(x.doc.Field(v, "op")) == "as" {
+			return x.chain(x.doc.Field(v, "right"))
+		}
+	case "attribute":
+		kids := v.Children()
+		last := kids[len(kids)-1]
+		if x.doc.Type(last) == "attribute_call" && x.doc.Text(last.Child(0)) == "new" {
+			return x.names(kids[:len(kids)-1])
+		}
+	}
+	return ""
+}
+
+// returns are the return types of the functions a script or class body
+// defines, by name, where declared and a name or chain of names.
+func (x *extractor) returns(body *gts.Node) map[string]string {
+	out := map[string]string{}
+	for _, stmt := range body.Children() {
+		if x.doc.Type(stmt) == "function_definition" {
+			if t := x.doc.Field(stmt, "return_type"); t != nil {
+				out[x.doc.Text(x.doc.Field(stmt, "name"))] = x.chain(t.Child(0))
+			}
+		}
+	}
+	return out
+}
+
+// fields are the vars a script or class body declares, each with the class
+// it declares (declared). An inner class's body is its own: Godot gives it
+// no access to the fields of the class around it.
+func (x *extractor) fields(body *gts.Node, returns map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, stmt := range body.Children() {
+		if x.doc.Type(stmt) == "variable_statement" {
+			out[x.doc.Text(x.doc.Field(stmt, "name"))] = x.declared(stmt, returns)
+		}
+	}
+	return out
+}
+
+// typed is a receiver chain as the resolver binds it: self. cut off, and a
+// first name that is a local or field of a known class replaced by that
+// class, so world.build() on `var world: MapWorld` is MapWorld.build(). A
+// local hides a field of its name; self.name is always the field. Any other
+// receiver stays as written and binds only if it names a class itself.
+func (x *extractor) typed(chain []string, sc scope) string {
+	class, rest := sc.fields[chain[0]], chain[1:]
+	if local, ok := sc.locals[chain[0]]; ok {
+		class = local
+	}
+	if chain[0] == "self" && len(chain) > 1 {
+		class, rest = sc.fields[chain[1]], chain[2:]
+	}
+	if class != "" {
+		return strings.Join(append([]string{class}, rest...), ".")
+	}
+	return trimSelf(strings.Join(chain, "."))
 }
 
 // firstIdentifier is the text of the first identifier at or below n, in
@@ -220,7 +322,7 @@ func (x *extractor) call(c *gts.Node, sc scope) {
 		if len(args) == 2 {
 			if sig, ok := x.literal(args[1]); ok {
 				if obj := x.chain(args[0]); obj != "" {
-					x.addCall(sc, "await", join(trimSelf(obj), sig), c)
+					x.addCall(sc, "await", x.typed(append(strings.Split(obj, "."), sig), sc), c)
 				}
 			}
 		}
@@ -276,8 +378,8 @@ func (x *extractor) await(c *gts.Node, sc scope) {
 		if x.doc.Type(k) != "attribute" {
 			continue
 		}
-		if chain := trimSelf(x.chain(k)); strings.Contains(chain, ".") {
-			x.addCall(sc, "await", chain, k)
+		if chain := x.chain(k); strings.Contains(trimSelf(chain), ".") {
+			x.addCall(sc, "await", x.typed(strings.Split(chain, "."), sc), k)
 		}
 	}
 }
@@ -308,7 +410,7 @@ func (x *extractor) attribute(n *gts.Node, sc scope) {
 		case "attribute_call":
 			called = true
 			if plain && len(chain) > 0 {
-				x.member(c, trimSelf(strings.Join(chain, ".")), chain[0], sc)
+				x.member(c, chain, sc)
 			} else if verb := x.doc.Text(c.Child(0)); verb != "emit_signal" && signalVerbs[verb] != "" {
 				// On $Node or get_node("x") the signal has no owner to bind,
 				// but `self, "m"` still names a handler of this script.
@@ -319,8 +421,15 @@ func (x *extractor) attribute(n *gts.Node, sc scope) {
 				x.collect(k, sc)
 			}
 		default:
-			plain = false
 			x.collect(c, sc)
+			// (x as T).f(): the parentheses stand for a value of class T.
+			if i == 0 && x.doc.Type(c) == "parenthesized_expression" {
+				if class := x.inferred(c.Child(1), sc.returns); class != "" {
+					chain = append(chain, class)
+					continue
+				}
+			}
+			plain = false
 		}
 	}
 	if plain && !called && len(chain) == 2 && chain[0] == "self" {
@@ -328,13 +437,14 @@ func (x *extractor) attribute(n *gts.Node, sc scope) {
 	}
 }
 
-// member records the call c of a member on the receiver chain recv, whose
-// first name as written is head: recv.f(), and the forms call reads on a
-// script, here on recv. A Callable's own call -- m.call(), self.m.rpc() --
-// also calls m, unless m is a local of the function.
-func (x *extractor) member(c *gts.Node, recv, head string, sc scope) {
+// member records the call c of a member on the receiver chain as written:
+// recv.f(), and the forms call reads on a script, here on recv, which is
+// typed. A Callable's own call -- m.call(), self.m.rpc() -- also calls m,
+// unless m is a local of the function.
+func (x *extractor) member(c *gts.Node, chain []string, sc scope) {
 	name := x.doc.Text(c.Child(0))
 	args := x.args(c)
+	recv := x.typed(chain, sc)
 	e := extract.RawEdge{Source: sc.source, Relation: model.RelationCalls, Name: name, Receiver: recv, File: x.doc.Rel, Line: line(c)}
 	if _, ok := signalVerbs[name]; ok {
 		x.signalCall(&e, recv, args, sc)
@@ -344,9 +454,9 @@ func (x *extractor) member(c *gts.Node, recv, head string, sc scope) {
 		}
 	}
 	x.calls = append(x.calls, e)
-	local := head != "self" && sc.locals[head]
-	if callableVerbs[name] && recv != "" && !strings.Contains(recv, ".") && !local {
-		x.addCall(sc, recv, "", c)
+	_, local := sc.locals[chain[0]]
+	if written := trimSelf(strings.Join(chain, ".")); callableVerbs[name] && written != "" && !strings.Contains(written, ".") && !local {
+		x.addCall(sc, written, "", c)
 	}
 }
 
@@ -354,7 +464,8 @@ func (x *extractor) member(c *gts.Node, recv, head string, sc scope) {
 // parameter or local of the function holds it. The resolver keeps those
 // that name a class, or a method or signal of the class.
 func (x *extractor) reference(c *gts.Node, sc scope) {
-	if name := x.doc.Text(c); !sc.locals[name] {
+	name := x.doc.Text(c)
+	if _, local := sc.locals[name]; !local {
 		x.refName(sc, name, line(c))
 	}
 }

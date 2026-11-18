@@ -308,3 +308,53 @@ func TestGodotAProjectAtTheRepoRoot(t *testing.T) {
 	})
 	wantTargets(t, g, "main.gd", model.RelationImports, "y.gd")
 }
+
+// A call on a local or a parameter whose type annotation names a class
+// lands on that class's method, an inherited one included; a receiver of no
+// known type gives no edge.
+func TestGodotACallOnAnAnnotatedReceiverLandsOnItsClass(t *testing.T) {
+	g := gdGraph(t, map[string]string{
+		"p/project.godot": "config_version=5\n",
+		"p/base.gd":       "class_name Shape\nextends Node\n\nfunc area():\n\tpass\n",
+		"p/world.gd":      "class_name MapWorld\nextends Shape\n\nfunc build():\n\tpass\n",
+		"p/test.gd": "extends Node\n\nfunc test_build(other: MapWorld, loose):\n" +
+			"\tvar world: MapWorld = null\n\tworld.build()\n\tother.area()\n\tloose.build()\n",
+	})
+	wantCalls(t, g, "p/test.gd#test_build", "p/base.gd#Shape.area extracted", "p/world.gd#MapWorld.build extracted")
+}
+
+// `:=` from X.new() or from a helper with a declared return type, as a
+// gdUnit4 suite writes it, binds the receiver like an annotation.
+func TestGodotACallOnAnInferredReceiverLandsOnItsClass(t *testing.T) {
+	g := gdGraph(t, map[string]string{
+		"p/project.godot": "config_version=5\n",
+		"p/world.gd":      "class_name MapWorld\nextends Node\n\nfunc set_layer(on):\n\tpass\n",
+		"p/bar.gd":        "class_name LayerBar\nextends Node\n\nfunc set_missing(m):\n\tpass\n",
+		"p/test.gd": "extends Node\n\nfunc _bar(viewer: Node) -> LayerBar:\n\treturn viewer.get_node(\"%LayerBar\")\n\n" +
+			"func test_it(viewer):\n\tvar world := MapWorld.new()\n\tworld.set_layer(true)\n\tvar bar := _bar(viewer)\n\tbar.set_missing(1)\n",
+	})
+	wantCalls(t, g, "p/test.gd#test_it", "p/bar.gd#LayerBar.set_missing extracted", "p/test.gd#_bar extracted",
+		"p/world.gd#MapWorld extracted", "p/world.gd#MapWorld.set_layer extracted")
+}
+
+// A typed field binds its calls and its signals in every function of the
+// class.
+func TestGodotACallOnATypedFieldLandsOnItsClass(t *testing.T) {
+	g := gdGraph(t, map[string]string{
+		"p/project.godot": "config_version=5\n",
+		"p/screen.gd":     "class_name ColonyScreen\nextends Node\n\nsignal build_requested\n\nfunc refresh():\n\tpass\n",
+		"p/ui.gd":         "extends Node\n\nvar _screen: ColonyScreen\n\nfunc _ready():\n\t_screen.refresh()\n\tself._screen.build_requested.connect(_on_build)\n\nfunc _on_build():\n\tpass\n",
+	})
+	wantCalls(t, g, "p/ui.gd#_ready", "p/screen.gd#ColonyScreen.refresh extracted")
+	wantTargets(t, g, "p/ui.gd#_ready", model.RelationReferences, "p/screen.gd#ColonyScreen.build_requested", "p/ui.gd#_on_build")
+}
+
+// (x as T).f() calls T's f.
+func TestGodotACallOnACastLandsOnItsClass(t *testing.T) {
+	g := gdGraph(t, map[string]string{
+		"p/project.godot": "config_version=5\n",
+		"p/bar.gd":        "class_name LayerBar\nextends Node\n\nfunc set_missing(m):\n\tpass\n",
+		"p/test.gd":       "extends Node\n\nfunc test_it(viewer):\n\t(viewer.get_node(\"%LayerBar\") as LayerBar).set_missing(1)\n",
+	})
+	wantCalls(t, g, "p/test.gd#test_it", "p/bar.gd#LayerBar.set_missing extracted")
+}

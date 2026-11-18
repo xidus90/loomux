@@ -186,7 +186,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/8@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/9@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -297,6 +297,80 @@ func TestAnAbstractFunctionIsANode(t *testing.T) {
 func TestAPathWithACallIsNoBase(t *testing.T) {
 	r := extractSrc(t, rel, "extends \"res://a.gd\".make()\n")
 	same(t, "extends", edgesOf(r, model.RelationExtends), nil)
+}
+
+// A call on a parameter or local whose annotation names a class is a call
+// on that class; a type that is no name or chain of names, and a receiver
+// without a type, stay as written.
+func TestAnAnnotatedReceiverIsItsType(t *testing.T) {
+	r := extractSrc(t, rel, "func f(a: World, b: Outer.Inner = null, c, d := 1):\n"+
+		"\tvar e: World = null\n\tvar g: Array[World] = []\n"+
+		"\ta.build()\n\tb.go()\n\tc.x()\n\td.y()\n\te.build()\n\te.done.emit()\n\tg.clear()\n")
+	same(t, "calls", edgesOf(r, model.RelationCalls), []extract.RawEdge{
+		edge("a/s.gd#f", model.RelationCalls, "build", "World", ""),
+		edge("a/s.gd#f", model.RelationCalls, "go", "Outer.Inner", ""),
+		edge("a/s.gd#f", model.RelationCalls, "x", "c", ""),
+		edge("a/s.gd#f", model.RelationCalls, "y", "d", ""),
+		edge("a/s.gd#f", model.RelationCalls, "build", "World", ""),
+		edge("a/s.gd#f", model.RelationCalls, "emit", "World.done", ""),
+		edge("a/s.gd#f", model.RelationCalls, "clear", "g", ""),
+	})
+}
+
+// `:=` takes its class from the value: T.new(), `x as T`, or a call of a
+// function of the script that declares its return type. `=` declares no
+// type, and a name declared twice with two types has none.
+func TestAnInferredReceiverIsItsValuesType(t *testing.T) {
+	r := extractSrc(t, rel, "func make() -> Bar:\n\treturn null\n\nfunc none():\n\tpass\n\n"+
+		"func f(v):\n\tvar a := World.new()\n\tvar b := v as Bar\n\tvar c := make()\n\tvar d := none()\n\tvar e = World.new()\n"+
+		"\tvar g := v.new()\n\tvar h := 1\n\tvar k: World\n\tif v:\n\t\tvar k: Bar\n"+
+		"\ta.x()\n\tb.x()\n\tc.x()\n\td.x()\n\te.x()\n\tg.x()\n\th.x()\n\tk.x()\n")
+	var got []string
+	for _, e := range edgesOf(r, model.RelationCalls) {
+		if e.Name == "x" {
+			got = append(got, e.Receiver)
+		}
+	}
+	same(t, "receivers", got, []string{"World", "Bar", "Bar", "d", "e", "g", "h", "k"})
+}
+
+// A cast in parentheses is a receiver of its class, names after it
+// included; the expression inside is walked as before. Parentheses around
+// anything else type nothing.
+func TestACastReceiverIsItsClass(t *testing.T) {
+	r := extractSrc(t, rel, "func f(v):\n\t(v.get_node(\"%B\") as Bar).set_missing(1)\n\t(v as Bar).done.emit()\n\t(v).x()\n\t(v as Array[int]).clear()\n")
+	same(t, "calls", edgesOf(r, model.RelationCalls), []extract.RawEdge{
+		edge("a/s.gd#f", model.RelationCalls, "get_node", "v", ""),
+		edge("a/s.gd#f", model.RelationCalls, "set_missing", "Bar", ""),
+		edge("a/s.gd#f", model.RelationCalls, "emit", "Bar.done", ""),
+	})
+}
+
+// A field of the class types its receiver in every function of the class,
+// through self. too, unless a parameter or local of the same name hides it.
+// An inner class has fields of its own and none of the class around it.
+func TestATypedFieldIsItsClass(t *testing.T) {
+	r := extractSrc(t, rel, "var w: World\n@onready var b: Bar = null\nvar n := World.new()\nvar m := make()\n\n"+
+		"func make() -> Bar:\n\treturn null\n\n"+
+		"func f(b):\n\tw.x()\n\tself.w.x()\n\tself.b.x()\n\tb.x()\n\tn.x()\n\tm.x()\n\tvar w := 1\n\n"+
+		"class Inner:\n\tfunc g():\n\t\tw.x()\n")
+	var got []string
+	for _, e := range edgesOf(r, model.RelationCalls) {
+		if e.Name == "x" {
+			got = append(got, e.Receiver)
+		}
+	}
+	same(t, "receivers", got, []string{"w", "World", "Bar", "b", "World", "Bar", "w"})
+}
+
+// Awaiting a signal of a typed receiver, Godot 4's await and Godot 3's
+// yield, awaits the signal of its class.
+func TestAwaitOnATypedReceiverIsOnItsClass(t *testing.T) {
+	r := extractSrc(t, rel, "func f(w: World):\n\tawait w.done\n\tyield(w, \"done\")\n")
+	same(t, "calls", edgesOf(r, model.RelationCalls), []extract.RawEdge{
+		edge("a/s.gd#f", model.RelationCalls, "await", "World.done", ""),
+		edge("a/s.gd#f", model.RelationCalls, "await", "World.done", ""),
+	})
 }
 
 // emit_signal and preload with no string literal name nothing.
