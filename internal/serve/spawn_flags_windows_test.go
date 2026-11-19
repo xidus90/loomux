@@ -1,6 +1,9 @@
 package serve
 
-import "testing"
+import (
+	"os/exec"
+	"testing"
+)
 
 func TestDetachAttrsAskToLeaveTheJobOnlyOnTheFirstAttempt(t *testing.T) {
 	with := detachAttrs(true, false)
@@ -24,5 +27,17 @@ func TestDetachAttrsGiveAHiddenConsoleInsteadOfNone(t *testing.T) {
 	}
 	if got := detachAttrs(false, true).CreationFlags; got != createNoWindow {
 		t.Errorf("creation flags are %#x, want CREATE_NO_WINDOW alone", got)
+	}
+}
+
+// The service runs git and qmd on every brain and graph call; without a
+// console of its own each of them would flash a window.
+func TestSpawnGivesTheServiceAHiddenConsole(t *testing.T) {
+	var got *exec.Cmd
+	if _, err := Spawn(t.TempDir(), func(cmd *exec.Cmd) error { got = cmd; return nil }); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if flags := got.SysProcAttr.CreationFlags; flags&createNoWindow == 0 || flags&detachedProcess != 0 {
+		t.Errorf("creation flags are %#x, want CREATE_NO_WINDOW without DETACHED_PROCESS", flags)
 	}
 }
