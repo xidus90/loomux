@@ -48,7 +48,13 @@ func Spawn(stateDir string, spawner func(cmd *exec.Cmd) error) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("resolve the state directory: %w", err)
 	}
-	return Detach(DetachSpec{StateDir: abs, Args: []string{"serve", "--foreground"}, LogPath: LogPath(abs)}, spawner)
+	return Detach(DetachSpec{
+		StateDir: abs,
+		Args:     []string{"serve", "--foreground"},
+		LogPath:  LogPath(abs),
+		// The service runs git and qmd on every brain and graph call.
+		Console: true,
+	}, spawner)
 }
 
 // childEnv is the caller's environment with the two variables this start
