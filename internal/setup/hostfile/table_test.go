@@ -91,6 +91,42 @@ func TestAntigravityEntriesCallTheInstalledBinaryThroughCmd(t *testing.T) {
 	}
 }
 
+// DSH's table is Claude's six events with Claude's timeouts, and the tool
+// matchers are `.*`: DSH's writing and running tools answer to names of
+// their own (write, edit, pwsh), so a matcher of Claude's tool list would
+// let them pass ungated.
+func TestEntriesDsh(t *testing.T) {
+	for _, b := range []string{Canonical, Checkout} {
+		hook := func(name string) string { return b + " hook " + name + " --host dsh " + claudeRoot }
+		want := []Entry{
+			{Event: "SessionStart", Command: hook("session-start"), Timeout: 20},
+			{Event: "PreToolUse", Matcher: ".*",
+				Command: hook("pre-tool-use"), Timeout: 15},
+			{Event: "PostToolUse", Matcher: ".*",
+				Command: hook("post-tool-use"), Timeout: 60},
+			{Event: "Stop", Command: hook("stop") + " --budget 270s", Timeout: 300},
+			{Event: "SubagentStart", Command: hook("subagent-start"), Timeout: 30},
+			{Event: "SubagentStop", Command: hook("subagent-stop"), Timeout: 30},
+		}
+		got := Entries(hosts.HostDsh, b)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("Entries(dsh, %s) =\n%v\nwant\n%v", b, got, want)
+		}
+		for _, e := range got {
+			if !Owned(e.Command) || hookEventOf(e.Command) == "" {
+				t.Errorf("%q is not recognised as ours", e.Command)
+			}
+		}
+	}
+}
+
+// DSH's hook file lives in loomux's own directory, where DSH reads it.
+func TestPathDsh(t *testing.T) {
+	if got := Path(hosts.HostDsh); got != ".loomux/dsh/hooks.json" {
+		t.Fatalf("Path(dsh) = %q, want .loomux/dsh/hooks.json", got)
+	}
+}
+
 func TestAHostWithoutAHookFileGetsNothing(t *testing.T) {
 	if got := Entries(hosts.HostCodex, Canonical); got != nil {
 		t.Fatalf("Entries(codex) = %v, want nil", got)

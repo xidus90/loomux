@@ -40,7 +40,7 @@ const checkoutModule = "github.com/xidus90/loomux"
 type Facts struct {
 	Root      string
 	Detect    detect.Facts
-	Hosts     []hosts.Host // .claude/ -> claude; .agents/hooks.json, .agents/skills/ or GEMINI.md -> antigravity; neither -> claude
+	Hosts     []hosts.Host // .claude/ -> claude; .agents/hooks.json, .agents/skills/ or GEMINI.md -> antigravity; .loomux/dsh/hooks.json -> dsh; none -> claude
 	HooksPath string       // core.hooksPath, "" when unset
 	// GitHooksDir is git's own hook directory, absolute, as
 	// `git rev-parse --git-path hooks` names it; read only in a repository
@@ -159,6 +159,12 @@ func Gather(root, home string, running Running, git detect.Runner) (Facts, error
 	if isFile(filepath.Join(root, ".agents", "hooks.json")) || isDir(filepath.Join(root, ".agents", "skills")) ||
 		isFile(filepath.Join(root, "GEMINI.md")) {
 		f.Hosts = append(f.Hosts, hosts.HostAntigravity)
+	}
+	// DSH is taken from its hook file alone: .loomux/ is loomux's own
+	// directory, so only the file init wrote there speaks of a DSH.
+	if dshFile := hostfile.Path(hosts.HostDsh); dshFile != "" &&
+		isFile(filepath.Join(root, filepath.FromSlash(dshFile))) {
+		f.Hosts = append(f.Hosts, hosts.HostDsh)
 	}
 	if len(f.Hosts) == 0 {
 		f.Hosts = []hosts.Host{hosts.HostClaude}

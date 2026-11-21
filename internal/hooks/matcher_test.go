@@ -14,15 +14,20 @@ import (
 // never shown to the guard, and its lines run unjudged.
 func TestEveryCommandToolIsInAPreToolUseMatcher(t *testing.T) {
 	var matched []string
-	for _, host := range []hosts.Host{hosts.HostClaude, hosts.HostAntigravity} {
+	for _, host := range []hosts.Host{hosts.HostClaude, hosts.HostAntigravity, hosts.HostDsh} {
 		for _, entry := range hostfile.Entries(host, hostfile.Checkout) {
 			if entry.Event == "PreToolUse" {
 				matched = append(matched, strings.Split(entry.Matcher, "|")...)
 			}
 		}
 	}
+	// DSH gates every tool with the regular expression .*, which therefore
+	// carries every name; the other hosts list their tools by hand.
+	covers := func(name string) bool {
+		return slices.Contains(matched, ".*") || slices.Contains(matched, name)
+	}
 	for name := range commandTools {
-		if !slices.Contains(matched, name) {
+		if !covers(name) {
 			t.Errorf("%s is in commandTools but in no PreToolUse matcher (%v)", name, matched)
 		}
 	}

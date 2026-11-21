@@ -423,6 +423,71 @@ func TestAHostWithoutAHookFileGetsANote(t *testing.T) {
 	}
 }
 
+// The dsh host gets its hook file at .loomux/dsh/hooks.json, in Claude's
+// shape: the container "hooks", the six events in lifecycle order with
+// Claude's timeouts, `.*` matchers for the tool events (DSH's tools answer
+// to write, edit and pwsh), and commands calling the chosen binary with
+// --host dsh through ${CLAUDE_PROJECT_DIR}. DSH has no skill location, so
+// nothing else is planned under .loomux/dsh/.
+func TestDshGetsItsHookFile(t *testing.T) {
+	root := world(t, map[string]string{".claude/": "", ".git/": "", "go.mod": goMod})
+	installBinary(t)
+	f := gather(t, root, "")
+	c := DefaultChoice(f, Answers{})
+	// The effect of `init --hosts=claude,dsh`: the flag replaces the hosts.
+	c.Hosts = []hosts.Host{hosts.HostClaude, hosts.HostDsh}
+	p, err := Build(f, c, reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, ok := changeOf(p, ".loomux/dsh/hooks.json")
+	if !ok || ch.Part != "host-entries" {
+		t.Fatalf("changes = %v, want a host-entries change for .loomux/dsh/hooks.json", paths(p))
+	}
+	if !strings.HasPrefix(ch.After, "{\n  \"hooks\": {\n") {
+		t.Errorf("not the claude shape:\n%s", ch.After)
+	}
+	if n := strings.Count(ch.After, `--host dsh --root \"${CLAUDE_PROJECT_DIR}\"`); n != 6 {
+		t.Errorf("dsh commands = %d, want 6:\n%s", n, ch.After)
+	}
+	if n := strings.Count(ch.After, `"matcher": ".*"`); n != 2 {
+		t.Errorf("`.*` matchers = %d, want 2:\n%s", n, ch.After)
+	}
+	for _, want := range []string{
+		`hook session-start --host dsh`, "\"timeout\": 20\n",
+		`hook pre-tool-use --host dsh`, "\"timeout\": 15\n",
+		`hook post-tool-use --host dsh`, "\"timeout\": 60\n",
+		`hook stop --host dsh --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s`, "\"timeout\": 300\n",
+		`hook subagent-start --host dsh`,
+		`hook subagent-stop --host dsh`,
+	} {
+		if !strings.Contains(ch.After, want) {
+			t.Errorf("hooks.json lacks %q:\n%s", want, ch.After)
+		}
+	}
+	if n := strings.Count(ch.After, "\"timeout\": 30\n"); n != 2 {
+		t.Errorf("subagent timeouts = %d, want 2:\n%s", n, ch.After)
+	}
+	prev := -1
+	for _, event := range []string{"SessionStart", "PreToolUse", "PostToolUse", "SubagentStart", "SubagentStop", "Stop"} {
+		i := strings.Index(ch.After, `"`+event+`": [`)
+		if i <= prev {
+			t.Errorf("%s out of lifecycle order:\n%s", event, ch.After)
+		}
+		prev = i
+	}
+	for _, path := range paths(p) {
+		if strings.HasPrefix(path, ".loomux/dsh/") && path != ".loomux/dsh/hooks.json" {
+			t.Errorf("dsh gets %s", path)
+		}
+	}
+	// A hook file that does not read stops the plan, named.
+	writeFile(t, root, ".loomux/dsh/hooks.json", "{not json")
+	if _, err := Build(f, c, reader(root)); err == nil || !strings.Contains(err.Error(), ".loomux/dsh/hooks.json") {
+		t.Errorf("err = %v", err)
+	}
+}
+
 const agyTrust = "antigravity: .agents/hooks.json loads only in a folder agy trusts (trustedWorkspaces)"
 
 // Antigravity gets its two entries, in the form cmd.exe expands, and the

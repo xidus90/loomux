@@ -52,6 +52,22 @@ func Entries(host hosts.Host, binary string) []Entry {
 			{Event: "SubagentStart", Command: hook("subagent-start"), Timeout: 30},
 			{Event: "SubagentStop", Command: hook("subagent-stop"), Timeout: 30},
 		}
+	case hosts.HostDsh:
+		// DSH speaks Claude's hook file shape and payload (measured with
+		// dsh-llm 0.2.2-rc.1 on 2026-11-21): the same six events and the
+		// same container, so only the host word and the tool matchers
+		// differ -- DSH's writing and running tools answer to write, edit
+		// and pwsh, so `.*` gates every tool rather than Claude's list.
+		root := ` --root "${CLAUDE_PROJECT_DIR}"`
+		hook := func(name string) string { return binary + " hook " + name + " --host dsh" + root }
+		return []Entry{
+			{Event: "SessionStart", Command: hook("session-start"), Timeout: 20},
+			{Event: "PreToolUse", Matcher: ".*", Command: hook("pre-tool-use"), Timeout: 15},
+			{Event: "PostToolUse", Matcher: ".*", Command: hook("post-tool-use"), Timeout: 60},
+			{Event: "Stop", Command: hook("stop") + " --budget 270s", Timeout: 300},
+			{Event: "SubagentStart", Command: hook("subagent-start"), Timeout: 30},
+			{Event: "SubagentStop", Command: hook("subagent-stop"), Timeout: 30},
+		}
 	case hosts.HostAntigravity:
 		// agy runs a hook from .agents/, one below the project root. Its
 		// PreInvocation and Stop take a flat list of handlers: agy 1.2.11
@@ -80,6 +96,8 @@ func Path(host hosts.Host) string {
 	switch host {
 	case hosts.HostClaude:
 		return ".claude/settings.json"
+	case hosts.HostDsh:
+		return ".loomux/dsh/hooks.json"
 	case hosts.HostAntigravity:
 		return ".agents/hooks.json"
 	}

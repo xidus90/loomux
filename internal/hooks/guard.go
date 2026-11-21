@@ -119,8 +119,11 @@ type commandTool struct {
 // commandTools are the tools that run a shell line; every line found is
 // judged, for WriteTargets' reason.
 var commandTools = map[string]commandTool{
-	"Bash":               {keys: []string{"command"}, lineOptional: true, whole: true},
-	"PowerShell":         {keys: []string{"command"}, lineOptional: true, whole: true},
+	"Bash":       {keys: []string{"command"}, lineOptional: true, whole: true},
+	"PowerShell": {keys: []string{"command"}, lineOptional: true, whole: true},
+	// DSH's own shell answers to pwsh and always carries its line (measured
+	// on 2026-11-21), so a call without one is as unjudgeable as agy's.
+	"pwsh":               {keys: []string{"command"}, whole: true},
 	"run_command":        {keys: []string{"CommandLine", "command_line"}, whole: true},
 	"send_command_input": {keys: []string{"Input"}},
 	"manage_task":        {keys: []string{"Input"}, quiet: []string{"list", "status", "kill"}},

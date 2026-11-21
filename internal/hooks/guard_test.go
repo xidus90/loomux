@@ -12,6 +12,24 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
+// DSH's own tools answer to lower-case names (write, edit and pwsh, as its
+// hooks delivered them to a live spike on 2026-11-21), so the barrier and
+// the command lanes have to read those names as well.
+func TestDshToolNamesAreGuarded(t *testing.T) {
+	root := t.TempDir()
+	for _, tool := range []string{"write", "edit"} {
+		if got := checkTool(root, tool, map[string]any{"file_path": ".env"}, config.Policy{}); len(got) != 1 || got[0] != "secrets are not written by an agent" {
+			t.Errorf("%s: reasons %q, want the secrets reason", tool, got)
+		}
+	}
+	if got := checkTool(root, "pwsh", map[string]any{"command": "git push origin master"}, config.Policy{}); len(got) != 1 || got[0] != "Whether commits reach the remote is a human's decision." {
+		t.Errorf("pwsh: reasons %q, want the push reason", got)
+	}
+	if got := checkTool(root, "pwsh", map[string]any{}, config.Policy{}); len(got) != 1 || !strings.Contains(got[0], "no command line") {
+		t.Errorf("pwsh without a line: reasons %q, want the refusal to say it found no line", got)
+	}
+}
+
 func TestSafeFileWritesCarryNoReason(t *testing.T) {
 	root := t.TempDir()
 	for _, path := range []string{
