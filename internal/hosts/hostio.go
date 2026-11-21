@@ -30,6 +30,7 @@ type Host string
 
 const (
 	HostClaude      Host = "claude"
+	HostDsh         Host = "dsh"
 	HostAntigravity Host = "antigravity"
 	HostCodex       Host = "codex"
 )
@@ -47,12 +48,14 @@ func ParseHost(name string) (Host, error) {
 	switch Host(name) {
 	case HostClaude:
 		return HostClaude, nil
+	case HostDsh:
+		return HostDsh, nil
 	case HostAntigravity:
 		return HostAntigravity, nil
 	case HostCodex:
 		return HostCodex, nil
 	}
-	return "", fmt.Errorf("unknown host %q: expected claude, antigravity or codex", name)
+	return "", fmt.Errorf("unknown host %q: expected claude, dsh, antigravity or codex", name)
 }
 
 // Payload is what a hook needs to know, whichever host asked.
@@ -101,9 +104,14 @@ type Payload struct {
 }
 
 // Read decodes the host's payload.
+//
+// DSH speaks the Claude payload: a live spike measured on 2026-11-21 against
+// dsh-llm 0.2.2-rc.1 found its hooks delivering session_id, transcript_path,
+// hook_event_name, tool_name, tool_input, tool_use_id, source and
+// stop_hook_active verbatim, so HostDsh reads through the Claude adapter.
 func Read(host Host, r io.Reader) (Payload, error) {
 	switch host {
-	case HostClaude:
+	case HostClaude, HostDsh:
 		return readClaude(r)
 	case HostAntigravity:
 		return readAntigravity(r)
@@ -128,7 +136,7 @@ func Read(host Host, r io.Reader) (Payload, error) {
 // SubagentStop's answer would be read by nobody.
 func WriteContext(host Host, event string, w io.Writer, lines []string) error {
 	switch host {
-	case HostClaude:
+	case HostClaude, HostDsh:
 		if len(lines) == 0 {
 			return nil
 		}

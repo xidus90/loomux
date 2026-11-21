@@ -957,7 +957,7 @@ func TestPostEditAnswersCodexWithItsMissingAdapter(t *testing.T) {
 // refusal alone, and answering in the wrong shape is worse than not answering.
 func TestPostToolUseRefusesAnUnknownHost(t *testing.T) {
 	var so, se bytes.Buffer
-	if code := PostToolUse(strings.NewReader(`{"tool_input":{"file_path":"data.json"}}`), &so, &se, t.TempDir(), "vim", DefaultBudget); code != ExitInternal || so.Len() != 0 || se.String() != "loomux hook post-tool-use: unknown host \"vim\": expected claude, antigravity or codex\n" {
+	if code := PostToolUse(strings.NewReader(`{"tool_input":{"file_path":"data.json"}}`), &so, &se, t.TempDir(), "vim", DefaultBudget); code != ExitInternal || so.Len() != 0 || se.String() != "loomux hook post-tool-use: unknown host \"vim\": expected claude, dsh, antigravity or codex\n" {
 		t.Fatalf("%d %q %q", code, so.String(), se.String())
 	}
 }
