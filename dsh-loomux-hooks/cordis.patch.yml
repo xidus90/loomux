@@ -1,0 +1,7 @@
+# The plugin layer of dsh-loomux-hooks: one insert entry, applied when the
+# profile loads this package. The hook commands the entries run come from the
+# plugin config; they are executed by the hook process runner in src/spawn.js.
+- insert:
+    - id: loomux-hooks
+      name: dsh-loomux-hooks
+      config: {}
