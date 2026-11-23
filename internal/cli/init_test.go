@@ -739,6 +739,32 @@ func TestInitPlansAntigravityBesideClaude(t *testing.T) {
 	}
 }
 
+// The dsh host's hook file is planned at .loomux/dsh/hooks.json in claude
+// shape: the container "hooks", `.*` matchers and --host dsh commands
+// through ${CLAUDE_PROJECT_DIR}. Claude's file is planned beside it.
+func TestInitPlansDshBesideClaude(t *testing.T) {
+	root, _ := initWorld(t)
+	code, out, errOut := run("init", "--root", root, "--dry-run", "--yes", "--hosts=claude,dsh")
+	if code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	for _, want := range []string{
+		"--- .claude/settings.json",
+		"--- .loomux/dsh/hooks.json",
+		`"hooks": {`,
+		`"matcher": ".*"`,
+		`hook session-start --host dsh --root \"${CLAUDE_PROJECT_DIR}\"`,
+		`hook stop --host dsh --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("plan lacks %q:\n%s", want, out)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, ".loomux", "dsh")); err == nil {
+		t.Error("a dry run wrote .loomux/dsh/")
+	}
+}
+
 func TestInitNamesAModuleSwitchedOffWithoutAConfiguration(t *testing.T) {
 	root, _ := initWorld(t)
 	keys := tui.Keys("tab", "enter", "down", " ", "enter", // base each: config off

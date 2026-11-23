@@ -15,14 +15,19 @@ import (
 // after it wrote.
 func TestEveryWritingToolIsInThePreAndPostToolUseMatchers(t *testing.T) {
 	matched := map[string][]string{}
-	for _, host := range []hosts.Host{hosts.HostClaude, hosts.HostAntigravity} {
+	for _, host := range []hosts.Host{hosts.HostClaude, hosts.HostAntigravity, hosts.HostDsh} {
 		for _, entry := range hostfile.Entries(host, hostfile.Checkout) {
 			matched[entry.Event] = append(matched[entry.Event], strings.Split(entry.Matcher, "|")...)
 		}
 	}
+	// DSH gates every tool with the regular expression .*, which therefore
+	// carries every name; the other hosts list their tools by hand.
+	covers := func(event, name string) bool {
+		return slices.Contains(matched[event], ".*") || slices.Contains(matched[event], name)
+	}
 	for name := range writingTools {
 		for _, event := range []string{"PreToolUse", "PostToolUse"} {
-			if !slices.Contains(matched[event], name) {
+			if !covers(event, name) {
 				t.Errorf("%s is in writingTools but in no %s matcher (%v)", name, event, matched[event])
 			}
 		}

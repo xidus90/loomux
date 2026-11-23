@@ -43,6 +43,12 @@ release `archive/parity-recordings`.
   the Go rule; branch coverage is not held. The gate does not run it; its
   workflow does, on every pull request that touches it. A tag
   `dsh-loomux-v<version>` publishes it.
+- `dsh-loomux-hooks/` is the npm package that runs a project's loomux hooks
+  natively in every DeepSeek Harness session, with the hook file at
+  `.loomux/dsh/hooks.json` written by `loomux init --hosts=dsh`.
+  `sh ci/dsh-loomux-hooks.sh` runs its tests under the same 100% line and
+  function gate as `dsh-loomux`; a tag `dsh-loomux-hooks-v<version>`
+  publishes it. The guide lives in `docs/en/dsh-hooks.md` and its twin.
 
 ## Languages
 

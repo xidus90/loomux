@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/setup/hostfile"
 )
 
@@ -356,6 +358,87 @@ func TestAFailedAreaAddStopsBeforeTheFiles(t *testing.T) {
 func installBinary(t *testing.T) {
 	t.Helper()
 	writeFile(t, os.Getenv("LOCALAPPDATA"), "loomux/bin/loomux.exe", "binary")
+}
+
+// A run that chose the dsh host writes .loomux/dsh/hooks.json, with the
+// folder made along the way, in claude JSON shape: the container "hooks",
+// the six events, `.*` matchers on the tool events, claude's timeouts and
+// commands calling --host dsh through ${CLAUDE_PROJECT_DIR}.
+func TestTheDshHostFileIsWritten(t *testing.T) {
+	root := world(t, map[string]string{"go.mod": goMod, ".git/": ""})
+	installBinary(t)
+	f := gather(t, root, "")
+	c := DefaultChoice(f, Answers{})
+	c.Hosts = []hosts.Host{hosts.HostDsh}
+	p, err := Build(f, c, reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Apply(root, p, c, all, func(Action) error { return nil }, there, "2.12.1", applyTime); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(root, ".loomux/dsh/hooks.json") {
+		t.Fatalf(".loomux/dsh/hooks.json not written: %v", paths(p))
+	}
+	var doc struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
+				Type    string `json:"type"`
+				Command string `json:"command"`
+				Timeout int    `json:"timeout"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(read(t, root, ".loomux/dsh/hooks.json")), &doc); err != nil {
+		t.Fatal(err)
+	}
+	want := []struct {
+		event, matcher string
+		timeout        int
+		hook           string
+	}{
+		{"SessionStart", "", 20, "session-start"},
+		{"PreToolUse", ".*", 15, "pre-tool-use"},
+		{"PostToolUse", ".*", 60, "post-tool-use"},
+		{"Stop", "", 300, "stop"},
+		{"SubagentStart", "", 30, "subagent-start"},
+		{"SubagentStop", "", 30, "subagent-stop"},
+	}
+	if len(doc.Hooks) != len(want) {
+		t.Fatalf("events = %v, want six", doc.Hooks)
+	}
+	for _, w := range want {
+		blocks := doc.Hooks[w.event]
+		if len(blocks) != 1 || len(blocks[0].Hooks) != 1 {
+			t.Fatalf("%s = %v, want one block with one handler", w.event, blocks)
+		}
+		h := blocks[0].Hooks[0]
+		command := `"${LOCALAPPDATA}/loomux/bin/loomux.exe" hook ` + w.hook + " --host dsh --root \"${CLAUDE_PROJECT_DIR}\""
+		if w.event == "Stop" {
+			command += " --budget 270s"
+		}
+		if blocks[0].Matcher != w.matcher || h.Timeout != w.timeout || h.Type != "command" || h.Command != command {
+			t.Errorf("%s = %+v matcher %q, want matcher %q timeout %d command %s", w.event, h, blocks[0].Matcher, w.matcher, w.timeout, command)
+		}
+	}
+	// A second run keeps the file byte for byte: it is ours and complete,
+	// and the written file is what the next Gather takes the dsh host from.
+	before := read(t, root, ".loomux/dsh/hooks.json")
+	f = gather(t, root, "")
+	if !slices.Equal(f.Hosts, []hosts.Host{hosts.HostDsh}) {
+		t.Fatalf("hosts = %v, want the dsh host from the written file alone", f.Hosts)
+	}
+	p, err = Build(f, DefaultChoice(f, Answers{}), reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Apply(root, p, DefaultChoice(f, Answers{}), all, func(Action) error { return nil }, there, "2.12.1", applyTime); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, root, ".loomux/dsh/hooks.json") != before {
+		t.Error("the second run rewrote the dsh hook file")
+	}
 }
 
 func TestTheMergeHookNeedsTheInstalledBinary(t *testing.T) {

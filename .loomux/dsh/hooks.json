@@ -1,0 +1,72 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook session-start --host dsh --root \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook pre-tool-use --host dsh --root \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook post-tool-use --host dsh --root \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook subagent-start --host dsh --root \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook subagent-stop --host dsh --root \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook stop --host dsh --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

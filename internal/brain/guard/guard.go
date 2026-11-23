@@ -66,6 +66,10 @@ var writingTools = map[string]bool{
 	"multi_replace_file_content": true,
 	"write_file":                 true,
 	"edit_file":                  true,
+	// DSH's own tools spell their names in full lower case (write and edit,
+	// measured on 2026-11-21); the barrier reads them as it reads the rest.
+	"write": true,
+	"edit":  true,
 }
 
 // targetKeys is `TARGET_KEYS`: where each writing tool puts its

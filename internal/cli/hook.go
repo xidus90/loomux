@@ -48,7 +48,7 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("loomux hook "+event, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	root := flags.String("root", "", "path to the project root; found upwards when empty")
-	host := flags.String("host", "", "the harness calling: claude, antigravity or codex")
+	host := flags.String("host", "", "the harness calling: claude, dsh, antigravity or codex")
 	// post-edit and the stop gate run lanes, so only they have a budget.
 	budget := new(time.Duration)
 	switch event {
@@ -61,7 +61,7 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return hosts.Answer(hostIn(args[1:]), event, stdout, failure, nil, "")
 	}
 	if *host == "" {
-		fmt.Fprintf(stderr, "loomux hook %s: --host is required: expected claude, antigravity or codex\n", event)
+		fmt.Fprintf(stderr, "loomux hook %s: --host is required: expected claude, dsh, antigravity or codex\n", event)
 		return failure
 	}
 	parsed, err := hosts.ParseHost(*host)

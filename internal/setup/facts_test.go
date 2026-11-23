@@ -66,6 +66,29 @@ func TestAntigravityIsTakenOnlyFromItsOwnFiles(t *testing.T) {
 	}
 }
 
+// DSH is taken from its hook file alone: .loomux/ is loomux's own directory,
+// so only the file loomux wrote there speaks of a DSH run before. A bare
+// folder, or one holding something else, is no DSH.
+func TestDshIsTakenFromItsHookFileAlone(t *testing.T) {
+	claude := []hosts.Host{hosts.HostClaude}
+	dsh := []hosts.Host{hosts.HostDsh}
+	both := []hosts.Host{hosts.HostClaude, hosts.HostDsh}
+	for _, c := range []struct {
+		files map[string]string
+		want  []hosts.Host
+	}{
+		{map[string]string{".loomux/dsh/hooks.json": "{}"}, dsh},
+		{map[string]string{".claude/": "", ".loomux/dsh/hooks.json": "{}"}, both},
+		{map[string]string{".loomux/dsh/": ""}, claude},
+		{map[string]string{".loomux/dsh/hooks.json/": ""}, claude},
+		{map[string]string{".loomux/dsh/hooks": "x"}, claude},
+	} {
+		if got := gather(t, world(t, c.files), "").Hosts; !slices.Equal(got, c.want) {
+			t.Errorf("%v: hosts = %v, want %v", c.files, got, c.want)
+		}
+	}
+}
+
 func TestTheUserScopeCountsOnlyAServerNamedLoomux(t *testing.T) {
 	root := world(t, map[string]string{})
 	for _, text := range []string{"", "{not json", `{"mcpServers": {"other": {}}}`} {

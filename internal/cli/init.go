@@ -30,7 +30,7 @@ import (
 )
 
 const initUsage = "usage: loomux init [--root DIR] [--dry-run] [--detect-only] [--yes] " +
-	"[--hooks=all|each|none] [--brain=all|each|none] [--graph=all|each|none] [--hosts=claude,antigravity]"
+	"[--hooks=all|each|none] [--brain=all|each|none] [--graph=all|each|none] [--hosts=claude,dsh,antigravity]"
 
 // noTerminal is the refusal of a run that has to ask and cannot.
 const noTerminal = "loomux init: init asks questions; run it in a terminal, or pass --yes or --dry-run"
