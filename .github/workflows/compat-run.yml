@@ -52,7 +52,7 @@ jobs:
           go-version-file: go.mod
           cache: false
       - run: go build -o bin/loomux.exe ./cmd/loomux
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       # A short root: long paths under the runner's work directory break
       # tools on Windows.
       - id: setup
@@ -79,7 +79,7 @@ jobs:
       # Temurin takes a feature release ("21") and an early access of the
       # next one ("28-ea") alike; Maven comes from compat-setup.sh.
       - if: steps.setup.outputs.runtime == 'java'
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: ${{ steps.setup.outputs.install }}
@@ -111,7 +111,7 @@ jobs:
           && contains(inputs.windows, 'self-hosted')
         run: echo 'C:\Program Files\Git\bin' >>"$GITHUB_PATH"
       - if: steps.setup.outputs.runtime == 'rust'
-        uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
           tool: cargo-llvm-cov@0.9.1
       - if: steps.setup.outputs.rebuild == 'true'
